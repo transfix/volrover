@@ -120,7 +120,6 @@ target_link_libraries(CVC
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
     ${CVC_LINK_LIBS}
 )
 

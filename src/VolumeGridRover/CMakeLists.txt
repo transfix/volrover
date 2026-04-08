@@ -153,7 +153,6 @@ target_link_libraries(VolumeGridRover
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
     ${LINK_LIBS}
 )
 

@@ -23,5 +23,4 @@ target_link_libraries(GeometryRenderer
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
 )

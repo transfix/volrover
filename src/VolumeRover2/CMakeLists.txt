@@ -367,7 +367,6 @@ if(USE_QT6)
       Boost::date_time
       Boost::regex
       Boost::filesystem
-      Boost::system
       ${LIBS}
   )
 else()
@@ -378,7 +377,6 @@ else()
       Boost::date_time
       Boost::regex
       Boost::filesystem
-      Boost::system
       ${LIBS}
   )
 endif()

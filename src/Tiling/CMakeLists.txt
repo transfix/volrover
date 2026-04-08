@@ -21,7 +21,6 @@ target_link_libraries(Tiling
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
     cvcraw_geometry # for Geometry class
 )
 
