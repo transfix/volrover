@@ -5,7 +5,8 @@
 macro(SetupBoost TargetName)
  set(Boost_USE_STATIC_LIBS OFF)
  set(Boost_USE_MULTITHREADED ON)
- find_package(Boost 1.34.0 COMPONENTS thread date_time regex filesystem system)
+ # Note: system is header-only since Boost 1.69 and should not be listed as a compiled COMPONENT
+ find_package(Boost 1.34.0 COMPONENTS thread date_time regex filesystem)
  if(Boost_FOUND)
    include_directories(${Boost_INCLUDE_DIRS})
    set(LINK_LIBS 
