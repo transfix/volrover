@@ -90,14 +90,13 @@ jobs:
             boost \
             fftw \
             gsl
-          echo "Qt6_DIR=$(brew --prefix qt@6)/lib/cmake/Qt6" >> $GITHUB_ENV
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> $GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost)" >> $GITHUB_ENV
 
       # ── Windows dependencies (vcpkg) ──
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install qt6-base qt6-tools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options fftw3 gsl --triplet x64-windows
+          vcpkg install qtbase qttools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options fftw3 gsl --triplet x64-windows
 
       # ── Configure ──
       - name: Configure (Linux)
