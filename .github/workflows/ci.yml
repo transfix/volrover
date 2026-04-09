@@ -97,6 +97,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
+            -DSKIP_FIXUP_BUNDLE=ON \
             -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
 
       - name: Configure (macOS)
@@ -107,6 +108,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
+            -DSKIP_FIXUP_BUNDLE=ON \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
 
@@ -118,6 +120,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
+            -DSKIP_FIXUP_BUNDLE=ON `
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install"
 
       # ── Build ──

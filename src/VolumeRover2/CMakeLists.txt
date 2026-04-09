@@ -419,6 +419,9 @@ if(APPLE)
   set(fixup_exe "\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/MacOS/${CMAKE_BUNDLE_NAME}")
 endif(APPLE)
 
+option(SKIP_FIXUP_BUNDLE "Skip fixup_bundle during install (useful for CI)" OFF)
+if(NOT SKIP_FIXUP_BUNDLE)
+
 #install(CODE "
 #  include(\"${VolumeRover_SOURCE_DIR}/CMake/BundleUtilities.cmake\")
 #  fixup_bundle(\"${fixup_exe}\" \"\" \"/usr/local/lib;/Library/Frameworks/Cg.framework;${QT_LIBRARY_DIR};${QT_BINARY_DIR};${Boost_LIBRARY_DIRS};${BUNDLE_LIB_SEARCH_DIRS}\")
@@ -441,3 +444,4 @@ install(CODE "
   include(\"${VolumeRover_SOURCE_DIR}/CMake/BundleUtilities.cmake\")
   fixup_bundle(\"${fixup_exe}\" \"\" \"${CG_LIBRARY_DIR};${QT_LIBRARY_DIR};${QT_BINARY_DIR};${Boost_LIBRARY_DIRS};${BUNDLE_LIB_SEARCH_DIRS}\")
 ")
+endif() # NOT SKIP_FIXUP_BUNDLE

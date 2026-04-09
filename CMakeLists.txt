@@ -10,6 +10,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# libc++ (macOS) removes std::auto_ptr and std::bind1st in C++17 mode.
+# The vendored log4cplus 1.0.4 still uses these, so re-enable them.
+if(APPLE)
+  add_compile_definitions(
+    _LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR
+    _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
+  )
+endif()
+
 # Enable automatic MOC, UIC, RCC for Qt
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)

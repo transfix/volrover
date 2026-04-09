@@ -74,6 +74,9 @@ Error : libQGLViewer requires a minimum Qt version of 5.4 Error
 #include <QOpenGLWidget>
 
 // GLU was removed from Qt in version 4.8
+#ifdef _WIN32
+# include <windows.h>
+#endif
 #ifdef Q_OS_MAC
 # include <OpenGL/glu.h>
 #else
