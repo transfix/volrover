@@ -10,6 +10,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# AppleClang treats narrowing conversions as errors in C++11+.
+# This legacy codebase has many benign narrowing conversions, so
+# downgrade to warnings rather than fixing hundreds of call sites.
+if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang")
+  add_compile_options(-Wno-error=c++11-narrowing -Wno-c++11-narrowing)
+endif()
+
 # Enable automatic MOC, UIC, RCC for Qt
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
