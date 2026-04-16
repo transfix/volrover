@@ -92,7 +92,7 @@ jobs:
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install qtbase qttools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple fftw3 gsl log4cplus --triplet x64-windows
+          vcpkg install qtbase qttools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format fftw3 gsl log4cplus pthreads --triplet x64-windows
 
       # ── Configure ──
       - name: Configure (Linux)
@@ -104,7 +104,7 @@ jobs:
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
             -DSKIP_FIXUP_BUNDLE=ON \
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
@@ -116,7 +116,7 @@ jobs:
             -DDISABLE_CGAL=ON \
             -DSKIP_FIXUP_BUNDLE=ON \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
@@ -127,7 +127,7 @@ jobs:
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DSKIP_FIXUP_BUNDLE=ON `
-            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install"
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/_install"
 
       # ── Build ──
       - name: Build
@@ -165,5 +165,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.os }}-${{ matrix.build_type }}
-          path: ${{ github.workspace }}/install/
+          path: ${{ github.workspace }}/_install/
           retention-days: 14
