@@ -22,6 +22,19 @@ endif(APPLE)
 
 SetupFFTW()
 find_package(ImageMagick COMPONENTS Magick++)
+if(ImageMagick_FOUND)
+  # ImageMagick 7 requires these defines; query them via Magick++-config if available
+  find_program(MAGICK_CONFIG Magick++-config)
+  if(MAGICK_CONFIG)
+    execute_process(COMMAND ${MAGICK_CONFIG} --cppflags
+      OUTPUT_VARIABLE _IM_CPPFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
+    string(REGEX MATCHALL "-D[^ ]+" _IM_DEFINES "${_IM_CPPFLAGS}")
+    foreach(_def ${_IM_DEFINES})
+      string(REPLACE "-D" "" _def_val "${_def}")
+      add_definitions(-D${_def_val})
+    endforeach()
+  endif()
+endif()
 find_package(OpenMP)
 
 if(OPENMP_FOUND)
