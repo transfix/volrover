@@ -45,11 +45,7 @@ using namespace std;
 
 // sys/types.h is being included on Linux from one of the above headers...
 #ifdef _WIN32
-typedef boost::uint64_t uint;
-#endif
-
-#ifdef __APPLE__
-typedef boost::uint64_t uint;
+typedef unsigned int uint;
 #endif
 
 class VolMagickOpStatus : public VolMagick::VoxelOperationStatusMessenger

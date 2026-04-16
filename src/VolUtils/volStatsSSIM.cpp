@@ -37,8 +37,8 @@
 
 using namespace std;
 
-#if defined(_WIN32) || defined(__APPLE__)
-typedef boost::uint64_t uint;
+#ifdef _WIN32
+typedef unsigned int uint;
 #endif
 
 void computeLocalStats(const VolMagick::Volume currVol, uint *currentLoc, float &mean, float &var, const VolMagick::Volume gaussVol, int gaussianSize);
