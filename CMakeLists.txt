@@ -134,7 +134,8 @@ else()
 endif()
 
 # log4cplus logging library (system package)
-find_package(log4cplus CONFIG REQUIRED)
+# Uses FindLog4cplus.cmake: tries config mode first, falls back to manual detection
+find_package(Log4cplus REQUIRED)
 message(STATUS "Found log4cplus")
 
 option(DISABLE_CGAL "This disables CGAL even if it is available on the build system." OFF)
