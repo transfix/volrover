@@ -296,7 +296,7 @@ set(LIBS
     cvcalgo
     XmlRPC
 #    Socket
-    log4cplus
+    log4cplus::log4cplus
 )
 
 # Link against VolumeGridRover if available
