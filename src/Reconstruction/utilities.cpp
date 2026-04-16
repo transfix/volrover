@@ -12,7 +12,7 @@ This file is part of CIMOR. CIMOR stands for:
 
 
 #include <stdio.h>
-#include <math.h>
+#include <cmath>
 #include <Reconstruction/utilities.h>
 #include <Reconstruction/Reconstruction.h>
 #include <cstdio>
@@ -66,7 +66,7 @@ void InverseRotationMatrix(float *Rmat,int nv)
 float  angle_set_negPI_to_PI(float angle)
 {
 
-        if ( !finite(angle) ) return(0);
+        if ( !std::isfinite(angle) ) return(0);
         angle -= TWOPI*((int) (angle/TWOPI));
         while ( angle <= -M_PI ) angle += TWOPI;
         while ( angle >   M_PI ) angle -= TWOPI;

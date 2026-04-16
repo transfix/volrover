@@ -2108,9 +2108,9 @@ int mrc_getdcsize(int mode, int *dsize, int *csize)
  */
 void mrc_swap_shorts(b3dInt16 *data, int amt)
 {
-  register unsigned char *ldata = (unsigned char *)data + (amt * 2);
-  register unsigned char *ptr = (unsigned char *)data;
-  register unsigned char tmp;
+  unsigned char *ldata = (unsigned char *)data + (amt * 2);
+  unsigned char *ptr = (unsigned char *)data;
+  unsigned char tmp;
 
   while(ptr < ldata){
     tmp = *ptr;
@@ -2127,9 +2127,9 @@ void mrc_swap_shorts(b3dInt16 *data, int amt)
  */
 void mrc_swap_longs(b3dInt32 *data, int amt)
 {
-  register unsigned char *ldata = (unsigned char *)data + (amt * 4);
-  register unsigned char *ptr = (unsigned char *)data;
-  register unsigned char tmp;
+  unsigned char *ldata = (unsigned char *)data + (amt * 4);
+  unsigned char *ptr = (unsigned char *)data;
+  unsigned char tmp;
   while(ptr < ldata){
     tmp = ptr[0];
     ptr[0] = ptr[3];
@@ -2152,9 +2152,9 @@ void mrc_swap_longs(b3dInt32 *data, int amt)
  */
 void mrc_swap_floats(b3dFloat *data, int amt)
 {
-  register unsigned char *ldata = (unsigned char *)data + (amt * 4);
-  register unsigned char *ptr = (unsigned char *)data;
-  register unsigned char tmp;
+  unsigned char *ldata = (unsigned char *)data + (amt * 4);
+  unsigned char *ptr = (unsigned char *)data;
+  unsigned char tmp;
   while(ptr < ldata){
     tmp = ptr[0];
     ptr[0] = ptr[3];
@@ -2177,8 +2177,8 @@ void mrc_swap_floats(b3dFloat *data, int amt)
 {
   unsigned char exp, temp;
   int i;
-  register unsigned char *ptr = (unsigned char *)data;
-  register unsigned char *maxptr = (unsigned char *)data + (amt * 4);
+  unsigned char *ptr = (unsigned char *)data;
+  unsigned char *maxptr = (unsigned char *)data + (amt * 4);
      
   while (ptr < maxptr){
 
@@ -2211,8 +2211,8 @@ void mrc_swap_floats(fb3dFloat *data, int amt)
 {
   unsigned char exp, temp;
   int i;
-  register unsigned char *ptr = (unsigned char *)data;
-  register unsigned char *maxptr = (unsigned char *)data + (amt * 4);
+  unsigned char *ptr = (unsigned char *)data;
+  unsigned char *maxptr = (unsigned char *)data + (amt * 4);
      
   while (ptr < maxptr){
     if ((exp = (ptr[0] << 1) | (ptr[1] >> 7 & 0x01)) < 253 && exp != 0)
