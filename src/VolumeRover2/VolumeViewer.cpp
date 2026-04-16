@@ -39,6 +39,8 @@ using namespace boost::placeholders;
 #include <CVC/CVCEvent.h>
 #include <CVC/State.h>
 #include <log4cplus/logger.h>
+#include <CVC/log4cplus_compat.h>
+#include <log4cplus/loggingmacros.h>
 
 #include <QGLViewer/quaternion.h>
 

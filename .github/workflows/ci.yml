@@ -66,7 +66,9 @@ jobs:
             libglew-dev \
             libboost-all-dev \
             libfftw3-dev \
-            libgsl-dev
+            libgsl-dev \
+            liblog4cplus-dev \
+            libnsl-dev
 
       # ── macOS dependencies ──
       - name: Install dependencies (macOS)
@@ -79,14 +81,15 @@ jobs:
             glew \
             boost \
             fftw \
-            gsl
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost)" >> $GITHUB_ENV
+            gsl \
+            log4cplus
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
 
       # ── Windows dependencies (vcpkg) ──
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install qtbase qttools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options fftw3 gsl --triplet x64-windows
+          vcpkg install qtbase qttools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple fftw3 gsl log4cplus --triplet x64-windows
 
       # ── Configure ──
       - name: Configure (Linux)

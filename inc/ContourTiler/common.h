@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include <log4cplus/logger.h>
+#include <log4cplus/loggingmacros.h>
 
 // #include <CGAL/Exact_predicates_exact_constructions_kernel_with_sqrt.h>
 // #include <CGAL/Gmpz.h>

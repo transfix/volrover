@@ -24,6 +24,8 @@
 /* $Id$ */
 
 #include <log4cplus/logger.h>
+#include <CVC/log4cplus_compat.h>
+#include <log4cplus/loggingmacros.h>
 
 #include <VolumeRover2/CVCMainWindow.h>
 #include <VolumeRover2/DataWidget.h>

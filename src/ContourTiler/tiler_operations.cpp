@@ -7,6 +7,7 @@
 #include <boost/shared_array.hpp>
 
 #include <log4cplus/logger.h>
+#include <log4cplus/loggingmacros.h>
 
 #include <CGAL/intersections.h>
 #include <CGAL/squared_distance_2.h>

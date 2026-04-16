@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.16)
 option(ENABLE_STEREO_DISPLAY "Enable stereo display. This option doesn't play nicely with some graphics cards" OFF)
 
 add_subdirectory(CVC)
-add_subdirectory(log4cplus)
 
 # 11/3/11 edwardsj - converting to new contour tiler
 option(BUILD_TILING_LIB "Tiling - 3D reconstruction of plane parallel 2D contours" ON)

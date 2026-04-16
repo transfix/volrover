@@ -113,8 +113,7 @@ INCLUDE_DIRECTORIES (
 #message ("LINK_DIRECTORIES: ${test}")
 
 SET(LINK_LIBS 
-#  liblog4cplus.a
-  log4cplus
+  log4cplus::log4cplus
 #  CGAL_Core
 #  CGAL 
 #  CGALcore++
@@ -174,7 +173,7 @@ SetupCGAL(ecs)
 SetupCGAL(smfconvert)
 SetupCGAL(ContourNear)
 
-SET(LINK_LIBS log4cplus)
+SET(LINK_LIBS log4cplus::log4cplus)
 
 TARGET_LINK_LIBRARIES(ContourTilerBin PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
 #TARGET_LINK_LIBRARIES(ContourTilerTest ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
