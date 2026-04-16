@@ -3,7 +3,7 @@
 # $Id: CMakeLists.txt 1405 2010-02-26 21:16:13Z transfix $
 
 cmake_minimum_required(VERSION 3.16)
-project(VolumeRover VERSION 2.0.0 LANGUAGES C CXX)
+project(VolumeRover VERSION 2.1.0 LANGUAGES C CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -84,7 +84,7 @@ endif()
 
 # The VolumeRover version number
 set(VolumeRover_VERSION_MAJOR 2)
-set(VolumeRover_VERSION_MINOR 0)
+set(VolumeRover_VERSION_MINOR 1)
 set(VolumeRover_VERSION_PATCH ${CVC_GIT_REVISION})
 
 # The full version string
