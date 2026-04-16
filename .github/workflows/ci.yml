@@ -92,7 +92,7 @@ jobs:
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install qtbase qttools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple fftw3 gsl log4cplus imagemagick --triplet x64-windows
+          vcpkg install qtbase qttools glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple fftw3 gsl log4cplus --triplet x64-windows
 
       # ── Configure ──
       - name: Configure (Linux)
