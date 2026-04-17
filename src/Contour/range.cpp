@@ -25,7 +25,9 @@
 #include <Contour/range.h>
 
 #ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 
 #define MIN2(x,y) ((x)<(y)?(x):(y))

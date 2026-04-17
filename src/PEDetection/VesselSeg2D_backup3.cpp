@@ -29,7 +29,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include <PEDetection/VesselSeg2D.h>
 #include <PEDetection/CompileOptions.h>

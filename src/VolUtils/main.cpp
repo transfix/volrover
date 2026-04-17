@@ -28,7 +28,9 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <search.h>
 #include <VolUtils/MappedRawIVFile.h>
 #include <VolUtils/MappedRawVFile.h>

@@ -34,7 +34,9 @@
 #include <stdlib.h>
 #endif
 #ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 
 IntTree* global_tree = NULL;

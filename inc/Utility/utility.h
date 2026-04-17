@@ -53,7 +53,9 @@
 #endif
 
 #ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 
 #ifdef _WIN32
