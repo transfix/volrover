@@ -157,12 +157,23 @@ jobs:
         run: cmake --install build --config ${{ matrix.build_type }}
 
       # ── Package ──
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install nsis -y
+
       - name: Package (Windows)
         if: runner.os == 'Windows'
         working-directory: build
-        shell: cmd
+        shell: pwsh
         run: |
-          set PATH=C:\Program Files (x86)\NSIS;%PATH%
+          $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\NSIS' -ErrorAction SilentlyContinue).'(default)'
+          if (-not $nsisPath) {
+            $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\NSIS' -ErrorAction SilentlyContinue).'(default)'
+          }
+          if ($nsisPath) {
+            $env:PATH = "$nsisPath;$env:PATH"
+          }
           cpack -G NSIS -C ${{ matrix.build_type }}
           cpack -G ZIP -C ${{ matrix.build_type }}
 

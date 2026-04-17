@@ -126,11 +126,21 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y
+
       - name: Create packages
-        shell: cmd
+        shell: pwsh
         working-directory: build
         run: |
-          set PATH=C:\Program Files (x86)\NSIS;%PATH%
+          $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\NSIS' -ErrorAction SilentlyContinue).'(default)'
+          if (-not $nsisPath) {
+            $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\NSIS' -ErrorAction SilentlyContinue).'(default)'
+          }
+          if ($nsisPath) {
+            $env:PATH = "$nsisPath;$env:PATH"
+          }
           cpack -G NSIS -C Release
           cpack -G ZIP -C Release
 
