@@ -163,8 +163,11 @@ jobs:
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             export PATH="/c/Program Files (x86)/NSIS:$PATH"
+            cpack -G NSIS -C ${{ matrix.build_type }}
+            cpack -G ZIP -C ${{ matrix.build_type }}
+          else
+            cpack -G ${{ matrix.package_generator }} -C ${{ matrix.build_type }}
           fi
-          cpack -G ${{ matrix.package_generator }} -C ${{ matrix.build_type }}
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
