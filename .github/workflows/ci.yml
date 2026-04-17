@@ -88,11 +88,23 @@ jobs:
             imagemagick
           echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
 
-      # ── Windows dependencies (vcpkg) ──
+      # ── Windows dependencies ──
+      # Use install-qt-action for pre-built Qt binaries (much faster than vcpkg)
+      # and vcpkg only for smaller C libraries
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          arch: win64_msvc2022_64
+          cache: true
+
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install qtbase qttools glew boost fftw3 gsl log4cplus pthreads --triplet x64-windows
+          vcpkg install glew boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach fftw3 gsl log4cplus pthreads --triplet x64-windows
+        env:
+          VCPKG_MAX_CONCURRENCY: 4
 
       # ── Configure ──
       - name: Configure (Linux)
@@ -124,6 +136,7 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DSKIP_FIXUP_BUNDLE=ON `
