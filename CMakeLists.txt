@@ -155,6 +155,11 @@ if(APPLE)
   add_definitions(-D_GLIBCXX_FULLY_DYNAMIC_STRING)
 endif()
 
+# Prevent windows.h min/max macros from clobbering std::min/std::max
+if(WIN32)
+  add_definitions(-DNOMINMAX)
+endif()
+
 # ************* CPack configuration for VolumeRover *************
 # Include the packaging system for distributing binaries
 

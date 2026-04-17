@@ -44,9 +44,7 @@
 #include <cvcraw_geometry/io.h>
 #include <cvcraw_geometry/cvcraw_geometry.h>
 
-#include <log4cplus/logger.h>
 #include <CVC/log4cplus_compat.h>
-#include <log4cplus/loggingmacros.h>
 
 #include <boost/filesystem.hpp>
 

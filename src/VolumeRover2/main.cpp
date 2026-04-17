@@ -59,14 +59,7 @@
 #include <CVC/HDF5_Utilities.h>
 #endif
 
-// #ifdef USING_LOG4CPLUS_DEFAULT
-#include <log4cplus/logger.h>
 #include <CVC/log4cplus_compat.h>
-#include <log4cplus/loggingmacros.h>
-#include <log4cplus/fileappender.h>
-#include <log4cplus/loglevel.h>
-#include <log4cplus/configurator.h>
-// #endif
 
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
