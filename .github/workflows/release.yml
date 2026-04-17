@@ -33,6 +33,7 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
             -DSKIP_FIXUP_BUNDLE=ON \
@@ -70,6 +71,7 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
             -DSKIP_FIXUP_BUNDLE=ON \
@@ -116,6 +118,7 @@ jobs:
         run: |
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
+            -DVOLROVER_RELEASE=ON `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
             -DUSE_QT6=ON `

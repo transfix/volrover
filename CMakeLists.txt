@@ -85,10 +85,16 @@ endif()
 # The VolumeRover version number
 set(VolumeRover_VERSION_MAJOR 2)
 set(VolumeRover_VERSION_MINOR 1)
-set(VolumeRover_VERSION_PATCH ${CVC_GIT_REVISION})
+set(VolumeRover_VERSION_PATCH 0)
 
-# The full version string
-set(VolumeRover_VERSION ${VolumeRover_VERSION_MAJOR}.${VolumeRover_VERSION_MINOR}.${VolumeRover_VERSION_PATCH})
+# For CI/dev builds, append git short hash to distinguish artifacts.
+# Tagged release builds (when VOLROVER_RELEASE is ON) use the clean version.
+option(VOLROVER_RELEASE "Build a release without git hash in version string" OFF)
+if(NOT VOLROVER_RELEASE AND CVC_GIT_REVISION AND NOT CVC_GIT_REVISION STREQUAL "0")
+  set(VolumeRover_VERSION ${VolumeRover_VERSION_MAJOR}.${VolumeRover_VERSION_MINOR}.${VolumeRover_VERSION_PATCH}.${CVC_GIT_REVISION})
+else()
+  set(VolumeRover_VERSION ${VolumeRover_VERSION_MAJOR}.${VolumeRover_VERSION_MINOR}.${VolumeRover_VERSION_PATCH})
+endif()
 message(STATUS "VolumeRover version: ${VolumeRover_VERSION}")
 
 # macOS Bundle settings
