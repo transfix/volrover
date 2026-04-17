@@ -3,12 +3,19 @@
 # $Id: CMakeLists.txt 1405 2010-02-26 21:16:13Z transfix $
 
 cmake_minimum_required(VERSION 3.16)
-project(VolumeRover VERSION 2.0.0 LANGUAGES C CXX)
+project(VolumeRover VERSION 2.1.0 LANGUAGES C CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# AppleClang treats narrowing conversions as errors in C++11+.
+# This legacy codebase has many benign narrowing conversions, so
+# downgrade to warnings rather than fixing hundreds of call sites.
+if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang|Clang")
+  add_compile_options(-Wno-error=c++11-narrowing -Wno-c++11-narrowing)
+endif()
 
 # Enable automatic MOC, UIC, RCC for Qt
 set(CMAKE_AUTOMOC ON)
@@ -77,7 +84,7 @@ endif()
 
 # The VolumeRover version number
 set(VolumeRover_VERSION_MAJOR 2)
-set(VolumeRover_VERSION_MINOR 0)
+set(VolumeRover_VERSION_MINOR 1)
 set(VolumeRover_VERSION_PATCH ${CVC_GIT_REVISION})
 
 # The full version string
@@ -124,12 +131,25 @@ endif()
 # Setup Boost (required)
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
-find_package(Boost 1.70.0 REQUIRED COMPONENTS thread date_time regex filesystem system program_options)
+# Note: system is header-only since Boost 1.69 and should not be listed as a compiled COMPONENT
+find_package(Boost 1.70.0 REQUIRED COMPONENTS thread date_time regex filesystem program_options)
 if(Boost_FOUND)
   message(STATUS "Found Boost ${Boost_VERSION}")
   message(STATUS "Boost includes: ${Boost_INCLUDE_DIRS}")
 else()
   message(FATAL_ERROR "Boost not found. Install libboost-all-dev or set BOOST_ROOT")
+endif()
+
+# log4cplus logging library (system package)
+# Uses FindLog4cplus.cmake: tries config mode first, falls back to manual detection
+find_package(Log4cplus REQUIRED)
+message(STATUS "Found log4cplus")
+
+# pthreads (needed by XmlRPC/VolumeViewer multi-tile server code)
+if(WIN32)
+  find_package(PThreads4W REQUIRED)
+else()
+  find_package(Threads REQUIRED)
 endif()
 
 option(DISABLE_CGAL "This disables CGAL even if it is available on the build system." OFF)
@@ -140,6 +160,11 @@ endif()
 # Possibly prevent crashing on macOS (still relevant)
 if(APPLE)
   add_definitions(-D_GLIBCXX_FULLY_DYNAMIC_STRING)
+endif()
+
+# Prevent windows.h min/max macros from clobbering std::min/std::max
+if(WIN32)
+  add_definitions(-DNOMINMAX)
 endif()
 
 # ************* CPack configuration for VolumeRover *************

@@ -57,5 +57,5 @@ bool UnshadedBase::uploadColorMap(const GLfloat* colorMap)
   
   for(int i = 0; i < 256*4; i++)
     colors[i] = GLubyte(colorMap[i]*255.0f);
-  uploadColorMap(colors);
+  return uploadColorMap(colors);
 }

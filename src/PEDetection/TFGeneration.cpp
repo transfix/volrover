@@ -29,7 +29,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include <PEDetection/ConnV_AmbiF_Table.h>
 #include <PEDetection/TFGeneration.h>

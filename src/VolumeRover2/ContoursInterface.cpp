@@ -40,6 +40,7 @@
 
 #include <VolumeRover2/ContoursInterface.h>
 #include <log4cplus/logger.h>
+#include <log4cplus/loggingmacros.h>
 
 #include <CVC/App.h>
 #include <cvcraw_geometry/cvcgeom.h>

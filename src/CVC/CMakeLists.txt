@@ -83,8 +83,7 @@ endif(CVC_USING_HDF5)
 #  endif(LOG4CPLUS_FOUND)
 #endif(CVC_LOG4CPLUS_DEFAULT
 
-#CHA 7-22-12: use log4cplus placed in volrover
-set(CVC_LINK_LIBS ${CVC_LINK_LIBS} log4cplus)
+set(CVC_LINK_LIBS ${CVC_LINK_LIBS} log4cplus::log4cplus)
 
 option(LOG4CPLUS_DISABLE_TRACE "Disable logging trace" OFF)
 mark_as_advanced(LOG4CPLUS_DISABLE_TRACE)
@@ -120,7 +119,6 @@ target_link_libraries(CVC
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
     ${CVC_LINK_LIBS}
 )
 

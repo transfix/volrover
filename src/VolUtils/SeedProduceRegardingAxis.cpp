@@ -32,7 +32,9 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <math.h>
 
@@ -209,7 +211,7 @@ int main(int argc, char **argv)
 
 	 int ni, nj, nk;
     
-	  vector <int>  seed[Num];
+	  std::vector<std::vector<int>> seed(Num);
   
 	 float x0, y0, z0;
 	 

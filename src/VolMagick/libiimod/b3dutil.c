@@ -31,7 +31,9 @@
 #ifdef MAC103_BIGFILE
 #include <sys/types.h>
 #include <sys/uio.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 
 #ifdef F77FUNCAP

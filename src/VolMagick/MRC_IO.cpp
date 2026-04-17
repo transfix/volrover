@@ -43,7 +43,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <math.h>
+#include <cmath>
 #ifdef __SOLARIS__
 #include <ieeefp.h>
 #endif
@@ -178,10 +178,8 @@ static inline void geterrstr(int errnum, char *strerrbuf, size_t buflen)
 #endif
 }
 
-// XXX: This is UGLY. Windows does not have this function in its math library.
-#if defined(_MSC_VER)
-static inline int finite(float) { return 0; }
-#endif
+// Use standard isfinite() instead of the deprecated/removed finite()
+#define finite(x) std::isfinite(x)
 
 namespace VolMagick
 {

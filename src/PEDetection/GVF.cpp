@@ -28,7 +28,9 @@
 #include <fstream.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include <PEDetection/CompileOptions.h>
 #include <PEDetection/GVF.h>

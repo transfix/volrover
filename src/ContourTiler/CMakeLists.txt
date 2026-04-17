@@ -113,8 +113,7 @@ INCLUDE_DIRECTORIES (
 #message ("LINK_DIRECTORIES: ${test}")
 
 SET(LINK_LIBS 
-#  liblog4cplus.a
-  log4cplus
+  log4cplus::log4cplus
 #  CGAL_Core
 #  CGAL 
 #  CGALcore++
@@ -174,15 +173,15 @@ SetupCGAL(ecs)
 SetupCGAL(smfconvert)
 SetupCGAL(ContourNear)
 
-SET(LINK_LIBS log4cplus)
+SET(LINK_LIBS log4cplus::log4cplus)
 
-TARGET_LINK_LIBRARIES(ContourTilerBin PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::system Boost::regex Boost::thread)
-#TARGET_LINK_LIBRARIES(ContourTilerTest ContourTiler ${LINK_LIBS} Boost::filesystem Boost::system Boost::regex Boost::thread)
-TARGET_LINK_LIBRARIES(ContourTilerSandbox PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::system Boost::regex Boost::thread)
-TARGET_LINK_LIBRARIES(ContourTilerDecimate PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::system Boost::regex Boost::thread)
-TARGET_LINK_LIBRARIES(ecs PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::system Boost::regex Boost::thread)
-TARGET_LINK_LIBRARIES(smfconvert PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::system Boost::regex Boost::thread)
-TARGET_LINK_LIBRARIES(ContourNear PUBLIC ContourTiler ContourFilterLib ${LINK_LIBS} Boost::filesystem Boost::system Boost::regex Boost::thread)
+TARGET_LINK_LIBRARIES(ContourTilerBin PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
+#TARGET_LINK_LIBRARIES(ContourTilerTest ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
+TARGET_LINK_LIBRARIES(ContourTilerSandbox PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
+TARGET_LINK_LIBRARIES(ContourTilerDecimate PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
+TARGET_LINK_LIBRARIES(ecs PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
+TARGET_LINK_LIBRARIES(smfconvert PUBLIC ContourTiler ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
+TARGET_LINK_LIBRARIES(ContourNear PUBLIC ContourTiler ContourFilterLib ${LINK_LIBS} Boost::filesystem Boost::regex Boost::thread)
 
 SET_TARGET_PROPERTIES(ContourTiler PROPERTIES COMPILE_FLAGS "-rdynamic")# OUTPUT_NAME "ContourTiler")
 #SET_TARGET_PROPERTIES(ContourTilerBin PROPERTIES OUTPUT_NAME "ContourTiler")

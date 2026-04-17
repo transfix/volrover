@@ -31,7 +31,9 @@
 #include <memory.h>
 #include <string.h>
 #ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 
 #include <Contour/conplot3d.h>

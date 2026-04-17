@@ -35,7 +35,9 @@
 #include <stdlib.h>
 #endif
 #ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 
 #define	TRUE	1

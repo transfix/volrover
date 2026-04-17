@@ -45,7 +45,6 @@ target_link_libraries(SweetMesh
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
 )
 
 #OPTION(BUILD_SWEETMESH_STANDALONE "Build standalone SweetMesh app." OFF)

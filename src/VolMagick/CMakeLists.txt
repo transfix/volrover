@@ -183,6 +183,5 @@ target_link_libraries(VolMagick
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
     ${VOLMAGICK_LINK_LIBS}
 )

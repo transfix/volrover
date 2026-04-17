@@ -21,7 +21,7 @@ CTSliceHartley2D(CTSlice in)
 	CTSlice slice;
 	int m,n,i,j,M,N;
 	float Z,min = 0.0f,max = 0.0f;
-	register float *d1, *w1;
+	float *d1, *w1;
 	extern float *H2D_Ncas, *H2D_Mcas, *D, *w;
 	
 	/* Get size of source slice. */

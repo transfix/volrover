@@ -1,0 +1,192 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux
+          - os: ubuntu-latest
+            build_type: Debug
+            package_generator: DEB
+          - os: ubuntu-latest
+            build_type: Release
+            package_generator: DEB
+          # macOS
+          - os: macos-latest
+            build_type: Debug
+            package_generator: DragNDrop
+          - os: macos-latest
+            build_type: Release
+            package_generator: DragNDrop
+          # Windows
+          - os: windows-latest
+            build_type: Debug
+            package_generator: NSIS
+          - os: windows-latest
+            build_type: Release
+            package_generator: NSIS
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── Linux dependencies ──
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            libqt6opengl6-dev \
+            qt6-base-private-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            libglew-dev \
+            libboost-all-dev \
+            libfftw3-dev \
+            libgsl-dev \
+            liblog4cplus-dev \
+            libnsl-dev \
+            imagemagick \
+            libmagick++-dev
+
+      # ── macOS dependencies ──
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install \
+            cmake \
+            ninja \
+            qt@6 \
+            glew \
+            boost \
+            fftw \
+            gsl \
+            log4cplus \
+            imagemagick
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
+
+      # ── Windows dependencies ──
+      # Use install-qt-action for pre-built Qt binaries (much faster than vcpkg)
+      # and vcpkg only for smaller C libraries
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install glew fftw3 gsl log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
+        env:
+          VCPKG_MAX_CONCURRENCY: 4
+
+      # ── Configure ──
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DUSE_QT6=ON \
+            -DDISABLE_CGAL=ON \
+            -DSKIP_FIXUP_BUNDLE=ON \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
+
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DUSE_QT6=ON \
+            -DDISABLE_CGAL=ON \
+            -DSKIP_FIXUP_BUNDLE=ON \
+            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DUSE_QT6=ON `
+            -DDISABLE_CGAL=ON `
+            -DSKIP_FIXUP_BUNDLE=ON `
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/_install"
+
+      # ── Build ──
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+      # ── Test ──
+      # VolumeRover does not currently have a formal test suite.
+      # When tests are added, enable the step below.
+      # - name: Run tests
+      #   run: ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure --parallel
+
+      # ── Install ──
+      - name: Install
+        run: cmake --install build --config ${{ matrix.build_type }}
+
+      # ── Package ──
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        working-directory: build
+        shell: cmd
+        run: |
+          set PATH=C:\Program Files (x86)\NSIS;%PATH%
+          cpack -G NSIS -C ${{ matrix.build_type }}
+          cpack -G ZIP -C ${{ matrix.build_type }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        working-directory: build
+        run: cpack -G ${{ matrix.package_generator }} -C ${{ matrix.build_type }}
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}-${{ matrix.build_type }}
+          path: |
+            build/*.deb
+            build/*.dmg
+            build/*.exe
+            build/*.zip
+            build/*.tar.gz
+          retention-days: 30
+
+      # ── Build artifact (installed tree) ──
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}-${{ matrix.build_type }}
+          path: ${{ github.workspace }}/_install/
+          retention-days: 14

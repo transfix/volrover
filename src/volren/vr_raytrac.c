@@ -85,7 +85,7 @@ void vrFireOneRay(MultiVolRenEnv* menv, int nx, int ny, unsigned char* tile_imag
   unsigned char rendflag, *ucptr;
   float den;
   //float s_x, s_y, s_z;
-  register float orig_x, orig_y, orig_z;
+  float orig_x, orig_y, orig_z;
   float span_x, span_y, span_z;
   float pnt[3], spn[3];
   float color[3] = {0, 0, 0};

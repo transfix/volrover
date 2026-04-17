@@ -338,10 +338,10 @@ void vrSplineNorm(VolRenEnv* env, float w[3], int idx[3], Vector3d* norm)
   //static float val[4][4][4];
   //static int curidx[3] = {-1, -1, -1};
   // deBoor Helpers
-  register float delta;				  		// the weights of deBoor algo
+  float delta;				  		// the weights of deBoor algo
   //static float Derivative[4][4][3][3];				// leaves of the deBoor tree
   float D[4][4][2];							// knots of the deBoor tree
-  register int   i, j, k, l, m;
+  int   i, j, k, l, m;
   float normal[3];
   
   /* this is ugly but better than the alternative :( */
@@ -619,7 +619,7 @@ void vrPhongShading(VolRenEnv *env, float color[3], Shading* shade, Vector3d* no
   Viewing *view;
   Rendering *rend;
   int i;
-  register float xl, xh;
+  float xl, xh;
 
   view = env->view;
   rend = env->rend;

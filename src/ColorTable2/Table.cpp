@@ -34,7 +34,7 @@
 
 
 #ifdef __GNUC__
-#warning TODO: implement vertical rendering, and make sure everything depends on MAX_RANGE/MIN_RANGE
+#pragma message("TODO: implement vertical rendering, and make sure everything depends on MAX_RANGE/MIN_RANGE")
 #endif
 
 namespace CVCColorTable
@@ -721,9 +721,9 @@ namespace CVCColorTable
   {
      if( !_dirtyContourTree ) return;
   
-     int dim[3] = { _contourVolume.XDim(),
-                    _contourVolume.YDim(),
-                    _contourVolume.ZDim() };
+     int dim[3] = { static_cast<int>(_contourVolume.XDim()),
+                    static_cast<int>(_contourVolume.YDim()),
+                    static_cast<int>(_contourVolume.ZDim()) };
 
      _contourTreeVertices.clear();
      _contourTreeEdges.clear();

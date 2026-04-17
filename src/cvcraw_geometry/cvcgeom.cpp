@@ -538,7 +538,7 @@ namespace CVCGEOM_NAMESPACE
                            ref.const_triangles().begin(),
                            ref.const_triangles().end());
 #else
-# warning cvcgeom_t::project() disabled
+# pragma message("cvcgeom_t::project() disabled")
 #endif
     return *this;
   }

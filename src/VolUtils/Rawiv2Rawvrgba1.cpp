@@ -31,7 +31,9 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <math.h>
 
@@ -84,7 +86,7 @@ int main(int argc, char **argv)
 	  FILE *fp = fopen(argv[argc-1],"w");
 
 
-  	 float r[Classes], g[Classes], b[Classes];
+  	 std::vector<float> r(Classes), g(Classes), b(Classes);
 
       VolMagick::Volume inputVol;
 

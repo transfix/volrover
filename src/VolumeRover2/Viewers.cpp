@@ -41,7 +41,7 @@
 #include <CVC/App.h>
 #include <CVC/CVCEvent.h>
 #include <CVC/Exception.h>
-#include <log4cplus/logger.h>
+#include <CVC/log4cplus_compat.h>
 
 #include <QTimer>
 #include <QMessageBox>

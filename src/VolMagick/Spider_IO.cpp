@@ -727,7 +727,7 @@ namespace VolMagick
     using namespace boost;
     CVC::ThreadInfo ti(BOOST_CURRENT_FUNCTION);
 
-    int dim[3] = { dimension[0], dimension[1], dimension[2] };
+    int dim[3] = { static_cast<int>(dimension[0]), static_cast<int>(dimension[1]), static_cast<int>(dimension[2]) };
     boost::scoped_array<float> data(new float[dimension.size()]);
 
     if(boundingBox.isNull())
@@ -797,7 +797,7 @@ namespace VolMagick
 	for(uint64 i = 0; i < wvol.XDim(); i++)
 	  vol(i+off_x,j+off_y,k+off_z, wvol(i,j,k));
 
-    int dim[] = { vol.XDim(), vol.YDim(), vol.ZDim() };
+    int dim[] = { static_cast<int>(vol.XDim()), static_cast<int>(vol.YDim()), static_cast<int>(vol.ZDim()) };
     vol.voxelType(CVC::Float); //make sure we have a float volume (though we shouldnt get here if we dont)
     int retval = writeSpiderFile(filename.c_str(),'V',dim,reinterpret_cast<float*>(*vol));
     if(retval)

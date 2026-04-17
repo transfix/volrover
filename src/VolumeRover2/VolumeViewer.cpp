@@ -38,7 +38,7 @@
 using namespace boost::placeholders;
 #include <CVC/CVCEvent.h>
 #include <CVC/State.h>
-#include <log4cplus/logger.h>
+#include <CVC/log4cplus_compat.h>
 
 #include <QGLViewer/quaternion.h>
 
@@ -67,6 +67,7 @@ namespace CVC_NAMESPACE
   void* XmlRpcThread::clientThreadEntryPoint( void * pthis ) {
      XmlRpcThread *ptr = (XmlRpcThread*) pthis;
      ptr->run();
+     return nullptr;
   }
 
   //#define FAIL_RETURN

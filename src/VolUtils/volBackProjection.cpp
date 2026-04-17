@@ -31,7 +31,9 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <math.h>
 
@@ -39,6 +41,8 @@
 #include <VolMagick/VolMagick.h>
 #include <VolMagick/VolumeCache.h>
 #include <VolMagick/endians.h>
+
+typedef unsigned int uint;
 
 #if ! defined (__APPLE__)
 #include <omp.h>
@@ -216,7 +220,7 @@ int main(int argc, char **argv)
 	float delta = 0.1;
 
 	#pragma omp parallel for schedule(static, numAngles/numProcs)           
-	for(uint x=0; x<outputVol.XDim(); x++)
+	for(int x=0; x<(int)outputVol.XDim(); x++)
 	{
 	 
 	std::cerr<<x<<"..";

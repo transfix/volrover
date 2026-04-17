@@ -23,7 +23,6 @@ if(FFTW_FOUND)
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
   )
 else(FFTW_FOUND)
   message(SEND_ERROR "Reconstruction requires FFTW!")

@@ -427,7 +427,7 @@ namespace CVC_NAMESPACE
 #ifndef registerDataType
 #define registerDataType( type )  registerDataType<type>( #type )
 #else
-#warning registerDataType already defined!
+#pragma message("registerDataType already defined!")
 #endif
 
     MutexPtr mutex(const std::string& name);

@@ -24,7 +24,7 @@
 
 #define VOLMAGICK_VOLUMECACHE_BASIC
 #ifdef DEBUG
-#warning Remove this file ASAP.  It is not needed now that we have BoundingBox based VolMagick::readVolumeFile()
+#pragma message("Remove this file ASAP.  It is not needed now that we have BoundingBox based VolMagick::readVolumeFile()")
 #endif
 
 #include <stdlib.h>

@@ -1280,6 +1280,8 @@ Fast_Distance_Function(dfang, vertPosition, size, minx,
 
    for(i = 0; i < nx*ny*nz; i++)
      if(funcvalue[i] < 0 ) gridvalue[i] = gridvalue[i] + 1;
+
+   return true;
 }
 
 

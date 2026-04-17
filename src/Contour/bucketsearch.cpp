@@ -26,7 +26,9 @@
 #include <Contour/BucketSearch.h>
 
 #ifndef WIN32
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 #if ! defined (__APPLE__)
 #include <malloc.h>

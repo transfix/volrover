@@ -1,6 +1,7 @@
 #include <ContourTiler/cl_options.h>
 #include <ContourTiler/print_utils.h>
 #include <log4cplus/logger.h>
+#include <log4cplus/loggingmacros.h>
 
 #include <boost/lexical_cast.hpp>
 

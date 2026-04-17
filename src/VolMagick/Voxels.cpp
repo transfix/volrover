@@ -185,9 +185,9 @@ namespace VolMagick
       {
       case CVC::UChar:
 	{
-	  register unsigned char v;
-	  register unsigned char uchar_min = (unsigned char)(_min);
-	  register unsigned char uchar_max = (unsigned char)(_max);
+	  unsigned char v;
+	  unsigned char uchar_min = (unsigned char)(_min);
+	  unsigned char uchar_max = (unsigned char)(_max);
 	  for(i=0; i<len; i++)
 	    {
 	      v = *((unsigned char *)(_voxels.get()+i*sizeof(unsigned char)));
@@ -206,9 +206,9 @@ namespace VolMagick
 	}
       case CVC::UShort:
 	{
-	  register unsigned short v;
-	  register unsigned short ushort_min = (unsigned short)(_min);
-	  register unsigned short ushort_max = (unsigned short)(_max);
+	  unsigned short v;
+	  unsigned short ushort_min = (unsigned short)(_min);
+	  unsigned short ushort_max = (unsigned short)(_max);
 	  for(i=0; i<len; i++)
 	    {
 	      v = *((unsigned short *)(_voxels.get()+i*sizeof(unsigned short)));
@@ -227,9 +227,9 @@ namespace VolMagick
 	}
       case CVC::UInt:
 	{
-	  register unsigned int v;
-	  register unsigned int uint_min = (unsigned int)(_min);
-	  register unsigned int uint_max = (unsigned int)(_max);
+	  unsigned int v;
+	  unsigned int uint_min = (unsigned int)(_min);
+	  unsigned int uint_max = (unsigned int)(_max);
 	  for(i=0; i<len; i++)
 	    {
 	      v = *((unsigned int *)(_voxels.get()+i*sizeof(unsigned int)));
@@ -248,9 +248,9 @@ namespace VolMagick
 	}
       case CVC::Float:
 	{
-	  register float v;
-	  register float float_min = (float)(_min);
-	  register float float_max = (float)(_max);
+	  float v;
+	  float float_min = (float)(_min);
+	  float float_max = (float)(_max);
 	  for(i=0; i<len; i++)
 	    {
 	      v = *((float *)(_voxels.get()+i*sizeof(float)));
@@ -269,9 +269,9 @@ namespace VolMagick
 	}
       case CVC::Double:
 	{
-	  register double v;
-	  register double double_min = (double)(_min);
-	  register double double_max = (double)(_max);
+	  double v;
+	  double double_min = (double)(_min);
+	  double double_max = (double)(_max);
 	  for(i=0; i<len; i++)
 	    {
 	      v = *((double *)(_voxels.get()+i*sizeof(double)));
@@ -290,9 +290,9 @@ namespace VolMagick
 	}
       case CVC::UInt64:
 	{
-	  register uint64 v;
-	  register uint64 uint64_min = (uint64)(_min);
-	  register uint64 uint64_max = (uint64)(_max);
+	  uint64 v;
+	  uint64 uint64_min = (uint64)(_min);
+	  uint64 uint64_max = (uint64)(_max);
 	  for(i=0; i<len; i++)
 	    {
 	      v = *((uint64 *)(_voxels.get()+i*sizeof(uint64)));

@@ -28,7 +28,9 @@
 
 #ifndef __WINDOWS__
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/mman.h>

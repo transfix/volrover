@@ -43,6 +43,5 @@ target_link_libraries(cvcraw_geometry
     Boost::date_time
     Boost::regex
     Boost::filesystem
-    Boost::system
     ${LIBS}
 )
