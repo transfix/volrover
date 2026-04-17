@@ -297,6 +297,7 @@ set(LIBS
     XmlRPC
 #    Socket
     log4cplus::log4cplus
+    $<IF:$<BOOL:${WIN32}>,PThreads4W::PThreads4W,Threads::Threads>
 )
 
 # Link against VolumeGridRover if available

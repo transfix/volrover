@@ -145,6 +145,13 @@ endif()
 find_package(Log4cplus REQUIRED)
 message(STATUS "Found log4cplus")
 
+# pthreads (needed by XmlRPC/VolumeViewer multi-tile server code)
+if(WIN32)
+  find_package(PThreads4W REQUIRED)
+else()
+  find_package(Threads REQUIRED)
+endif()
+
 option(DISABLE_CGAL "This disables CGAL even if it is available on the build system." OFF)
 if(NOT DISABLE_CGAL)
   include(SetupCGAL)
