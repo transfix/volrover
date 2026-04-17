@@ -35,10 +35,10 @@ jobs:
           # Windows
           - os: windows-latest
             build_type: Debug
-            package_generator: NSIS
+            package_generator: ZIP
           - os: windows-latest
             build_type: Release
-            package_generator: NSIS
+            package_generator: ZIP
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} / ${{ matrix.build_type }}
