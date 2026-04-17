@@ -32,7 +32,6 @@
 #ifndef _WIN32
 #include <unistd.h>
 #endif
-#endif
 #include <errno.h>
 #include <math.h>
 #include <boost/tuple/tuple.hpp>
