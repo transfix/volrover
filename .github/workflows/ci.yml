@@ -157,17 +157,19 @@ jobs:
         run: cmake --install build --config ${{ matrix.build_type }}
 
       # ── Package ──
-      - name: Package
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
         working-directory: build
-        shell: bash
+        shell: cmd
         run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            export PATH="/c/Program Files (x86)/NSIS:$PATH"
-            cpack -G NSIS -C ${{ matrix.build_type }}
-            cpack -G ZIP -C ${{ matrix.build_type }}
-          else
-            cpack -G ${{ matrix.package_generator }} -C ${{ matrix.build_type }}
-          fi
+          set PATH=C:\Program Files (x86)\NSIS;%PATH%
+          cpack -G NSIS -C ${{ matrix.build_type }}
+          cpack -G ZIP -C ${{ matrix.build_type }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        working-directory: build
+        run: cpack -G ${{ matrix.package_generator }} -C ${{ matrix.build_type }}
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
