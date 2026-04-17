@@ -34,7 +34,7 @@
 
 
 #ifdef __GNUC__
-#warning TODO: implement vertical rendering, and make sure everything depends on MAX_RANGE/MIN_RANGE
+#pragma message("TODO: implement vertical rendering, and make sure everything depends on MAX_RANGE/MIN_RANGE")
 #endif
 
 namespace CVCColorTable

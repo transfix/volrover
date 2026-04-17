@@ -667,7 +667,7 @@ namespace cvcraw_geometry
 		  unsigned int t[8];
 		  for(unsigned int i = 0; i < 8; i++)
 		    t[i] = lexical_cast<unsigned int>(split_line[i]);
-#warning TODO: investigate hex and tet index ordering... somehow I had to do this different than geoframe
+#pragma message("TODO: investigate hex and tet index ordering... somehow I had to do this different than geoframe")
 		  quad_t hex_quads[6];
 #if 0
 		  hex_quads[0][0] = t[0]; hex_quads[0][1] = t[3]; hex_quads[0][2] = t[2]; hex_quads[0][3] = t[1];

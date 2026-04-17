@@ -40,6 +40,8 @@
 #include <VolMagick/VolumeCache.h>
 #include <VolMagick/endians.h>
 
+typedef unsigned int uint;
+
 using namespace std;
 
 class VolMagickOpStatus : public VolMagick::VoxelOperationStatusMessenger

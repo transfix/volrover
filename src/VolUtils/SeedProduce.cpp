@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 	 int ni, nj, nk;
 	 float x, y;
     
-	  vector <int>  seed[Num];
+	  std::vector<std::vector<int>> seed(Num);
   
 	 float x0, y0, z0;
 	 

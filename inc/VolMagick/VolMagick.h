@@ -27,14 +27,14 @@
 
 #ifdef min
 #ifndef _MSC_VER
-#warning The macro 'min' was defined.  The volmagick library uses 'min' in the VolMagick::Voxels class and must undefine it for the definition of the class to compile correctly! Sorry!
+#pragma message("The macro 'min' was defined.  The volmagick library uses 'min' in the VolMagick::Voxels class and must undefine it for the definition of the class to compile correctly! Sorry!")
 #endif
 #undef min
 #endif
 
 #ifdef max
 #ifndef _MSC_VER
-#warning The macro 'max' was defined.  The volmagick library uses 'max' in the VolMagick::Voxels class and must undefine it for the definition of the class to compile correctly! Sorry!
+#pragma message("The macro 'max' was defined.  The volmagick library uses 'max' in the VolMagick::Voxels class and must undefine it for the definition of the class to compile correctly! Sorry!")
 #endif
 #undef max
 #endif
