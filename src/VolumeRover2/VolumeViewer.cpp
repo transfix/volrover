@@ -67,6 +67,7 @@ namespace CVC_NAMESPACE
   void* XmlRpcThread::clientThreadEntryPoint( void * pthis ) {
      XmlRpcThread *ptr = (XmlRpcThread*) pthis;
      ptr->run();
+     return nullptr;
   }
 
   //#define FAIL_RETURN
