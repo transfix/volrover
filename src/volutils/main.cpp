@@ -697,6 +697,479 @@ static int cmd_rgba_merge(int argc, char** argv)
   return 0;
 }
 
+// ── extract ──
+
+static int cmd_extract(int argc, char** argv)
+{
+  po::options_description desc("volutils extract - extract variable/timestep from multi-variable volume");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::string>()->required(), "input volume file")
+    ("output,o", po::value<std::string>()->required(), "output volume file")
+    ("var,v", po::value<unsigned int>()->default_value(0), "variable index")
+    ("time,t", po::value<unsigned int>()->default_value(0), "timestep index");
+
+  po::positional_options_description pos;
+  pos.add("input", 1);
+  pos.add("output", 1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  cvc::volume vol;
+  vol.read(vm["input"].as<std::string>(),
+           vm["var"].as<unsigned int>(),
+           vm["time"].as<unsigned int>());
+  vol.write(vm["output"].as<std::string>());
+  std::cout << "Extracted var=" << vm["var"].as<unsigned int>()
+            << " time=" << vm["time"].as<unsigned int>()
+            << " -> " << vm["output"].as<std::string>() << "\n";
+  return 0;
+}
+
+// ── clamp-min ──
+
+static int cmd_clamp_min(int argc, char** argv)
+{
+  po::options_description desc("volutils clamp-min - clamp voxels to a minimum value");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::string>()->required(), "input volume file")
+    ("output,o", po::value<std::string>()->required(), "output volume file")
+    ("value", po::value<double>()->required(), "minimum value to clamp to");
+
+  po::positional_options_description pos;
+  pos.add("input", 1);
+  pos.add("output", 1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  cvc::volume vol;
+  vol.read(vm["input"].as<std::string>());
+  cvc::volume result = cvc::vol_clamp_min(vol, vm["value"].as<double>());
+  result.write(vm["output"].as<std::string>());
+  return 0;
+}
+
+// ── difference ──
+
+static int cmd_difference(int argc, char** argv)
+{
+  po::options_description desc("volutils difference - absolute difference between two volumes");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::vector<std::string>>()->multitoken()->required(), "two input volume files")
+    ("output,o", po::value<std::string>()->required(), "output volume file");
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  auto inputs = vm["input"].as<std::vector<std::string>>();
+  if (inputs.size() != 2)
+    throw std::runtime_error("difference requires exactly 2 input files");
+
+  cvc::volume a, b;
+  a.read(inputs[0]);
+  b.read(inputs[1]);
+  cvc::volume result = cvc::vol_difference(a, b);
+  result.write(vm["output"].as<std::string>());
+  return 0;
+}
+
+// ── average ──
+
+static int cmd_average(int argc, char** argv)
+{
+  po::options_description desc("volutils average - compute element-wise average of N volumes");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::vector<std::string>>()->multitoken()->required(), "input volume files (2 or more)")
+    ("output,o", po::value<std::string>()->required(), "output volume file");
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  auto inputs = vm["input"].as<std::vector<std::string>>();
+  if (inputs.size() < 2)
+    throw std::runtime_error("average requires at least 2 input files");
+
+  cvc::volume sum;
+  sum.read(inputs[0]);
+  for (size_t i = 1; i < inputs.size(); ++i)
+  {
+    cvc::volume tmp;
+    tmp.read(inputs[i]);
+    sum = cvc::vol_add(sum, tmp);
+  }
+  cvc::volume result = cvc::vol_scale(sum, 1.0 / static_cast<double>(inputs.size()));
+  result.write(vm["output"].as<std::string>());
+  std::cout << "Averaged " << inputs.size() << " volumes -> " << vm["output"].as<std::string>() << "\n";
+  return 0;
+}
+
+// ── sum ──
+
+static int cmd_sum(int argc, char** argv)
+{
+  po::options_description desc("volutils sum - sum N volumes element-wise");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::vector<std::string>>()->multitoken()->required(), "input volume files (2 or more)")
+    ("output,o", po::value<std::string>()->required(), "output volume file");
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  auto inputs = vm["input"].as<std::vector<std::string>>();
+  if (inputs.size() < 2)
+    throw std::runtime_error("sum requires at least 2 input files");
+
+  cvc::volume result;
+  result.read(inputs[0]);
+  for (size_t i = 1; i < inputs.size(); ++i)
+  {
+    cvc::volume tmp;
+    tmp.read(inputs[i]);
+    result = cvc::vol_add(result, tmp);
+  }
+  result.write(vm["output"].as<std::string>());
+  std::cout << "Summed " << inputs.size() << " volumes -> " << vm["output"].as<std::string>() << "\n";
+  return 0;
+}
+
+// ── interpolate ──
+
+static int cmd_interpolate(int argc, char** argv)
+{
+  po::options_description desc("volutils interpolate - linear interpolation between two volumes");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::vector<std::string>>()->multitoken()->required(), "two input volume files")
+    ("output,o", po::value<std::string>()->required(), "output file prefix")
+    ("steps,n", po::value<int>()->default_value(5), "number of interpolation steps");
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  auto inputs = vm["input"].as<std::vector<std::string>>();
+  if (inputs.size() != 2)
+    throw std::runtime_error("interpolate requires exactly 2 input files");
+
+  cvc::volume a, b;
+  a.read(inputs[0]);
+  b.read(inputs[1]);
+
+  int steps = vm["steps"].as<int>();
+  std::string prefix = vm["output"].as<std::string>();
+
+  for (int n = 1; n < steps; ++n)
+  {
+    double t = static_cast<double>(n) / static_cast<double>(steps - 1);
+    cvc::volume sa = cvc::vol_scale(a, 1.0 - t);
+    cvc::volume sb = cvc::vol_scale(b, t);
+    cvc::volume result = cvc::vol_add(sa, sb);
+    std::ostringstream ss;
+    ss << prefix << n << ".rawiv";
+    result.write(ss.str());
+  }
+  std::cout << "Wrote " << (steps - 1) << " interpolated volumes\n";
+  return 0;
+}
+
+// ── compare ──
+
+static int cmd_compare(int argc, char** argv)
+{
+  po::options_description desc("volutils compare - compare two volumes voxel-by-voxel");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::vector<std::string>>()->multitoken()->required(), "two input volume files")
+    ("threshold,t", po::value<double>()->default_value(0.01), "error threshold for comparison");
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  auto inputs = vm["input"].as<std::vector<std::string>>();
+  if (inputs.size() != 2)
+    throw std::runtime_error("compare requires exactly 2 input files");
+
+  cvc::volume a, b;
+  a.read(inputs[0]);
+  b.read(inputs[1]);
+
+  double thresh = vm["threshold"].as<double>();
+
+  if (a.XDim() != b.XDim() || a.YDim() != b.YDim() || a.ZDim() != b.ZDim())
+  {
+    std::cerr << "DIFFER: dimensions mismatch ("
+              << a.XDim() << "x" << a.YDim() << "x" << a.ZDim() << " vs "
+              << b.XDim() << "x" << b.YDim() << "x" << b.ZDim() << ")\n";
+    return 1;
+  }
+
+  uint64_t total = a.XDim() * a.YDim() * a.ZDim();
+  uint64_t diff_count = 0;
+  double max_diff = 0.0;
+  for (uint64_t i = 0; i < total; ++i)
+  {
+    double d = std::fabs(a(i) - b(i));
+    if (d > thresh) ++diff_count;
+    if (d > max_diff) max_diff = d;
+  }
+
+  if (diff_count == 0)
+  {
+    std::cout << "MATCH: volumes are identical within threshold " << thresh << "\n";
+    return 0;
+  }
+  else
+  {
+    std::cout << "DIFFER: " << diff_count << " of " << total
+              << " voxels differ (max diff=" << max_diff << ")\n";
+    return 1;
+  }
+}
+
+// ── bbox-shift ──
+
+static int cmd_bbox_shift(int argc, char** argv)
+{
+  po::options_description desc("volutils bbox-shift - shift volume bounding box by offset");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::string>()->required(), "input volume file")
+    ("output,o", po::value<std::string>()->required(), "output volume file")
+    ("dx", po::value<double>()->required(), "X offset")
+    ("dy", po::value<double>()->required(), "Y offset")
+    ("dz", po::value<double>()->required(), "Z offset");
+
+  po::positional_options_description pos;
+  pos.add("input", 1);
+  pos.add("output", 1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  cvc::volume vol;
+  vol.read(vm["input"].as<std::string>());
+
+  double dx = vm["dx"].as<double>();
+  double dy = vm["dy"].as<double>();
+  double dz = vm["dz"].as<double>();
+
+  cvc::bounding_box bb = vol.boundingBox();
+  bb.minx += dx; bb.maxx += dx;
+  bb.miny += dy; bb.maxy += dy;
+  bb.minz += dz; bb.maxz += dz;
+  vol.boundingBox(bb);
+  vol.write(vm["output"].as<std::string>());
+  return 0;
+}
+
+// ── bbox-scale ──
+
+static int cmd_bbox_scale(int argc, char** argv)
+{
+  po::options_description desc("volutils bbox-scale - scale volume bounding box");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::string>()->required(), "input volume file")
+    ("output,o", po::value<std::string>()->required(), "output volume file")
+    ("sx", po::value<double>()->required(), "X scale factor")
+    ("sy", po::value<double>()->required(), "Y scale factor")
+    ("sz", po::value<double>()->required(), "Z scale factor");
+
+  po::positional_options_description pos;
+  pos.add("input", 1);
+  pos.add("output", 1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  cvc::volume vol;
+  vol.read(vm["input"].as<std::string>());
+
+  double sx = vm["sx"].as<double>();
+  double sy = vm["sy"].as<double>();
+  double sz = vm["sz"].as<double>();
+
+  cvc::bounding_box bb = vol.boundingBox();
+  bb.minx *= sx; bb.maxx *= sx;
+  bb.miny *= sy; bb.maxy *= sy;
+  bb.minz *= sz; bb.maxz *= sz;
+  vol.boundingBox(bb);
+  vol.write(vm["output"].as<std::string>());
+  return 0;
+}
+
+// ── bbox-set ──
+
+static int cmd_bbox_set(int argc, char** argv)
+{
+  po::options_description desc("volutils bbox-set - set volume bounding box explicitly");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::string>()->required(), "input volume file")
+    ("output,o", po::value<std::string>()->required(), "output volume file")
+    ("xmin", po::value<double>()->required(), "minimum X")
+    ("ymin", po::value<double>()->required(), "minimum Y")
+    ("zmin", po::value<double>()->required(), "minimum Z")
+    ("xmax", po::value<double>()->required(), "maximum X")
+    ("ymax", po::value<double>()->required(), "maximum Y")
+    ("zmax", po::value<double>()->required(), "maximum Z");
+
+  po::positional_options_description pos;
+  pos.add("input", 1);
+  pos.add("output", 1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  cvc::volume vol;
+  vol.read(vm["input"].as<std::string>());
+
+  cvc::bounding_box bb(
+    vm["xmin"].as<double>(), vm["ymin"].as<double>(), vm["zmin"].as<double>(),
+    vm["xmax"].as<double>(), vm["ymax"].as<double>(), vm["zmax"].as<double>());
+  vol.boundingBox(bb);
+  vol.write(vm["output"].as<std::string>());
+  return 0;
+}
+
+// ── fill ──
+
+static int cmd_fill(int argc, char** argv)
+{
+  po::options_description desc("volutils fill - create volume filled with constant value");
+  desc.add_options()
+    ("help,h", "show help")
+    ("output,o", po::value<std::string>()->required(), "output volume file")
+    ("xdim", po::value<unsigned int>()->default_value(64), "X dimension")
+    ("ydim", po::value<unsigned int>()->default_value(64), "Y dimension")
+    ("zdim", po::value<unsigned int>()->default_value(64), "Z dimension")
+    ("value", po::value<double>()->default_value(0.0), "fill value")
+    ("type,t", po::value<std::string>()->default_value("Float"), "voxel type");
+
+  po::positional_options_description pos;
+  pos.add("output", 1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  unsigned int xd = vm["xdim"].as<unsigned int>();
+  unsigned int yd = vm["ydim"].as<unsigned int>();
+  unsigned int zd = vm["zdim"].as<unsigned int>();
+  double val = vm["value"].as<double>();
+
+  cvc::volume vol(cvc::dimension(xd, yd, zd),
+                  string_to_type(vm["type"].as<std::string>()));
+  uint64_t total = static_cast<uint64_t>(xd) * yd * zd;
+  for (uint64_t i = 0; i < total; ++i)
+    vol(i, val);
+
+  vol.write(vm["output"].as<std::string>());
+  std::cout << "Created " << xd << "x" << yd << "x" << zd
+            << " volume filled with " << val << "\n";
+  return 0;
+}
+
+// ── edge ──
+
+static int cmd_edge(int argc, char** argv)
+{
+  po::options_description desc("volutils edge - Laplacian of Gaussian edge detection");
+  desc.add_options()
+    ("help,h", "show help")
+    ("input,i", po::value<std::string>()->required(), "input volume file")
+    ("output,o", po::value<std::string>()->required(), "output volume file")
+    ("sigma,s", po::value<double>()->default_value(1.0), "Gaussian sigma");
+
+  po::positional_options_description pos;
+  pos.add("input", 1);
+  pos.add("output", 1);
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(pos).run(), vm);
+  if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
+  po::notify(vm);
+
+  cvc::volume vol;
+  vol.read(vm["input"].as<std::string>());
+
+  double sigma = vm["sigma"].as<double>();
+
+  // Build 5x5x5 LoG kernel
+  double kernel[125];
+  int idx = 0;
+  double kernel_sum = 0.0;
+  double sigma2 = sigma * sigma;
+  double norm = 1.0 / (std::pow(2.0 * M_PI, 1.5) * std::pow(sigma, 5));
+  for (int di = -2; di <= 2; ++di)
+    for (int dj = -2; dj <= 2; ++dj)
+      for (int dk = -2; dk <= 2; ++dk)
+      {
+        double r2 = di*di + dj*dj + dk*dk;
+        double val = norm * (r2 / sigma2 - 3.0) * std::exp(-r2 / (2.0 * sigma2));
+        kernel[idx++] = val;
+        kernel_sum += val;
+      }
+  // Zero-center the kernel
+  for (int n = 0; n < 125; ++n)
+    kernel[n] -= kernel_sum / 125.0;
+
+  uint64_t xd = vol.XDim(), yd = vol.YDim(), zd = vol.ZDim();
+  cvc::volume result(cvc::dimension(xd, yd, zd), vol.voxelType(), vol.boundingBox());
+
+  for (uint64_t x = 0; x < xd; ++x)
+    for (uint64_t y = 0; y < yd; ++y)
+      for (uint64_t z = 0; z < zd; ++z)
+      {
+        double val = 0.0;
+        int ki = 0;
+        for (int di = -2; di <= 2; ++di)
+          for (int dj = -2; dj <= 2; ++dj)
+            for (int dk = -2; dk <= 2; ++dk)
+            {
+              int64_t nx = static_cast<int64_t>(x) + di;
+              int64_t ny = static_cast<int64_t>(y) + dj;
+              int64_t nz = static_cast<int64_t>(z) + dk;
+              if (nx >= 0 && nx < static_cast<int64_t>(xd) &&
+                  ny >= 0 && ny < static_cast<int64_t>(yd) &&
+                  nz >= 0 && nz < static_cast<int64_t>(zd))
+                val += vol(nx, ny, nz) * kernel[ki];
+              ++ki;
+            }
+        result(x, y, z, val);
+      }
+
+  result.write(vm["output"].as<std::string>());
+  std::cout << "Edge detection (sigma=" << sigma << ") -> " << vm["output"].as<std::string>() << "\n";
+  return 0;
+}
+
 // ── Main dispatcher ──
 
 struct command_entry {
@@ -709,16 +1182,28 @@ static const command_entry commands[] = {
   { "info",       "display volume file metadata",         cmd_info },
   { "stats",      "compute volume statistics",            cmd_stats },
   { "convert",    "convert format or voxel type",         cmd_convert },
+  { "extract",    "extract variable/timestep",            cmd_extract },
   { "add",        "add two volumes element-wise",         cmd_add },
   { "subtract",   "subtract two volumes element-wise",    cmd_subtract },
+  { "difference", "absolute difference between volumes",  cmd_difference },
+  { "sum",        "sum N volumes element-wise",           cmd_sum },
+  { "average",    "average N volumes element-wise",       cmd_average },
   { "scale",      "multiply volume by scalar",            cmd_scale },
   { "normalize",  "remap voxel values to [min, max]",     cmd_normalize },
+  { "interpolate","linear interpolation between volumes", cmd_interpolate },
   { "clip",       "zero voxels above threshold",          cmd_clip },
+  { "clamp-min",  "clamp voxels to minimum value",       cmd_clamp_min },
   { "negate",     "negate all voxel values",              cmd_negate },
   { "mask",       "apply mask volume",                    cmd_mask },
+  { "fill",       "create constant-filled volume",        cmd_fill },
   { "downsample", "reduce volume resolution",             cmd_downsample },
   { "rotate",     "rotate volume around Z-axis",          cmd_rotate },
+  { "edge",       "LoG edge detection",                   cmd_edge },
+  { "compare",    "compare two volumes voxel-by-voxel",   cmd_compare },
   { "ssim",       "compute SSIM between two volumes",     cmd_ssim },
+  { "bbox-shift", "shift bounding box by offset",         cmd_bbox_shift },
+  { "bbox-scale", "scale bounding box",                   cmd_bbox_scale },
+  { "bbox-set",   "set bounding box explicitly",          cmd_bbox_set },
   { "project",    "forward ray projection",               cmd_project },
   { "backproject","filtered back-projection (FBP)",       cmd_backproject },
   { "vol2img",    "export slices as images (ImageMagick)", cmd_vol2img },
