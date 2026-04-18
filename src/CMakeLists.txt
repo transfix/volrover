@@ -193,10 +193,8 @@ IF(BUILD_VOLUMEROVER_2)
   ADD_SUBDIRECTORY(VolumeRover2)
 ENDIF(BUILD_VOLUMEROVER_2)
 
-OPTION(BUILD_VOLUTILS "VolUtils - build a set of useful standalone volume processing and information gathering utilities" ON)
-IF(BUILD_VOLUTILS)
-  ADD_SUBDIRECTORY(VolUtils)
-ENDIF(BUILD_VOLUTILS)
+# VolUtils has been consolidated into libcvc's unified 'volutils' CLI.
+# See libcvc/src/volutils/README.md for usage.
 
 # Add a special target to clean nvcc generated files.
 IF(CUDA_BUILD_ENABLED)
