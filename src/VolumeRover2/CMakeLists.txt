@@ -405,44 +405,20 @@ install(TARGETS VolumeRover2
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-#if(UNIX AND NOT APPLE)
-#  install(PROGRAMS #"${VolumeRover_SOURCE_DIR}/bin/runVolumeRover" DESTINATION bin)
-#endif(UNIX AND NOT APPLE)
+# ── Windows: bundle all runtime DLLs so the package is self-contained ──
+if(WIN32 AND USE_QT6)
+  # 1) Copy vcpkg / imported-target runtime DLLs (boost, glew, fftw, gsl, …)
+  #    $<TARGET_RUNTIME_DLLS:tgt> resolves every DLL that CMake knows about
+  #    through IMPORTED targets linked to VolumeRover2.  (CMake ≥ 3.21)
+  install(FILES $<TARGET_RUNTIME_DLLS:VolumeRover2> TYPE BIN)
 
-# install rules for including 3rd party libs such as Qt
-# if a system Qt is used (e.g. installed in /usr/lib/), it will not be included in the installation
-set(fixup_exe "\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/bin/VolumeRover2${CMAKE_EXECUTABLE_SUFFIX}")
-
-#set(fixup_exe "${CMAKE_INSTALL_PREFIX}/bin/VolumeRover2${CMAKE_EXECUTABLE_SUFFIX}")
-
-
-if(APPLE)
-  set(fixup_exe "\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/MacOS/${CMAKE_BUNDLE_NAME}")
-endif(APPLE)
-
-option(SKIP_FIXUP_BUNDLE "Skip fixup_bundle during install (useful for CI)" OFF)
-if(NOT SKIP_FIXUP_BUNDLE)
-
-#install(CODE "
-#  include(\"${VolumeRover_SOURCE_DIR}/CMake/BundleUtilities.cmake\")
-#  fixup_bundle(\"${fixup_exe}\" \"\" \"/usr/local/lib;/Library/Frameworks/Cg.framework;${QT_LIBRARY_DIR};${QT_BINARY_DIR};${Boost_LIBRARY_DIRS};${BUNDLE_LIB_SEARCH_DIRS}\")
-#")
-
-#install(CODE "
-#  include(\"${VolumeRover_SOURCE_DIR}/CMake/BundleUtilities.cmake\")
-#  fixup_bundle(\"${fixup_exe}\" \"\" \"/usr/local/lib;/org/centers/cvc/software/share/usr.linux.x86_64/cg;${QT_LIBRARY_DIR};${QT_BINARY_DIR};${Boost_LIBRARY_DIRS#};${BUNDLE_LIB_SEARCH_DIRS};/org/centers/cvc/software/share/usr.linux.x86_64/cg/lib64/\")
-#")
-
-# 8-23-2011, arand: trying to make the CG component of fixup_bundle a little cleaner over the two platforms
-find_package(Cg)
-
-install(CODE "
-  include(\"${VolumeRover_SOURCE_DIR}/CMake/BundleUtilities.cmake\")
-  fixup_bundle(\"${fixup_exe}\" \"\" \"${CG_LIBRARY_DIR};${QT_LIBRARY_DIR};${QT_BINARY_DIR};${Boost_LIBRARY_DIRS};${BUNDLE_LIB_SEARCH_DIRS};/org/centers/cvc/software/share/usr.linux.x86_64/cg/lib64/\")
-")
-
-install(CODE "
-  include(\"${VolumeRover_SOURCE_DIR}/CMake/BundleUtilities.cmake\")
-  fixup_bundle(\"${fixup_exe}\" \"\" \"${CG_LIBRARY_DIR};${QT_LIBRARY_DIR};${QT_BINARY_DIR};${Boost_LIBRARY_DIRS};${BUNDLE_LIB_SEARCH_DIRS}\")
-")
-endif() # NOT SKIP_FIXUP_BUNDLE
+  # 2) Deploy Qt DLLs + platform plugins via the official Qt6 deploy helper.
+  #    This calls windeployqt under the hood.  (Qt ≥ 6.3)
+  qt_generate_deploy_app_script(
+    TARGET VolumeRover2
+    OUTPUT_SCRIPT _qt_deploy_script
+    NO_TRANSLATIONS
+    NO_COMPILER_RUNTIME        # MSVC CRT handled by InstallRequiredSystemLibraries
+  )
+  install(SCRIPT ${_qt_deploy_script})
+endif()

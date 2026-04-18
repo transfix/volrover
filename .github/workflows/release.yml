@@ -36,7 +36,6 @@ jobs:
             -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
-            -DSKIP_FIXUP_BUNDLE=ON \
             -DCMAKE_INSTALL_PREFIX=/usr
 
       - name: Build
@@ -74,7 +73,6 @@ jobs:
             -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
-            -DSKIP_FIXUP_BUNDLE=ON \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
 
@@ -123,11 +121,25 @@ jobs:
             -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
-            -DSKIP_FIXUP_BUNDLE=ON `
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/_install"
 
       - name: Build
         run: cmake --build build --config Release --parallel
+
+      - name: Install and verify DLLs
+        shell: pwsh
+        run: |
+          cmake --install build --config Release
+          Write-Host "=== Installed files ==="
+          Get-ChildItem -Recurse "${{ github.workspace }}/_install/bin" | Select-Object Name
+          Write-Host ""
+          Write-Host "=== DLL dependencies (dumpbin) ==="
+          $dumpbin = & vswhere -latest -find '**/dumpbin.exe' | Select-Object -First 1
+          if ($dumpbin) {
+            & $dumpbin /dependents "${{ github.workspace }}/_install/bin/VolumeRover2.exe" | Select-String '\.dll'
+          } else {
+            Write-Host "dumpbin not found, skipping dependency check"
+          }
 
       - name: Install NSIS
         shell: pwsh
