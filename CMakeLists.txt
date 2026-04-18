@@ -264,4 +264,23 @@ else()
   set(ADDED_PREFIX "VolumeRover2")
 endif()
 
+# ************* libcvc dependency *************
+# libcvc provides volume operations, I/O, geometry, and algorithms.
+# For local development, override with:
+#   -DFETCHCONTENT_SOURCE_DIR_LIBCVC=/path/to/libcvc
+include(FetchContent)
+
+# Disable libcvc sub-features we don't need during volrover build
+set(CVC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CVC_ENABLE_CUDA OFF CACHE BOOL "" FORCE)
+set(CVC_ENABLE_COVERAGE OFF CACHE BOOL "" FORCE)
+set(CVC_BUILD_VOLROVER3 OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  libcvc
+  GIT_REPOSITORY https://github.com/transfix/libcvc.git
+  GIT_TAG        master
+)
+FetchContent_MakeAvailable(libcvc)
+
 add_subdirectory(src)

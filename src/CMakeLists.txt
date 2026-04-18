@@ -193,8 +193,8 @@ IF(BUILD_VOLUMEROVER_2)
   ADD_SUBDIRECTORY(VolumeRover2)
 ENDIF(BUILD_VOLUMEROVER_2)
 
-# VolUtils has been consolidated into libcvc's unified 'volutils' CLI.
-# See libcvc/src/volutils/README.md for usage.
+# volutils - unified volume utility CLI (uses libcvc for volume operations)
+add_subdirectory(volutils)
 
 # Add a special target to clean nvcc generated files.
 IF(CUDA_BUILD_ENABLED)
