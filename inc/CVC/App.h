@@ -360,7 +360,7 @@ namespace CVC_NAMESPACE
 
       threads(
         wait ? key : App::instance().uniqueThreadKey(key),
-        CVC::ThreadPtr(new boost::thread(t))
+        CVC_NAMESPACE::ThreadPtr(new boost::thread(t))
       );
     }
 

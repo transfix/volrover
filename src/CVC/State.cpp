@@ -120,7 +120,7 @@ namespace
       using namespace boost;
       using namespace std;
 
-      CVC::ThreadFeedback feedback;
+      CVC_NAMESPACE::ThreadFeedback feedback;
 
       XmlRpc::XmlRpcClient c(_host.c_str(),_port);
       XmlRpc::XmlRpcValue params,result;
@@ -169,7 +169,7 @@ namespace
       using namespace boost;
       using namespace boost::algorithm;
 
-      CVC::ThreadFeedback feedback;
+      CVC_NAMESPACE::ThreadFeedback feedback;
     
       //if no hosts have been set, don't do anything.
       if(cvcstate("__system.xmlrpc.hosts").value().empty())
@@ -238,7 +238,7 @@ namespace
         {
           //Sleep for 200ms before each iteration.
           {
-            CVC::ThreadInfo ti("sleeping");
+            CVC_NAMESPACE::ThreadInfo ti("sleeping");
             boost::xtime xt;
             boost::xtime_get( &xt, boost::TIME_UTC );
             xt.nsec += 1000000000 / 5;
@@ -288,7 +288,7 @@ namespace
 
     void operator()()
     {
-      CVC::ThreadFeedback feedback;
+      CVC_NAMESPACE::ThreadFeedback feedback;
 
       //instantiate the server and its methods.
       XmlRpc::XmlRpcServer s;

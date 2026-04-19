@@ -729,10 +729,10 @@ namespace CVCColorTable
      _contourTreeEdges.clear();
 
 #ifndef COLORTABLE2_DISABLE_CONTOUR_TREE
-     if(_contourVolume.voxelType() != CVC::UChar)
+     if(_contourVolume.voxelType() != cvc::UChar)
      {
           _contourVolume.map(0.0,255.0);
-          _contourVolume.voxelType(CVC::UChar);
+          _contourVolume.voxelType(cvc::UChar);
      }
 
      CTVTX* verts = NULL;
@@ -805,10 +805,10 @@ namespace CVCColorTable
      span[1] = _contourVolume.YSpan();
      span[2] = _contourVolume.ZSpan();
 
-     if(_contourVolume.voxelType() != CVC::UChar)
+     if(_contourVolume.voxelType() != cvc::UChar)
      {
         _contourVolume.map(0.0,255.0);
-        _contourVolume.voxelType(CVC::UChar);
+        _contourVolume.voxelType(cvc::UChar);
      }
 
      // make a libcontour variable out of dataBuffer

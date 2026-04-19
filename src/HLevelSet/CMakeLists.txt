@@ -13,6 +13,7 @@ INCLUDE_DIRECTORIES(
 )
 
 ADD_LIBRARY (HLevelSet STATIC ${SOURCE_FILES} ${INCLUDE_FILES})
+target_link_libraries(HLevelSet PUBLIC VolMagick)
 
 #Make sure we've got boost
 set(Boost_USE_STATIC_LIBS OFF)

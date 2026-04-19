@@ -10,9 +10,8 @@ include_directories(
   ../../inc
 )
 
-set(CVC_NAMESPACE CVC)
-mark_as_advanced(CVC_NAMESPACE)
-add_definitions(-DCVC_NAMESPACE=${CVC_NAMESPACE})
+# CVC_NAMESPACE is now set by libcvc's PUBLIC compile definitions (=cvc)
+# No need to override here.
 
 # The libCVC version number.
 set(CVC_VERSION_MAJOR 1)
@@ -115,6 +114,7 @@ set_target_properties(CVC PROPERTIES
 
 target_link_libraries(CVC
   PUBLIC
+    cvc::cvc
     Boost::thread
     Boost::date_time
     Boost::regex
