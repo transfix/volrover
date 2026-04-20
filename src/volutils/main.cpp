@@ -32,6 +32,7 @@
 #include <cvc/geometry_file_io.h>
 #include <cvc/algorithm.h>
 #include <cvc/types.h>
+#include <cvc/app.h>
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -124,7 +125,7 @@ static int cmd_stats(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   cvc::volume_stats s = cvc::compute_stats(vol);
 
@@ -157,7 +158,7 @@ static int cmd_convert(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
 
   if (vm.count("type"))
@@ -186,7 +187,7 @@ static int cmd_add(int argc, char** argv)
   if (inputs.size() != 2)
     throw std::runtime_error("add requires exactly 2 input files");
 
-  cvc::volume a, b;
+  auto& _app = cvc::app::instance(); cvc::volume a(_app), b(_app);
   a.read(inputs[0]);
   b.read(inputs[1]);
   cvc::volume result = cvc::vol_add(a, b);
@@ -213,7 +214,7 @@ static int cmd_subtract(int argc, char** argv)
   if (inputs.size() != 2)
     throw std::runtime_error("subtract requires exactly 2 input files");
 
-  cvc::volume a, b;
+  auto& _app = cvc::app::instance(); cvc::volume a(_app), b(_app);
   a.read(inputs[0]);
   b.read(inputs[1]);
   cvc::volume result = cvc::vol_subtract(a, b);
@@ -241,7 +242,7 @@ static int cmd_scale(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   cvc::volume result = cvc::vol_scale(vol, vm["factor"].as<double>());
   result.write(vm["output"].as<std::string>());
@@ -269,7 +270,7 @@ static int cmd_normalize(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   cvc::volume result = cvc::vol_normalize(vol, vm["min"].as<double>(), vm["max"].as<double>());
   result.write(vm["output"].as<std::string>());
@@ -296,7 +297,7 @@ static int cmd_clip(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   cvc::volume result = cvc::vol_clip(vol, vm["threshold"].as<double>());
   result.write(vm["output"].as<std::string>());
@@ -322,7 +323,7 @@ static int cmd_negate(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   cvc::volume result = cvc::vol_negate(vol);
   result.write(vm["output"].as<std::string>());
@@ -350,7 +351,7 @@ static int cmd_mask(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol, mask_vol;
+  auto& _app = cvc::app::instance(); cvc::volume vol(_app), mask_vol(_app);
   vol.read(vm["input"].as<std::string>());
   mask_vol.read(vm["mask"].as<std::string>());
 
@@ -381,7 +382,7 @@ static int cmd_downsample(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   unsigned int f = vm["factor"].as<unsigned int>();
   cvc::volume result = cvc::vol_downsample(vol, f, f, f);
@@ -436,7 +437,7 @@ static int cmd_bunny(int argc, char** argv)
 
     // Use sdf_library directly via the public API
 #ifdef CVC_ENABLE_SDF
-    cvc::volume sdf_vol = cvc::sdf(bunny, cvc::dimension(d, d, d), bbox);
+    cvc::volume sdf_vol = cvc::sdf(cvc::app::instance(), bunny, cvc::dimension(d, d, d), bbox);
     sdf_vol.write(output);
 #else
     throw std::runtime_error("SDF support not enabled (CVC_ENABLE_SDF=OFF)");
@@ -473,7 +474,7 @@ static int cmd_rotate(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   std::string output = vm["output"].as<std::string>();
   int count = vm["count"].as<int>();
@@ -522,7 +523,7 @@ static int cmd_ssim(int argc, char** argv)
   if (inputs.size() != 2)
     throw std::runtime_error("ssim requires exactly 2 input files");
 
-  cvc::volume a, b;
+  auto& _app = cvc::app::instance(); cvc::volume a(_app), b(_app);
   a.read(inputs[0]);
   b.read(inputs[1]);
 
@@ -569,7 +570,7 @@ static int cmd_project(int argc, char** argv)
     while (f >> deg) angles.push_back(deg * M_PI / 180.0);
   }
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   cvc::volume result = cvc::vol_project(vol, angles, vm["step"].as<double>());
   result.write(vm["output"].as<std::string>());
@@ -607,7 +608,7 @@ static int cmd_backproject(int argc, char** argv)
     while (f >> deg) angles.push_back(deg * M_PI / 180.0);
   }
 
-  cvc::volume proj;
+  cvc::volume proj(cvc::app::instance());
   proj.read(vm["input"].as<std::string>());
   bool filter = !vm.count("no-filter");
   cvc::volume result = cvc::vol_back_project(proj, angles,
@@ -638,7 +639,7 @@ static int cmd_vol2img(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
 
   std::string dir = vm["dir"].as<std::string>();
@@ -665,7 +666,7 @@ static int cmd_img2vol(int argc, char** argv)
   po::notify(vm);
 
   auto inputs = vm["input"].as<std::vector<std::string>>();
-  cvc::volume result = cvc::slices_to_volume(inputs);
+  cvc::volume result = cvc::slices_to_volume(cvc::app::instance(), inputs);
   result.write(vm["output"].as<std::string>());
   std::cout << "Imported " << inputs.size() << " images -> " << vm["output"].as<std::string>() << "\n";
   return 0;
@@ -690,7 +691,7 @@ static int cmd_rgba_merge(int argc, char** argv)
   if (inputs.size() != 4)
     throw std::runtime_error("rgba-merge requires exactly 4 input files (R G B A)");
 
-  cvc::volume r, g, b, a;
+  auto& _app2 = cvc::app::instance(); cvc::volume r(_app2), g(_app2), b(_app2), a(_app2);
   r.read(inputs[0]); g.read(inputs[1]); b.read(inputs[2]); a.read(inputs[3]);
   cvc::volume result = cvc::vol_rgba_merge(r, g, b, a);
   result.write(vm["output"].as<std::string>());
@@ -718,7 +719,7 @@ static int cmd_extract(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>(),
            vm["var"].as<unsigned int>(),
            vm["time"].as<unsigned int>());
@@ -749,7 +750,7 @@ static int cmd_clamp_min(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
   cvc::volume result = cvc::vol_clamp_min(vol, vm["value"].as<double>());
   result.write(vm["output"].as<std::string>());
@@ -775,7 +776,7 @@ static int cmd_difference(int argc, char** argv)
   if (inputs.size() != 2)
     throw std::runtime_error("difference requires exactly 2 input files");
 
-  cvc::volume a, b;
+  auto& _app = cvc::app::instance(); cvc::volume a(_app), b(_app);
   a.read(inputs[0]);
   b.read(inputs[1]);
   cvc::volume result = cvc::vol_difference(a, b);
@@ -802,11 +803,11 @@ static int cmd_average(int argc, char** argv)
   if (inputs.size() < 2)
     throw std::runtime_error("average requires at least 2 input files");
 
-  cvc::volume sum;
+  cvc::volume sum(cvc::app::instance());
   sum.read(inputs[0]);
   for (size_t i = 1; i < inputs.size(); ++i)
   {
-    cvc::volume tmp;
+    cvc::volume tmp(cvc::app::instance());
     tmp.read(inputs[i]);
     sum = cvc::vol_add(sum, tmp);
   }
@@ -835,11 +836,11 @@ static int cmd_sum(int argc, char** argv)
   if (inputs.size() < 2)
     throw std::runtime_error("sum requires at least 2 input files");
 
-  cvc::volume result;
+  cvc::volume result(cvc::app::instance());
   result.read(inputs[0]);
   for (size_t i = 1; i < inputs.size(); ++i)
   {
-    cvc::volume tmp;
+    cvc::volume tmp(cvc::app::instance());
     tmp.read(inputs[i]);
     result = cvc::vol_add(result, tmp);
   }
@@ -868,7 +869,7 @@ static int cmd_interpolate(int argc, char** argv)
   if (inputs.size() != 2)
     throw std::runtime_error("interpolate requires exactly 2 input files");
 
-  cvc::volume a, b;
+  auto& _app = cvc::app::instance(); cvc::volume a(_app), b(_app);
   a.read(inputs[0]);
   b.read(inputs[1]);
 
@@ -908,7 +909,7 @@ static int cmd_compare(int argc, char** argv)
   if (inputs.size() != 2)
     throw std::runtime_error("compare requires exactly 2 input files");
 
-  cvc::volume a, b;
+  auto& _app = cvc::app::instance(); cvc::volume a(_app), b(_app);
   a.read(inputs[0]);
   b.read(inputs[1]);
 
@@ -967,7 +968,7 @@ static int cmd_bbox_shift(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
 
   double dx = vm["dx"].as<double>();
@@ -1005,7 +1006,7 @@ static int cmd_bbox_scale(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
 
   double sx = vm["sx"].as<double>();
@@ -1046,7 +1047,7 @@ static int cmd_bbox_set(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
 
   cvc::bounding_box bb(
@@ -1084,7 +1085,7 @@ static int cmd_fill(int argc, char** argv)
   unsigned int zd = vm["zdim"].as<unsigned int>();
   double val = vm["value"].as<double>();
 
-  cvc::volume vol(cvc::dimension(xd, yd, zd),
+  cvc::volume vol(cvc::app::instance(), cvc::dimension(xd, yd, zd),
                   string_to_type(vm["type"].as<std::string>()));
   uint64_t total = static_cast<uint64_t>(xd) * yd * zd;
   for (uint64_t i = 0; i < total; ++i)
@@ -1116,7 +1117,7 @@ static int cmd_edge(int argc, char** argv)
   if (vm.count("help")) { std::cout << desc << "\n"; return 0; }
   po::notify(vm);
 
-  cvc::volume vol;
+  cvc::volume vol(cvc::app::instance());
   vol.read(vm["input"].as<std::string>());
 
   double sigma = vm["sigma"].as<double>();
@@ -1141,7 +1142,7 @@ static int cmd_edge(int argc, char** argv)
     kernel[n] -= kernel_sum / 125.0;
 
   uint64_t xd = vol.XDim(), yd = vol.YDim(), zd = vol.ZDim();
-  cvc::volume result(cvc::dimension(xd, yd, zd), vol.voxelType(), vol.boundingBox());
+  cvc::volume result(cvc::app::instance(), cvc::dimension(xd, yd, zd), vol.voxelType(), vol.boundingBox());
 
   for (uint64_t x = 0; x < xd; ++x)
     for (uint64_t y = 0; y < yd; ++y)

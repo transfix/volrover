@@ -14,6 +14,7 @@
 #endif
 
 #include <cvc/volmagick.h>
+#include <cvc/app.h>
 #include <CVC/Namespace.h>
 #include <VolMagick/Exceptions.h>
 
@@ -50,6 +51,8 @@ namespace VolMagick
     using cvc::voxels::voxels; // inherit constructors
     using cvc::voxels::voxel_dimensions;
 
+    Voxels() : cvc::voxels(cvc::app::instance()) {}
+
     Dimension& dimension() { return voxel_dimensions(); }
     const Dimension& dimension() const { return voxel_dimensions(); }
     void dimension(const Dimension& d) { voxel_dimensions(d); }
@@ -62,9 +65,13 @@ namespace VolMagick
     using cvc::volume::volume; // inherit constructors
     using cvc::volume::voxel_dimensions;
 
-    Volume() : cvc::volume() {}
+    Volume() : cvc::volume(cvc::app::instance()) {}
     Volume(const cvc::volume& v) : cvc::volume(v) {}
     Volume(const Volume& v) : cvc::volume(v) {}
+    Volume(const Dimension& d, cvc::data_type vt = cvc::UChar)
+      : cvc::volume(cvc::app::instance(), d, vt) {}
+    Volume(const Dimension& d, cvc::data_type vt, const BoundingBox& bb)
+      : cvc::volume(cvc::app::instance(), d, vt, bb) {}
 
     Dimension& dimension() { return voxel_dimensions(); }
     const Dimension& dimension() const { return voxel_dimensions(); }
