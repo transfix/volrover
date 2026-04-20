@@ -75,8 +75,8 @@ INCLUDE_DIRECTORIES(
   ${ACTUAL_OPENGL_INCLUDE_DIR}
 )
 
-# the core CVC lib that contains CVC::App
-set(LIBS CVC)
+# the core CVC app functionality is now provided by libcvc (cvc::cvc)
+set(LIBS cvc::cvc)
 
 find_package(Cg)
 if(CG_FOUND)

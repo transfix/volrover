@@ -12,5 +12,4 @@ target_include_directories(VolMagick
 target_link_libraries(VolMagick
   INTERFACE
     cvc::cvc
-    CVC
 )

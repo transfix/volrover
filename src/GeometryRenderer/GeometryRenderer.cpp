@@ -37,8 +37,7 @@ namespace CVC_NAMESPACE
 {
   void GeometryRenderer::defaultConstructor()
   {
-    using namespace boost::placeholders;
-    state("rendering_mode")
+    getState("rendering_mode")
       .value("filled")
       .comment("The overall geometry rendering mode: 'filled', 'wireframe', 'boundingbox'");
   }
@@ -50,11 +49,11 @@ namespace CVC_NAMESPACE
                      % sceneRoot));
 
     //main scene rendering via renderState
-    state(sceneRoot).traverse(
+    getState(sceneRoot).traverse(
       boost::bind(&GeometryRenderer::renderState, 
                   boost::ref(*this),
                   sceneRoot,
-                  _1));
+                  boost::placeholders::_1));
   }
 
   void GeometryRenderer::renderState(const std::string& root,
