@@ -115,7 +115,7 @@ void VolumeGridRoverMainWindow::fileOpen()
     setCaption("Volume Grid Rover");
 #endif
 
-  VolMagick::VolumeFileInfo vfi(filename.ascii());
+  VolMagick::VolumeFileInfo vfi(cvcapp, filename.ascii());
   m_VolumeFileInfo = vfi;
   m_VolumeGridRover->setVolume(vfi);
   setCaption(filename + " - Volume Grid Rover");

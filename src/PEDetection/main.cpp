@@ -168,7 +168,7 @@ void PEDetection(const char *filename)
 	try
 	  {
 	    VolMagick::VolumeFileInfo volinfo;
-	    volinfo.read(filename);
+	    volinfo.read(cvcapp, filename);
 	    x = volinfo.XDim();
 	    y = volinfo.YDim();
 	    z = volinfo.ZDim();

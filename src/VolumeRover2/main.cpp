@@ -553,7 +553,7 @@ namespace
         cvcapp.log(2,str(format("%s :: load done\n") 
                          % BOOST_CURRENT_FUNCTION));
 
-	VolMagick::VolumeFileInfo vfi(ofile);
+	VolMagick::VolumeFileInfo vfi(cvcapp, ofile);
 
         //copy it to the data map
         cvcapp.data(key, vfi);
@@ -636,7 +636,7 @@ namespace
         cvcapp.log(2,str(format("%s :: load done\n") 
                          % BOOST_CURRENT_FUNCTION));
 
-	VolMagick::VolumeFileInfo vfi(ofile);
+	VolMagick::VolumeFileInfo vfi(cvcapp, ofile);
 
         //copy it to the data map
         cvcapp.data(key, vfi);

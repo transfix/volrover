@@ -223,7 +223,7 @@ void VolumeInterface::dimensionModifySlot()
 	  boost::filesystem::copy_file(std_filename,
 				       _vfi.filename());
 	  boost::filesystem::remove(std_filename);
-	  _vfi.read(_vfi.filename()); //re-read the volume info
+	  _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
       	}
       catch(VolMagick::Exception &e)
@@ -318,7 +318,7 @@ void VolumeInterface::boundingBoxModifySlot()
 	  boost::filesystem::copy_file(std_filename,
 				       _vfi.filename());
 	  boost::filesystem::remove(std_filename);
-	  _vfi.read(_vfi.filename()); //re-read the volume info
+	  _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
 	}
       catch(VolMagick::Exception &e)
@@ -404,7 +404,7 @@ void VolumeInterface::addTimestepSlot()
 	  boost::filesystem::copy_file(filename.ascii(),
 				       _vfi.filename());
 	  boost::filesystem::remove(filename.ascii());
-	  _vfi.read(_vfi.filename()); //re-read the volume info
+	  _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
 	}
       catch(VolMagick::Exception &e)
@@ -510,7 +510,7 @@ void VolumeInterface::addVariableSlot()
 	  boost::filesystem::copy_file(filename.ascii(),
 				       _vfi.filename());
 	  boost::filesystem::remove(filename.ascii());
-	  _vfi.read(_vfi.filename()); //re-read the volume info
+	  _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
 	}
       catch(VolMagick::Exception &e)
@@ -603,7 +603,7 @@ void VolumeInterface::deleteTimestepSlot()
       boost::filesystem::copy_file(std_filename,
 				   _vfi.filename());
       boost::filesystem::remove(std_filename);
-      _vfi.read(_vfi.filename()); //re-read the volume info
+      _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
       setInterfaceInfo(_vfi,true);
     }
   catch(VolMagick::Exception &e)
@@ -699,7 +699,7 @@ void VolumeInterface::deleteVariableSlot()
       boost::filesystem::copy_file(std_filename,
 				   _vfi.filename());
       boost::filesystem::remove(std_filename);
-      _vfi.read(_vfi.filename()); //re-read the volume info
+      _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
       setInterfaceInfo(_vfi,true);
     }
   catch(VolMagick::Exception &e)
@@ -790,7 +790,7 @@ void VolumeInterface::editVariableSlot()
 	  boost::filesystem::copy_file(filename.ascii(),
 				       _vfi.filename());
 	  boost::filesystem::remove(filename.ascii());
-	  _vfi.read(_vfi.filename()); //re-read the volume info
+	  _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
 	}
       catch(VolMagick::Exception &e)
@@ -946,7 +946,7 @@ void VolumeInterface::importDataSlot()
 	      VolMagick::writeVolumeFile(cvcapp, vol,_vfi.filename(),selected_var,selected_time);
 	    }
 
-	  _vfi.read(_vfi.filename()); //re-read the volume info
+	  _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
 	}
       catch(VolMagick::Exception &e)
@@ -986,7 +986,7 @@ void VolumeInterface::remapSlot()
 	  vol.map(rv.minValue(),
 		  rv.maxValue());
 	  VolMagick::writeVolumeFile(cvcapp, vol,_vfi.filename(),selected_var,selected_time);
-	  _vfi.read(_vfi.filename()); //re-read the volume info
+	  _vfi.read(cvcapp, _vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
 	}
       catch(VolMagick::Exception &e)
