@@ -40,7 +40,7 @@ using namespace std;
 // {
 // 
 //   VolMagick::Volume v;
-//   VolMagick::readVolumeFile(v,argv[1]);
+//   VolMagick::readVolumeFile(cvcapp, v,argv[1]);
 // 
 //   int x,y,z;
 //   x=v.XDim(); y=v.YDim(); z=v.ZDim();
@@ -204,7 +204,7 @@ void generateGridFile(Point min, Point max, int xdim,int ydim,int zdim)
 int main(int argc,char *argv[])
 {
   VolMagick::Volume v;
-  VolMagick::readVolumeFile(v,argv[1]);
+  VolMagick::readVolumeFile(cvcapp, v,argv[1]);
 
   UniformGrid ugrid(1,1,1);
   ugrid.importVolume(v);

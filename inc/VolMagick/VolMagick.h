@@ -103,6 +103,15 @@ namespace VolMagick
     std::vector<cvc::volume> base_vols(vols.begin(), vols.end());
     cvc::writeVolumeFile(base_vols, filename);
   }
+
+  // ctx-aware overload for std::vector<VolMagick::Volume>
+  inline void writeVolumeFile(cvc::app& ctx,
+                              const std::vector<Volume>& vols,
+                              const std::string& filename)
+  {
+    std::vector<cvc::volume> base_vols(vols.begin(), vols.end());
+    cvc::writeVolumeFile(ctx, base_vols, filename);
+  }
 }
 
 #endif

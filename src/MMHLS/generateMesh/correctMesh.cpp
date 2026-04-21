@@ -32,7 +32,7 @@ void geometricFlow(Mesh &mesh);
 int projectMeshToIsosurface(VolMagick::Volume *vol,Mesh *mesh,float isovalue)
 {
   vector<VolMagick::Volume> gradient; // Remove when zqyork's gradient computation is ready.
-  VolMagick::calcGradient(gradient,*vol);
+  VolMagick::calcGradient(cvcapp, gradient,*vol);
 //   float *coefficients;
 //  int count=0;
 //  int dim[3];
@@ -151,7 +151,7 @@ int projectMeshToIsosurface(VolMagick::Volume *vol,Mesh *mesh,float isovalue)
 int correctMeshByProjection(VolMagick::Volume *vol,Mesh *mesh,float isovalue,float tolerance,bool &dirty)
 {
   vector<VolMagick::Volume> gradient; // Remove when zqyork's gradient computation is ready.
-  VolMagick::calcGradient(gradient,*vol);
+  VolMagick::calcGradient(cvcapp, gradient,*vol);
 /*
   float *coefficients;
   int count=0;
@@ -377,7 +377,7 @@ void correctMeshes(vector<string> &vols,vector<string> &procvols,vector<Mesh> &m
   for(unsigned int i=0;i<procvols.size();i++)
   {
     VolMagick::Volume v;
-    VolMagick::readVolumeFile(v,vols[i]);
+    VolMagick::readVolumeFile(cvcapp, v,vols[i]);
     projectMeshToIsosurface(&v,&meshes[i],isovalues[i]); // Really tight.
     cout<<"Peforming geometric flow for #"<<i<<endl;
     geometricFlow(meshes[i]);
@@ -399,7 +399,7 @@ void correctMeshes(vector<string> &vols,vector<string> &procvols,vector<Mesh> &m
           if(testBBoxIntersect(meshes[j].bb,meshes[i].bb))
           {
             VolMagick::Volume v;
-            VolMagick::readVolumeFile(v,vols[i]);
+            VolMagick::readVolumeFile(cvcapp, v,vols[i]);
             int numDirtyVerts;
             bool dirt;
             cout<<"Processing mesh #"<<j<<" with volume #"<<i<<"."<<endl;

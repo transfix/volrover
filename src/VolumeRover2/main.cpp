@@ -295,7 +295,7 @@ namespace
               filename_to_open = cache_filename + "|" + cache_object;
 
               //convert to cache file hdf5 object.  This step will perform the hierarchy build.
-              VolMagick::volconvert(_filepath,filename_to_open);
+              VolMagick::volconvert(cvcapp, _filepath,filename_to_open);
               setAttribute(cache_filename,cache_object,"origin",_filepath);
               CVC::uint64 modtime = 
                 QFileInfo(QString::fromStdString(_filepath)).lastModified().toSecsSinceEpoch();
@@ -543,12 +543,12 @@ namespace
               vol(i,j,0, qGray(img.pixel(i,j)));
 
 	// write volume for test
-	VolMagick::createVolumeFile(ofile.c_str(),
+	VolMagick::createVolumeFile(cvcapp, ofile.c_str(),
 				  vol.boundingBox(),
 				  vol.dimension(),
 				  std::vector<VolMagick::VoxelType>(1, vol.voxelType()));
 
-	VolMagick::writeVolumeFile(vol,ofile);
+	VolMagick::writeVolumeFile(cvcapp, vol,ofile);
 
         cvcapp.log(2,str(format("%s :: load done\n") 
                          % BOOST_CURRENT_FUNCTION));
@@ -615,7 +615,7 @@ namespace
                          % BOOST_CURRENT_FUNCTION));
         // load image
 	VolMagick::Volume img;
-        VolMagick::readVolumeFile(img,filepath.c_str());
+        VolMagick::readVolumeFile(cvcapp, img,filepath.c_str());
 	img.map(0.0,255.0);
 	img.voxelType(VolMagick::UChar);
 	if(img.ZDim() > 1) {
@@ -626,12 +626,12 @@ namespace
 
 	// write volume for re-read : this must be updated by copying data without file I/O
 	// currently, if we set volume into data map, it doesn't initialize bounding box correctly.
-	VolMagick::createVolumeFile(ofile.c_str(),
+	VolMagick::createVolumeFile(cvcapp, ofile.c_str(),
 				  VolMagick::BoundingBox(0.0,0.0,0.0,img.XDim()-1.0, img.YDim()-1.0, 1.0),
 				  img.dimension(),
 				  std::vector<VolMagick::VoxelType>(1, img.voxelType()));
 
-	VolMagick::writeVolumeFile(img,ofile);
+	VolMagick::writeVolumeFile(cvcapp, img,ofile);
 
         cvcapp.log(2,str(format("%s :: load done\n") 
                          % BOOST_CURRENT_FUNCTION));

@@ -25,7 +25,7 @@
 void UniformGrid::importVolume(VolMagick::Volume &v)
 {
   volume=&v;
-  VolMagick::calcGradient(gradients,v);
+  VolMagick::calcGradient(cvcapp, gradients,v);
   piecesX=ceil((float)volume->XDim()/cellXDim);
   piecesY=ceil((float)volume->YDim()/cellYDim);
   piecesZ=ceil((float)volume->ZDim()/cellZDim);

@@ -166,7 +166,7 @@ int main(int argc, char **argv)
 	mesher.dual(bool(vm.count("dual")));
 
 	VolMagick::Volume vol;
-	VolMagick::readVolumeFile(vol,input_file);
+	VolMagick::readVolumeFile(cvcapp, vol,input_file);
       
 	mesher.extractMesh(vol); //sets the internal geoframe to the extracted mesh
 	mesher.qualityImprove(improve_iterations);

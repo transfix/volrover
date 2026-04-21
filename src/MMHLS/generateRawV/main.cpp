@@ -186,7 +186,7 @@ void generateRawVFromVolume(string inpvol, int dimension, float edgel, string pr
 	  dim[0]=dim[1]=dim[2]=dimension;
   
   	 VolMagick::Volume  vout, v;
-     VolMagick::readVolumeFile(v,inpvol);
+     VolMagick::readVolumeFile(cvcapp, v,inpvol);
 
  	 cout<<"Create multiple domain volume ..." <<endl;
  	 createMultipleDomainVolume(v, vout);
@@ -258,7 +258,7 @@ void generateRawVFromVolume(string inpvol, int dimension, float edgel, string pr
     
      s3<<prefix<<"-f-"<<setfill('0')<<setw(3)<<(i+1) <<".rawiv"; 
 	 cout<<"Saving volume to "<<s3.str()<<" ..."<<endl;
-    VolMagick::createVolumeFile(*vol,s3.str());
+    VolMagick::createVolumeFile(cvcapp, *vol,s3.str());
 
     ManifestEntry mEntry;
     mEntry.materialId=matIds[i]; 
@@ -301,7 +301,7 @@ void generateRawVFromVolume(int argc, char* argv[])
 
   cout<<"Reading input volume file: "<<argv[2]<<endl;
   VolMagick::Volume v, vout;
-  VolMagick::readVolumeFile(v,string(argv[2]));
+  VolMagick::readVolumeFile(cvcapp, v,string(argv[2]));
 
       
   map<string,ManifestEntry> manifest;
@@ -377,7 +377,7 @@ void generateRawVFromVolume(int argc, char* argv[])
     
      s3<<argv[5]<<"-f-"<<setfill('0')<<setw(3)<<(i+1) <<".rawiv"; 
 	 cout<<"Saving volume to "<<s3.str()<<" ..."<<endl;
-    VolMagick::createVolumeFile(*vol,s3.str());
+    VolMagick::createVolumeFile(cvcapp, *vol,s3.str());
 
     ManifestEntry mEntry;
     mEntry.materialId=matIds[i]; 
@@ -418,7 +418,7 @@ void generateRawVFromMesh(int argc, char* argv[])
 
   cout<<"Reading input volume file: "<<argv[2]<<endl; 
   VolMagick::Volume v;
-  VolMagick::readVolumeFile(v,string(argv[2]));
+  VolMagick::readVolumeFile(cvcapp, v,string(argv[2]));
 
   // Read in the color file.
   map<unsigned int,vector<float> > colors;
@@ -482,7 +482,7 @@ void generateRawVFromMesh(int argc, char* argv[])
 
   s3<<argv[8]<<"-f-"<<setfill('0')<<setw(3)<<i<<".rawiv"; 
   cout<<"Saving volume to "<<s3.str()<<endl;
-  VolMagick::createVolumeFile(*vol,s3.str());
+  VolMagick::createVolumeFile(cvcapp, *vol,s3.str());
 
   ManifestEntry mEntry;
   mEntry.materialId=i; 
@@ -529,7 +529,7 @@ cout<<"inpvol:" << inpVol << " " << meshStart << " " << meshEnd <<" " << meshPre
 
   cout<<"Reading input volume file: "<<inpVol<<endl; 
   VolMagick::Volume v;
-  VolMagick::readVolumeFile(v,inpVol);
+  VolMagick::readVolumeFile(cvcapp, v,inpVol);
 
   // Read in the color file.
   map<unsigned int,vector<float> > colors;
@@ -609,7 +609,7 @@ cout<<"inpvol:" << inpVol << " " << meshStart << " " << meshEnd <<" " << meshPre
 
   s3<<meshDir<<outpref<<"-f-"<<setfill('0')<<setw(3)<<i<<".rawiv"; 
   cout<<"Saving volume to "<<s3.str()<<endl;
-  VolMagick::createVolumeFile(*vol,s3.str());
+  VolMagick::createVolumeFile(cvcapp, *vol,s3.str());
 
   ManifestEntry mEntry;
   mEntry.materialId=i; 

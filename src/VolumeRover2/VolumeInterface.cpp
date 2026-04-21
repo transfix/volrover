@@ -200,7 +200,7 @@ void VolumeInterface::dimensionModifySlot()
       try
 	{
 	  //create a volume file with enough space for a resize
-	  VolMagick::createVolumeFile(std_filename,
+	  VolMagick::createVolumeFile(cvcapp, std_filename,
 				      _vfi.boundingBox(),
                                       dm.dimension(),
 				      _vfi.voxelTypes(),
@@ -212,10 +212,10 @@ void VolumeInterface::dimensionModifySlot()
 	    for(unsigned int time=0; time<_vfi.numTimesteps(); time++)
 	      {
 		VolMagick::Volume vol;
-		readVolumeFile(vol,_vfi.filename(),var,time);
+		readVolumeFile(cvcapp, vol,_vfi.filename(),var,time);
 		vol.resize(dm.dimension());
 		vol.desc(_vfi.name(var));
-		writeVolumeFile(vol,std_filename,var,time);
+		writeVolumeFile(cvcapp, vol,std_filename,var,time);
 	      }
 
 	  //now replace the old volume file with the new resized volume
@@ -295,7 +295,7 @@ void VolumeInterface::boundingBoxModifySlot()
       try
 	{
 	  //create a volume file with enough space for a resize
-	  VolMagick::createVolumeFile(std_filename,
+	  VolMagick::createVolumeFile(cvcapp, std_filename,
 				      newbox,
 				      _vfi.dimension(),
 				      _vfi.voxelTypes(),
@@ -307,10 +307,10 @@ void VolumeInterface::boundingBoxModifySlot()
 	    for(unsigned int time=0; time<_vfi.numTimesteps(); time++)
 	      {
 		VolMagick::Volume vol;
-		VolMagick::readVolumeFile(vol,_vfi.filename(),var,time);
+		VolMagick::readVolumeFile(cvcapp, vol,_vfi.filename(),var,time);
 		vol.desc(_vfi.name(var));
 		vol.boundingBox(newbox);
-		VolMagick::writeVolumeFile(vol,std_filename,var,time);
+		VolMagick::writeVolumeFile(cvcapp, vol,std_filename,var,time);
 	      }
 
 	  //now replace the old volume file with the new resized volume
@@ -361,7 +361,7 @@ void VolumeInterface::addTimestepSlot()
       try
 	{
 	  //create a volume file with an extra timestep
-	  VolMagick::createVolumeFile(filename,
+	  VolMagick::createVolumeFile(cvcapp, filename,
 				      _vfi.boundingBox(),
 				      _vfi.dimension(),
 				      _vfi.voxelTypes(),
@@ -385,12 +385,12 @@ void VolumeInterface::addTimestepSlot()
 		  if(*time != -1)
 		    {
 		      VolMagick::Volume vol;
-		      VolMagick::readVolumeFile(vol,
+		      VolMagick::readVolumeFile(cvcapp, vol,
 						_vfi.filename(),
 						var,
 						static_cast<unsigned int>(*time));
 		      vol.desc(_vfi.name(var));
-		      VolMagick::writeVolumeFile(vol,
+		      VolMagick::writeVolumeFile(cvcapp, vol,
 						 filename,
 						 var,
 						 std::distance(time_indices.begin(),
@@ -457,7 +457,7 @@ void VolumeInterface::addVariableSlot()
 			  VolMagick::VoxelType(av._dataType->currentItem()));
 
 	  //create a volume file with an extra variable
-	  VolMagick::createVolumeFile(filename,
+	  VolMagick::createVolumeFile(cvcapp, filename,
 				      _vfi.boundingBox(),
 				      _vfi.dimension(),
 				      newtypes,
@@ -482,11 +482,11 @@ void VolumeInterface::addVariableSlot()
 		  VolMagick::Volume vol;
 		  for(unsigned int time=0; time<_vfi.numTimesteps(); time++)
 		    {
-		      VolMagick::readVolumeFile(vol,
+		      VolMagick::readVolumeFile(cvcapp, vol,
 						_vfi.filename(),
 						static_cast<unsigned int>(*var),
 						time);
-		      VolMagick::writeVolumeFile(vol,
+		      VolMagick::writeVolumeFile(cvcapp, vol,
 						 filename,
 						 std::distance(var_indices.begin(),var),
 						 time);
@@ -503,7 +503,7 @@ void VolumeInterface::addVariableSlot()
 				VolMagick::VoxelType(av._dataType->currentItem()),
 				_vfi.boundingBox());
 	  vol.desc(av._name->text());
-	  VolMagick::writeVolumeFile(vol,filename,newvar);
+	  VolMagick::writeVolumeFile(cvcapp, vol,filename,newvar);
 
 	  //now replace the old volume file with the new resized volume
 	  boost::filesystem::remove(_vfi.filename());
@@ -567,7 +567,7 @@ void VolumeInterface::deleteTimestepSlot()
   try
     {
       //create a volume file with 1 less timestep
-      VolMagick::createVolumeFile(std_filename,
+      VolMagick::createVolumeFile(cvcapp, std_filename,
 				  _vfi.boundingBox(),
 				  _vfi.dimension(),
 				  _vfi.voxelTypes(),
@@ -586,11 +586,11 @@ void VolumeInterface::deleteTimestepSlot()
 	      time++)
 	    {
 	      VolMagick::Volume vol;
-	      VolMagick::readVolumeFile(vol,
+	      VolMagick::readVolumeFile(cvcapp, vol,
 					_vfi.filename(),
 					var,
 					static_cast<unsigned int>(*time));
-	      VolMagick::writeVolumeFile(vol,
+	      VolMagick::writeVolumeFile(cvcapp, vol,
 					 std_filename,
 					 var,
 					 std::distance(time_indices.begin(),
@@ -664,7 +664,7 @@ void VolumeInterface::deleteVariableSlot()
       newtypes.erase(newtypes.begin()+selected_var);
 
       //create a volume file with 1 less variable
-      VolMagick::createVolumeFile(std_filename,
+      VolMagick::createVolumeFile(cvcapp, std_filename,
 				  _vfi.boundingBox(),
 				  _vfi.dimension(),
 				  newtypes,
@@ -683,11 +683,11 @@ void VolumeInterface::deleteVariableSlot()
 	  VolMagick::Volume vol;
 	  for(unsigned int time=0; time<_vfi.numTimesteps(); time++)
 	    {
-	      VolMagick::readVolumeFile(vol,
+	      VolMagick::readVolumeFile(cvcapp, vol,
 					_vfi.filename(),
 					static_cast<unsigned int>(*var),
 					time);
-	      VolMagick::writeVolumeFile(vol,
+	      VolMagick::writeVolumeFile(cvcapp, vol,
 					 std_filename,
 					 std::distance(var_indices.begin(),var),
 					 time);
@@ -750,7 +750,7 @@ void VolumeInterface::editVariableSlot()
 	  newtypes[selected_var] = VolMagick::VoxelType(ev._dataType->currentItem());
 	  
 	  //create a volume file with an edited variable
-	  VolMagick::createVolumeFile(filename,
+	  VolMagick::createVolumeFile(cvcapp, filename,
 				      _vfi.boundingBox(),
 				      _vfi.dimension(),
 				      newtypes,
@@ -761,13 +761,13 @@ void VolumeInterface::editVariableSlot()
 	  for(unsigned int time = 0; time < _vfi.numTimesteps(); time++)
 	    {
 	      VolMagick::Volume vol;
-	      VolMagick::readVolumeFile(vol,
+	      VolMagick::readVolumeFile(cvcapp, vol,
 					_vfi.filename(),
 					selected_var,
 					time);
 	      vol.desc(ev._name->text());
 	      vol.voxelType(newtypes[selected_var]);
-	      VolMagick::writeVolumeFile(vol,
+	      VolMagick::writeVolumeFile(cvcapp, vol,
 					 filename,
 					 selected_var,
 					 time);
@@ -780,8 +780,8 @@ void VolumeInterface::editVariableSlot()
 	      if(var != (unsigned int)selected_var)
 		{
 		  VolMagick::Volume vol;
-		  VolMagick::readVolumeFile(vol,_vfi.filename(),var,0);
-		  VolMagick::writeVolumeFile(vol,filename,var,0);
+		  VolMagick::readVolumeFile(cvcapp, vol,_vfi.filename(),var,0);
+		  VolMagick::writeVolumeFile(cvcapp, vol,filename,var,0);
 		}
 	    }
 
@@ -906,13 +906,13 @@ void VolumeInterface::importDataSlot()
 		}
 
 	      rawvol.desc(_vfi.name(selected_var));
-	      VolMagick::writeVolumeFile(rawvol,_vfi.filename(),selected_var,selected_time);
+	      VolMagick::writeVolumeFile(cvcapp, rawvol,_vfi.filename(),selected_var,selected_time);
 	    }
 	  else
 	    {
 	      VolMagick::Volume vol;
 
-	      VolMagick::readVolumeFile(vol,
+	      VolMagick::readVolumeFile(cvcapp, vol,
 					id._importFile->text(),
 					id._variable->text().toInt(),
 					id._timestep->text().toInt());
@@ -943,7 +943,7 @@ void VolumeInterface::importDataSlot()
 		}
 
 	      vol.desc(_vfi.name(selected_var));
-	      VolMagick::writeVolumeFile(vol,_vfi.filename(),selected_var,selected_time);
+	      VolMagick::writeVolumeFile(cvcapp, vol,_vfi.filename(),selected_var,selected_time);
 	    }
 
 	  _vfi.read(_vfi.filename()); //re-read the volume info
@@ -982,10 +982,10 @@ void VolumeInterface::remapSlot()
       try
 	{
 	  VolMagick::Volume vol;
-	  VolMagick::readVolumeFile(vol,_vfi.filename(),selected_var,selected_time);
+	  VolMagick::readVolumeFile(cvcapp, vol,_vfi.filename(),selected_var,selected_time);
 	  vol.map(rv.minValue(),
 		  rv.maxValue());
-	  VolMagick::writeVolumeFile(vol,_vfi.filename(),selected_var,selected_time);
+	  VolMagick::writeVolumeFile(cvcapp, vol,_vfi.filename(),selected_var,selected_time);
 	  _vfi.read(_vfi.filename()); //re-read the volume info
 	  setInterfaceInfo(_vfi,true);
 	}

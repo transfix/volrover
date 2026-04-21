@@ -293,7 +293,7 @@ void sweetLBIE::test_LBIE(std::string& cur) {
     std::cin >> isoval;
     meshLessThanIsoval = true;
     VolMagick::Volume vol;
-    readVolumeFile(vol, cur);
+    readVolumeFile(cvcapp, vol, cur);
     LBIE_main(vol, isoval, meshLessThanIsoval);
     std::cout << "Ending SWEETLBIE\n";
 }

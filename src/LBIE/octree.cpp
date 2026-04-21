@@ -187,7 +187,7 @@ void Octree::prop_init(const char* rawiv_fname)
 void Octree::Octree_loadVolume(const char* dx_fname)
 {
   VolMagick::Volume volumeData;
-  VolMagick::readVolumeFile(volumeData,dx_fname);
+  VolMagick::readVolumeFile(cvcapp, volumeData,dx_fname);
   volumeData.voxelType(CVC::Float); //I think this library wants a float*
   loadData(volumeData);
   
@@ -1790,7 +1790,7 @@ void Octree::func_val(geoframe& geofrm) {
 	//func_vol = (float*)malloc(sizeof(float)*dim[0]*dim[1]*dim[2]);
 
 	VolMagick::Volume propData;
-	VolMagick::readVolumeFile(propData,prop_fname);
+	VolMagick::readVolumeFile(cvcapp, propData,prop_fname);
 
 	int old_flag = interior_flag;
 	interior_flag = 1;
@@ -5483,11 +5483,11 @@ void Octree::applyRefinement(const geoframe& original, geoframe &geofrm,unsigned
 						     VolMagick::BoundingBox(geom->m_Min[0],geom->m_Min[1],geom->m_Min[2],
 									    geom->m_Max[0],geom->m_Max[1],geom->m_Max[2]));
       //debugging
-      //VolMagick::writeVolumeFile(volumeData,"/tmp/volumeData.rawiv");
+      //VolMagick::writeVolumeFile(cvcapp, volumeData,"/tmp/volumeData.rawiv");
     }
 
       std::vector<VolMagick::Volume> gradientData;
-      VolMagick::calcGradient(gradientData,volumeData);
+      VolMagick::calcGradient(cvcapp, gradientData,volumeData);
 	printf("Here\n\n\n\n\n");
 	for(unsigned int iter=0;iter<maxIter;iter++)
 	{

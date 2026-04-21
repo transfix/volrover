@@ -673,7 +673,7 @@ namespace
                 }
 
               VolMagick::Volume vol;
-              VolMagick::readVolumeFile(vol,
+              VolMagick::readVolumeFile(cvcapp, vol,
                                         vfi.filename(),
                                         _variable,
                                         _timestep,

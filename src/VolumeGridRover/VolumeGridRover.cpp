@@ -596,7 +596,7 @@ void SliceCanvas::updateSlice()
 				    m_VolumeFileInfo.ZMin() + m_Depth*m_VolumeFileInfo.ZSpan());
 
 	/* read a single slice into m_VolumeSlice */
-	VolMagick::readVolumeFile(m_VolumeSlice,
+	VolMagick::readVolumeFile(cvcapp, m_VolumeSlice,
 				  m_VolumeFileInfo.filename(),
 				  m_Variable,m_Timestep,
 				  bbox);
@@ -648,7 +648,7 @@ void SliceCanvas::updateSlice()
 								 );
       
 	/* read a single slice into m_VolumeSlice */
-	VolMagick::readVolumeFile(m_VolumeSlice,
+	VolMagick::readVolumeFile(cvcapp, m_VolumeSlice,
 				  m_VolumeFileInfo.filename(),
 				  m_Variable,m_Timestep,
 				  bbox);
@@ -700,7 +700,7 @@ void SliceCanvas::updateSlice()
 								 );
       
 	/* read a single slice into m_VolumeSlice */
-	VolMagick::readVolumeFile(m_VolumeSlice,
+	VolMagick::readVolumeFile(cvcapp, m_VolumeSlice,
 				  m_VolumeFileInfo.filename(),
 				  m_Variable,m_Timestep,
 				  bbox);
@@ -4839,11 +4839,11 @@ void VolumeGridRover::loadContoursSlot()
 	  cvcapp.log(5, boost::str(boost::format("Creating volume %s")%tmpfile.absoluteFilePath().toStdString().c_str()));
 	  newfilename = QDir::toNativeSeparators(tmpfile.absoluteFilePath());
 	  cvcapp.log(5, boost::str(boost::format("newfilename = %s")%newfilename.toStdString().c_str()));
-	  VolMagick::createVolumeFile(newfilename.toStdString().c_str(),
+	  VolMagick::createVolumeFile(cvcapp, newfilename.toStdString().c_str(),
 				      empty_vol.boundingBox(),
 				      empty_vol.dimension(),
 				      vector<VolMagick::VoxelType>(1, empty_vol.voxelType()));
-	  VolMagick::writeVolumeFile(empty_vol,newfilename.toStdString().c_str());
+	  VolMagick::writeVolumeFile(cvcapp, empty_vol,newfilename.toStdString().c_str());
 	}
       catch(const VolMagick::Exception& e)
 	{
@@ -6059,7 +6059,7 @@ void VolumeGridRover::EMClusteringRunSlot()
 	  VolMagick::Volume tmpvol;
 
 	  /* read a slice */
-	  VolMagick::readVolumeFile(tmpvol,
+	  VolMagick::readVolumeFile(cvcapp, tmpvol,
 				    m_VolumeFileInfo.filename(),
 				    v,t,
 				    0,0,k,
@@ -6109,7 +6109,7 @@ void VolumeGridRover::EMClusteringRunSlot()
   RangeMax = new unsigned char[m_PointClassList[0][0]->count()];
   
   /* load the volume for random access */
-  VolMagick::readVolumeFile(vol,m_VolumeFileInfo.filename());
+  VolMagick::readVolumeFile(cvcapp, vol,m_VolumeFileInfo.filename());
   if(vol.voxelType() != VolMagick::UChar)
     {
       vol.map(0.0,255.0);
@@ -6881,7 +6881,7 @@ void VolumeGridRover::LocalGenSegThread::run()
               std::cout << d.absoluteFilePath(d[i]).toStdString() << std::endl;
 
 	      VolMagick::Volume vol;
-	      VolMagick::readVolumeFile(vol,d.absoluteFilePath(d[i]).toStdString().c_str());
+	      VolMagick::readVolumeFile(cvcapp, vol,d.absoluteFilePath(d[i]).toStdString().c_str());
 	      //set each volume's description to whatever the point class was named in the VGR UI
 	      vol.desc(m_VolumeGridRover->_ui->m_PointClass->itemText(point_class_idx).toStdString().c_str());
 	      volumes.push_back(vol);
@@ -6892,7 +6892,7 @@ void VolumeGridRover::LocalGenSegThread::run()
 
       //QString newvol_filename(m_VolumeGridRover->cacheDir() + "/tmp/tmp.rawv");
       QString newvol_filename("SegTmp.rawv");
-      VolMagick::writeVolumeFile(volumes,string(newvol_filename.toStdString().c_str()));
+      VolMagick::writeVolumeFile(cvcapp, volumes,string(newvol_filename.toStdString().c_str()));
 
       QApplication::postEvent(m_VolumeGridRover,
 			      new SegmentationFinishedEvent("Local general segmentation finished.",newvol_filename));
