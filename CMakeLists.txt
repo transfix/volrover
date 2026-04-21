@@ -275,11 +275,13 @@ set(CVC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(CVC_ENABLE_CUDA OFF CACHE BOOL "" FORCE)
 set(CVC_ENABLE_COVERAGE OFF CACHE BOOL "" FORCE)
 set(CVC_BUILD_VOLROVER3 OFF CACHE BOOL "" FORCE)
+# volrover consumes libcvc's vendored XmlRPC library as cvc::xmlrpc
+set(CVC_USING_XMLRPC ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
   libcvc
   GIT_REPOSITORY https://github.com/transfix/libcvc.git
-  GIT_TAG        master
+  GIT_TAG        8460b82106418b54e7587e8c957cd69928d3c53b # add-github-ci-cd
 )
 FetchContent_MakeAvailable(libcvc)
 

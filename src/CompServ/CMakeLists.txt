@@ -21,7 +21,7 @@ set(LIBS
   SegSubunit
   SegMed
   SecStruct
-  XmlRPC
+  cvc::xmlrpc
 )
 
 if(BUILD_PEDETECTION_LIB)

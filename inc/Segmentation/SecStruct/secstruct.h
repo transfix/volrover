@@ -27,7 +27,7 @@ University of Texas at Austin for a different license.
 #ifndef SECSTRUCT_H
 #define SECSTRUCT_H
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 namespace SecStruct {
 

@@ -32,7 +32,7 @@
 #include <sys/resource.h>
 #endif
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 #include <Segmentation/GenSeg/genseg.h>
 #include <Segmentation/SegCapsid/segcapsid.h>

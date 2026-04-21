@@ -27,7 +27,7 @@ University of Texas at Austin for a different license.
 #include <string.h>
 #include <iostream>
 #include <string>
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #include <Segmentation/GenSeg/genseg.h>
 
 using namespace XmlRpc;

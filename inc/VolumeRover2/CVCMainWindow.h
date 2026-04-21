@@ -39,7 +39,7 @@
 #include <CVC/App.h>
 #include <CVC/CVCEvent.h>
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 #include <string>
 #include <map>

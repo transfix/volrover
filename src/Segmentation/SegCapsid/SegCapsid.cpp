@@ -16,7 +16,7 @@
 #include <time.h>
 #include <sys/types.h>
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 #define _LITTLE_ENDIAN 1
 

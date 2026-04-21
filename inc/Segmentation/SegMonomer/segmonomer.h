@@ -9,7 +9,7 @@
 #ifndef SEGMONOMER_H
 #define SEGMONOMER_H
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 namespace SegMonomer {
 

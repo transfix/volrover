@@ -95,7 +95,7 @@
 #include <QXmlStreamWriter>
 #include <qdom.h>
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #include <Segmentation/GenSeg/genseg.h>
 
 #include <QGLViewer/manipulatedCameraFrame.h>

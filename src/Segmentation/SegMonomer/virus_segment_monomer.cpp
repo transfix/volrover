@@ -27,7 +27,7 @@ University of Texas at Austin for a different license.
 #include <stdlib.h>
 #include <string.h>
 #include <string>
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #include <Segmentation/SegMonomer/segmonomer.h>
 
 #define _LITTLE_ENDIAN 1

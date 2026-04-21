@@ -27,7 +27,7 @@ University of Texas at Austin for a different license.
 #ifndef GENSEG_H
 #define GENSEG_H
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 namespace GenSeg {
 

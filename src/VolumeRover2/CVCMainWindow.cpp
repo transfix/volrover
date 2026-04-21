@@ -89,7 +89,7 @@
 #include <cvcraw_geometry/contours.h>
 #endif
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 #ifdef USING_VOLUMEGRIDROVER
 #include <VolumeGridRover/VolumeGridRover.h>

@@ -54,7 +54,7 @@
 #include <cvcraw_geometry/cvcgeom.h>
 
 #ifdef USE_XmlRpc
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #else
 #include <Socket/CVCSocket.h>
 #endif

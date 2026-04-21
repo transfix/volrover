@@ -117,7 +117,7 @@ SET(LINK_LIBS
   VolMagick
   ColorTable2
   GenSeg
-  XmlRPC
+  cvc::xmlrpc
   QGLViewer
 )
 

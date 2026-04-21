@@ -26,7 +26,7 @@ add_subdirectory(VolumeRenderer)
 add_subdirectory(GeometryRenderer)
 add_subdirectory(libiso)
 add_subdirectory(volren)
-add_subdirectory(XmlRPC)
+# XmlRPC is now provided by libcvc as cvc::xmlrpc
 
 # Optional: Virus Segmentation
 option(BUILD_SEGMENTATION_LIB "Build Virus Segmentation library" ON)
