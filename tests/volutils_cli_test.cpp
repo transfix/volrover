@@ -22,6 +22,16 @@ namespace fs = std::filesystem;
 #error "VOLUTILS_BINARY must be defined"
 #endif
 
+// Portability shims: MSVC uses the underscored names.
+#ifdef _WIN32
+#  include <cstdlib>
+#  define popen  _popen
+#  define pclose _pclose
+#  ifndef WEXITSTATUS
+#    define WEXITSTATUS(status) (status)  // _pclose already returns the raw exit code.
+#  endif
+#endif
+
 // Run a shell command and capture stdout+stderr. Returns exit code.
 static int run(const std::string& cmd, std::string& output)
 {
