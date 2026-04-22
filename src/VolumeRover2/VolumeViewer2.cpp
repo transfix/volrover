@@ -37,7 +37,7 @@
 
 namespace
 {
-  static inline unsigned int upToPowerOfTwo(unsigned int value)
+  static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
   {
     unsigned int c = 0;
     unsigned int v = value;

@@ -162,7 +162,7 @@ RAWIV_header* SDFLibrary::getVolumeInfo()
 	return ret;
 }
 
-static inline unsigned int upToPowerOfTwo(unsigned int value)
+static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
 {
   unsigned int c = 0;
   unsigned int v = value;
@@ -198,7 +198,7 @@ VolMagick::Volume SDFLibrary::signedDistanceFunction(const boost::shared_ptr<Geo
   //but lets fake support for arbitrary dimensions by using VolMagick::Volume::resize()
   
   unsigned int maxdim = std::max(dim[0],std::max(dim[1],dim[2]));
-  maxdim = upToPowerOfTwo(maxdim);
+  maxdim = upToPowerOfTwoLocal(maxdim);
   size = std::min((unsigned int)1024,maxdim);
 
   float mins[3];

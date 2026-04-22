@@ -2009,7 +2009,7 @@ namespace CVC_NAMESPACE
     glPopAttrib();
   }
 
-  static inline unsigned int upToPowerOfTwo(unsigned int value)
+  static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
   {
     unsigned int c = 0;
     unsigned int v = value;
@@ -2054,9 +2054,9 @@ namespace CVC_NAMESPACE
 	_cmVolume.voxelType(UChar);
       }
     
-    VolMagick::uint64 upload_dimx = upToPowerOfTwo(_cmVolume.XDim());
-    VolMagick::uint64 upload_dimy = upToPowerOfTwo(_cmVolume.YDim());
-    VolMagick::uint64 upload_dimz = upToPowerOfTwo(_cmVolume.ZDim());
+    VolMagick::uint64 upload_dimx = upToPowerOfTwoLocal(_cmVolume.XDim());
+    VolMagick::uint64 upload_dimy = upToPowerOfTwoLocal(_cmVolume.YDim());
+    VolMagick::uint64 upload_dimz = upToPowerOfTwoLocal(_cmVolume.ZDim());
     boost::scoped_array<unsigned char> upload_buf(new unsigned char[upload_dimx*upload_dimy*upload_dimz]);
     for(VolMagick::uint64 k = 0; k < _cmVolume.ZDim(); k++)
       for(VolMagick::uint64 j = 0; j < _cmVolume.YDim(); j++)
@@ -2124,9 +2124,9 @@ namespace CVC_NAMESPACE
 	  }
       }
 
-    VolMagick::uint64 upload_dimx = upToPowerOfTwo(_rgbaVolumes[0].XDim());
-    VolMagick::uint64 upload_dimy = upToPowerOfTwo(_rgbaVolumes[0].YDim());
-    VolMagick::uint64 upload_dimz = upToPowerOfTwo(_rgbaVolumes[0].ZDim());
+    VolMagick::uint64 upload_dimx = upToPowerOfTwoLocal(_rgbaVolumes[0].XDim());
+    VolMagick::uint64 upload_dimy = upToPowerOfTwoLocal(_rgbaVolumes[0].YDim());
+    VolMagick::uint64 upload_dimz = upToPowerOfTwoLocal(_rgbaVolumes[0].ZDim());
     boost::scoped_array<unsigned char> upload_buf(new unsigned char[upload_dimx*upload_dimy*upload_dimz*4]);
 
     //QProgressDialog progress("Creating interleaved RGBA 3D texture...","Abort",0,_rgbaVolumes[0].ZDim());

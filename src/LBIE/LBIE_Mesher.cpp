@@ -30,7 +30,7 @@
 
 namespace LBIE
 {
-  static inline unsigned int upToPowerOfTwo(unsigned int value)
+  static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
   {
     unsigned int c = 0;
     unsigned int v = value;
@@ -76,10 +76,10 @@ namespace LBIE
     unsigned int maxdim = *std::max_element(dim,dim+3);
     if((dim[0] != dim[1]) ||
        (dim[0] != dim[2]) ||
-       upToPowerOfTwo(maxdim-1) != (maxdim-1))
-      localvol.resize(VolMagick::Dimension(upToPowerOfTwo(maxdim)+1,
-					   upToPowerOfTwo(maxdim)+1,
-					   upToPowerOfTwo(maxdim)+1));
+       upToPowerOfTwoLocal(maxdim-1) != (maxdim-1))
+      localvol.resize(VolMagick::Dimension(upToPowerOfTwoLocal(maxdim)+1,
+					   upToPowerOfTwoLocal(maxdim)+1,
+					   upToPowerOfTwoLocal(maxdim)+1));
     _octree.setVolume(localvol);
     cerr << "done" << endl;
 

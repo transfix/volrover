@@ -152,7 +152,7 @@ using namespace qglviewer;
 //calculated bounding box when generating a new volume upon contour load.
 //#define CONTOUR_BOUNDING_BOX_FILTER_HEURISTIC
 
-static inline unsigned int upToPowerOfTwo(unsigned int value)
+static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
 {
   unsigned int c = 0;
   unsigned int v = value;
@@ -396,9 +396,9 @@ void SliceCanvas::setVolume(const VolMagick::VolumeFileInfo& vfi)
   unsetVolume();
   if(!vfi.isSet()) return;
   m_VolumeFileInfo = vfi;
-  imgx = upToPowerOfTwo(m_VolumeFileInfo.XDim());
-  imgy = upToPowerOfTwo(m_VolumeFileInfo.YDim());
-  imgz = upToPowerOfTwo(m_VolumeFileInfo.ZDim());
+  imgx = upToPowerOfTwoLocal(m_VolumeFileInfo.XDim());
+  imgy = upToPowerOfTwoLocal(m_VolumeFileInfo.YDim());
+  imgz = upToPowerOfTwoLocal(m_VolumeFileInfo.ZDim());
 
   m_TexCoordMinX = 0.0; m_TexCoordMaxX = 1.0; m_TexCoordMinY = 0.0; m_TexCoordMaxY = 1.0;
   m_VertCoordMinX = -0.5; m_VertCoordMaxX = 0.5; m_VertCoordMinY = -0.5; m_VertCoordMaxY = 0.5;
@@ -613,9 +613,9 @@ void SliceCanvas::updateSlice()
 	  }
       
         //initialize slice upload buffer
-        imgx = upToPowerOfTwo(m_VolumeSlice.XDim());
-        imgy = upToPowerOfTwo(m_VolumeSlice.YDim());
-        imgz = upToPowerOfTwo(m_VolumeSlice.ZDim());
+        imgx = upToPowerOfTwoLocal(m_VolumeSlice.XDim());
+        imgy = upToPowerOfTwoLocal(m_VolumeSlice.YDim());
+        imgz = upToPowerOfTwoLocal(m_VolumeSlice.ZDim());
         size = imgx*imgy;
         m_Slice.reset(new unsigned char[size]);
 
@@ -665,9 +665,9 @@ void SliceCanvas::updateSlice()
 	  }
       
         //initialize slice upload buffer
-        imgx = upToPowerOfTwo(m_VolumeSlice.XDim());
-        imgy = upToPowerOfTwo(m_VolumeSlice.YDim());
-        imgz = upToPowerOfTwo(m_VolumeSlice.ZDim());
+        imgx = upToPowerOfTwoLocal(m_VolumeSlice.XDim());
+        imgy = upToPowerOfTwoLocal(m_VolumeSlice.YDim());
+        imgz = upToPowerOfTwoLocal(m_VolumeSlice.ZDim());
         size = imgx*imgz;
         m_Slice.reset(new unsigned char[size]);
 
@@ -717,9 +717,9 @@ void SliceCanvas::updateSlice()
 	  }
 
         //initialize slice upload buffer
-        imgx = upToPowerOfTwo(m_VolumeSlice.XDim());
-        imgy = upToPowerOfTwo(m_VolumeSlice.YDim());
-        imgz = upToPowerOfTwo(m_VolumeSlice.ZDim());
+        imgx = upToPowerOfTwoLocal(m_VolumeSlice.XDim());
+        imgy = upToPowerOfTwoLocal(m_VolumeSlice.YDim());
+        imgz = upToPowerOfTwoLocal(m_VolumeSlice.ZDim());
         size = imgz*imgy;
         m_Slice.reset(new unsigned char[size]);
       
@@ -824,7 +824,7 @@ void SliceCanvas::mouseMoveEvent(QMouseEvent *event)
 	  }
 	//printf("x: %d, y: %d\n",x,y);
 	//printf("coords.x: %f, coords.y: %f\n",coords.x,coords.y);
-	slice+=x+y*upToPowerOfTwo(imgx);
+	slice+=x+y*upToPowerOfTwoLocal(imgx);
     
 	switch(m_SliceAxis)
 	  {
@@ -898,7 +898,7 @@ void SliceCanvas::mouseDoubleClickEvent(QMouseEvent *event)
 	      
 	      cvcapp.log(5, boost::str(boost::format("x: %d, y: %d") % x % y));
 	      cvcapp.log(5, boost::str(boost::format("coords.x: %f, coords.y: %f")%coords.x%coords.y));
-	      slice+=x+y*upToPowerOfTwo(imgx);
+	      slice+=x+y*upToPowerOfTwoLocal(imgx);
 	      
 	      switch(m_SliceAxis)
 		{
