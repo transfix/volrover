@@ -16,8 +16,11 @@ namespace CVC_NAMESPACE
   // DataType enum
   typedef data_type DataType;
 
+#ifndef CVC_COMPAT_TYPES_STATICS_DEFINED
+#define CVC_COMPAT_TYPES_STATICS_DEFINED
   static const unsigned int *DataTypeSizes = data_type_sizes;
   static const char **DataTypeStrings = data_type_strings;
+#endif
 
   // LocaleBool
   typedef locale_bool LocaleBool;

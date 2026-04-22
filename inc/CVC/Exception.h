@@ -11,6 +11,8 @@
 
 // Re-export the CVC_DEF_EXCEPTION macro from libcvc (already defined)
 
+#ifndef CVC_COMPAT_EXCEPTION_DEFINED
+#define CVC_COMPAT_EXCEPTION_DEFINED
 namespace CVC_NAMESPACE
 {
   // Base exception class
@@ -31,6 +33,7 @@ namespace CVC_NAMESPACE
   CVC_DEF_EXCEPTION(NetworkError);
   CVC_DEF_EXCEPTION(XmlRpcServerTerminate);
 }
+#endif // CVC_COMPAT_EXCEPTION_DEFINED
 
 #endif
 
