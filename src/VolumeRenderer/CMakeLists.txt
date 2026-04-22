@@ -100,7 +100,7 @@ if(CG_FOUND)
       ../../inc/VolumeRenderer/CGImpl.h
       ../../inc/VolumeRenderer/CGRGBAImpl.h
     )
-    set(LIBS ${CG_LIBRARY} ${CG_GL_LIBRARY})
+    set(LIBS ${LIBS} ${CG_LIBRARY} ${CG_GL_LIBRARY})
   endif(VOLUMERENDERER_USING_CG)
 else(CG_FOUND)
   message("Cg NOT found!")

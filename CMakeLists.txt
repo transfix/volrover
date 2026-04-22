@@ -281,9 +281,17 @@ set(CVC_USING_XMLRPC ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
   libcvc
   GIT_REPOSITORY https://github.com/transfix/libcvc.git
-  GIT_TAG        187ebad60dbe8824348ed1f3172c4b333dab797c # add-github-ci-cd
+  GIT_TAG        39919bc523b613d5ed1838f2e63345a328cb29d2 # add-github-ci-cd
 )
 FetchContent_MakeAvailable(libcvc)
+
+# On case-insensitive filesystems (macOS, Windows), volrover's legacy
+# compat headers under inc/CVC/*.h would shadow libcvc's inc/cvc/*.h
+# whenever volrover's inc/ appears earlier in the include search path.
+# Force libcvc's include dir to be searched first globally so that
+# <cvc/foo.h> always resolves to the libcvc copy.
+include_directories(BEFORE ${libcvc_SOURCE_DIR}/inc)
+include_directories(BEFORE ${libcvc_BINARY_DIR}/inc)
 
 add_subdirectory(src)
 
