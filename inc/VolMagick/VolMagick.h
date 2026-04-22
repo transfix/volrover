@@ -95,6 +95,7 @@ namespace VolMagick
   using cvc::writeVolumeFile;
   using cvc::createVolumeFile;
   using cvc::calcGradient;
+  using cvc::volconvert;
 
   // Overload for std::vector<VolMagick::Volume> (subclass of cvc::volume)
   inline void writeVolumeFile(const std::vector<Volume>& vols,
