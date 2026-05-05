@@ -75,6 +75,13 @@ namespace
 
 namespace CVC_NAMESPACE
 {
+  // On case-insensitive filesystems (macOS APFS, Windows NTFS) the
+  // consumer compat shim at inc/CVC/Exception.h is bypassed because
+  // libcvc's inc/cvc/ and our inc/CVC/ collapse to the same directory.
+  // Provide the legacy unqualified 'Exception' alias locally, inside
+  // namespace cvc, so the catch(Exception&) sites below compile.
+  using Exception = cvc::exception;
+
   VolumeViewer2::~VolumeViewer2()
   {
     _threadsConnection.disconnect();
