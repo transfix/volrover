@@ -23,13 +23,13 @@
 
 /* $Id$ */
 
-#include <CVC/log4cplus_compat.h>
+#include <log4cplus_compat.h>
 
 #include <VolumeRover2/CVCMainWindow.h>
 #include <VolumeRover2/DataWidget.h>
 #include <VolumeRover2/SaveImageInfo.h>
 #include <VolumeRover2/windowbuf.h>
-#include <CVC/App.h>
+#include <cvc_compat.h>
 
 #include <ColorTable2/ColorTable.h>
 
@@ -1745,7 +1745,7 @@ void CVCMainWindow::showHistogramDialogSlot() {
     SecondaryStructureUi->ThresholdEdit->insert("125");
 
 
-    DataMap map = App::instance().data();
+    DataMap map = volrover_app_instance().data();
 
     bool Isgeom = 0;
     for (const auto& val : map) { 
@@ -2667,7 +2667,7 @@ void CVCMainWindow::generateRawVSlot() {
 	QDialog dialog;
 	generateRawVUi->setupUi(&dialog);
 
-	DataMap map = App::instance().data();
+	DataMap map = volrover_app_instance().data();
 
 
     for (const auto& val : map) { 
@@ -2776,7 +2776,7 @@ void CVCMainWindow::MSLevelSetSlot()
 
   string VolFileName;
 
-  DataMap map = App::instance().data();
+  DataMap map = volrover_app_instance().data();
   VolMagick::VolumeFileInfo vif;
 
   for (const auto& val : map) {
@@ -2973,7 +2973,7 @@ void CVCMainWindow::HOSegmentationSlot()
   	m_DoInitCUDA = true;
   	string VolFileName;
 
-  	DataMap map = App::instance().data();
+  	DataMap map = volrover_app_instance().data();
 	VolMagick::VolumeFileInfo vif;
 
   	for (const auto& val : map) {
@@ -3181,7 +3181,7 @@ void CVCMainWindow::MPSegmentationSlot()
 
 	connect((QPushButton*)(MPLevelSetDialogUi->m_UserSegReadButton), SIGNAL(clicked()), this, SLOT(on_UserSegReadButton_clickedSlot()));
 
-  	DataMap map = App::instance().data();
+  	DataMap map = volrover_app_instance().data();
 	VolMagick::VolumeFileInfo vif;
 
   	for (const auto& val : map) {

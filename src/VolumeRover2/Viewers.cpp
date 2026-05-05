@@ -38,10 +38,10 @@
 
 #include <VolMagick/VolMagick.h>
 
-#include <CVC/App.h>
-#include <CVC/CVCEvent.h>
-#include <CVC/Exception.h>
-#include <CVC/log4cplus_compat.h>
+#include <cvc_compat.h>
+#include <CVCEvent.h>
+#include <cvc_compat.h>
+#include <log4cplus_compat.h>
 
 #include <QTimer>
 #include <QMessageBox>
@@ -196,7 +196,7 @@ namespace
     // 09/16/2011 - transfix - restarting the thread if the volume changed
     void operator()()
     {      
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace boost::algorithm;
       using namespace CVCColorTable;
 
@@ -637,7 +637,7 @@ namespace
     void operator()()
     {
       using namespace std;
-      using namespace boost;
+      using namespace boost; using boost::format;
 
       CVC::ThreadFeedback feedback(BOOST_CURRENT_FUNCTION);
 
@@ -1170,7 +1170,7 @@ namespace CVC_NAMESPACE
   void Viewers::loadThumbnail()
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     static log4cplus::Logger logger = FUNCTION_LOGGER;
 
@@ -1415,7 +1415,7 @@ namespace CVC_NAMESPACE
   void Viewers::loadSubVolume()
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     static log4cplus::Logger logger = FUNCTION_LOGGER;
 
@@ -1618,7 +1618,7 @@ namespace CVC_NAMESPACE
 	PropertyMap map = cvcapp.properties();
         for (const auto& val : map) {
 	    using namespace std;
-	    using namespace boost;
+	    using namespace boost; using boost::format;
 	    using namespace boost::algorithm;
 
 	    vector<string> key_idents;
@@ -1697,7 +1697,7 @@ namespace CVC_NAMESPACE
   void Viewers::handlePropertiesChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
 
     static log4cplus::Logger logger = FUNCTION_LOGGER;
@@ -2020,7 +2020,7 @@ namespace CVC_NAMESPACE
   void Viewers::handleDataChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
 
     static log4cplus::Logger logger = FUNCTION_LOGGER;

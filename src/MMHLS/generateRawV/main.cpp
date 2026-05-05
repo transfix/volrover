@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /***************************************************************************
  *   Copyright (C) 2009 by Bharadwaj Subramanian   *
  *   bharadwajs@axon.ices.utexas.edu   *

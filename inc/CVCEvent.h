@@ -1,5 +1,5 @@
 /*
-  Copyright 2005-2011 The University of Texas at Austin
+  Copyright 2011 The University of Texas at Austin
 
         Authors: Joe Rivera <transfix@ices.utexas.edu>
         Advisor: Chandrajit Bajaj <bajaj@cs.utexas.edu>
@@ -20,36 +20,28 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-/* $Id: upToPowerOfTwo.h 4741 2011-10-21 21:22:06Z transfix $ */
+/* $Id$ */
 
-#ifndef __CVC_UPTOPOWEROFTWO__
-#define __CVC_UPTOPOWEROFTWO__
+//NOTE: this header requires Qt for any translation unit including it
 
-#include <CVC/Namespace.h>
+#include <cvc_compat.h>
+
+#include <QEvent>
+
+#include <string>
+#include <boost/any.hpp>
 
 namespace CVC_NAMESPACE
 {
-  static inline unsigned int upToPowerOfTwo(unsigned int value)
-    {
-      unsigned int c = 0;
-      unsigned int v = value;
-
-      // round down to nearest power of two 
-      while (v>1) {
-        v = v>>1;
-        c++;
-      }
-
-      // if that isn't exactly the original value 
-      if ((v<<c)!=value) {
-        // return the next power of two 
-        return (v<<(c+1));
-      }
-      else {
-        // return this power of two 
-        return (v<<c);
-      }
-    }
+  struct CVCEvent : public QEvent
+  {
+    public:
+    CVCEvent(const std::string n = std::string(),
+             const boost::any d = boost::any())
+      : QEvent(QEvent::User), name(n), data(d) {}
+    
+    std::string name;
+    boost::any  data;
+  };
 }
 
-#endif

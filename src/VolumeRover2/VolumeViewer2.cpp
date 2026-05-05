@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
   Copyright 2012 The University of Texas at Austin
 
@@ -21,8 +23,8 @@
 */
 
 #include <VolumeRover2/VolumeViewer2.h>
-#include <CVC/CVCEvent.h>
-#include <CVC/Exception.h>
+#include <CVCEvent.h>
+#include <cvc_compat.h>
 #include <VolMagick/Volume.h>
 #include <cvcraw_geometry/cvcgeom.h>
 #include <QGLViewer/frame.h>
@@ -75,13 +77,6 @@ namespace
 
 namespace CVC_NAMESPACE
 {
-  // On case-insensitive filesystems (macOS APFS, Windows NTFS) the
-  // consumer compat shim at inc/CVC/Exception.h is bypassed because
-  // libcvc's inc/cvc/ and our inc/CVC/ collapse to the same directory.
-  // Provide the legacy unqualified 'Exception' alias locally, inside
-  // namespace cvc, so the catch(Exception&) sites below compile.
-  using Exception = cvc::exception;
-
   VolumeViewer2::~VolumeViewer2()
   {
     _threadsConnection.disconnect();
@@ -283,7 +278,7 @@ namespace CVC_NAMESPACE
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -306,7 +301,7 @@ namespace CVC_NAMESPACE
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -522,7 +517,7 @@ namespace CVC_NAMESPACE
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -566,7 +561,7 @@ namespace CVC_NAMESPACE
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -583,7 +578,7 @@ namespace CVC_NAMESPACE
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -1033,7 +1028,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::handleThreadsChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     cvcapp.log(5,
                str(
@@ -1237,7 +1232,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::handleStateChanged(const std::string& childState)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     boost::mutex::scoped_lock lock(_handleStateChangedMutex);
 
@@ -1355,7 +1350,7 @@ namespace CVC_NAMESPACE
     
     //set camera position property
     {
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace std;
 
       //ss << camera()->position();

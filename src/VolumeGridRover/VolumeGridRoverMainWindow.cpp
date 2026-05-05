@@ -31,7 +31,7 @@
 
 #include <VolumeGridRover/VolumeGridRover.h>
 #include <VolumeGridRover/VolumeGridRoverMainWindow.h>
-#include <CVC/App.h>
+#include <cvc_compat.h>
 
 static inline unsigned char mapToChar(double val)
 {

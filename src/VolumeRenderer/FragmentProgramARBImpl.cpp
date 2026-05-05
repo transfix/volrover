@@ -40,7 +40,7 @@
 #define PRINT_GLERROR                              \
         {                                          \
           using namespace std;                     \
-          using namespace boost;                   \
+          using namespace boost; using boost::format;                   \
           cerr<<str(format("%1%,%2%,%3%,glGetError()==%4%\n")        \
                     % BOOST_CURRENT_FUNCTION       \
                     % __FILE__                     \

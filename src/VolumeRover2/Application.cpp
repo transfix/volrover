@@ -21,7 +21,7 @@
 */
 
 #include <VolumeRover2/Application.h>
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <boost/format.hpp>
 
 #include <exception>

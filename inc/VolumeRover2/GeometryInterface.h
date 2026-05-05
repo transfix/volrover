@@ -26,7 +26,7 @@
 #ifndef __GEOMETRYINTERFACE_H__
 #define __GEOMETRYINTERFACE_H__
 
-#include <CVC/Namespace.h>
+#include <cvc_compat.h>
 #include <VolumeRover2/DataWidget.h>
 #include <cvcraw_geometry/cvcgeom.h>
 #include <cvcraw_geometry/io.h>

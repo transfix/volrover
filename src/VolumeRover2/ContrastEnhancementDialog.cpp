@@ -21,7 +21,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <VolumeRover2/ContrastEnhancementDialog.h>
 
 #include <VolMagick/VolMagick.h>

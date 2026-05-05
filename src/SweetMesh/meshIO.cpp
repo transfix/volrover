@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /***************************************************************************
  *   Copyright (C) 2010 by Jesse Sweet   *
  *   jessethesweet@gmail.com   *

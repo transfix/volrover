@@ -5,8 +5,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(VolumeRover VERSION 2.1.0 LANGUAGES C CXX)
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+# Set C++ standard.  libcvc 3.1.0 requires C++20 (uses std::format,
+# concepts, etc.) and is consumed via FetchContent below.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -173,6 +174,11 @@ if(WIN32)
   add_definitions(-DNOMINMAX)
 endif()
 
+# Suppress libcvc's PascalCase compat typedefs (App, ThreadInfo, etc.).
+# volrover provides its own subclasses in inc/cvc_compat.h that auto-supply
+# the volrover-owned cvc::app context to the new (app& ctx, ...) ctors.
+add_definitions(-DCVC_COMPAT_APP_DEFINED)
+
 # ************* CPack configuration for VolumeRover *************
 # Include the packaging system for distributing binaries
 
@@ -281,15 +287,14 @@ set(CVC_USING_XMLRPC ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
   libcvc
   GIT_REPOSITORY https://github.com/transfix/libcvc.git
-  GIT_TAG        699fcd4c7567d58b0cda724a4c9147d7237fc8ab # add-github-ci-cd
+  GIT_TAG        972afd8552b4755356e572f9b4ffc33d4366cda9 # v3.1.0
 )
 FetchContent_MakeAvailable(libcvc)
 
-# On case-insensitive filesystems (macOS, Windows), volrover's legacy
-# compat headers under inc/CVC/*.h would shadow libcvc's inc/cvc/*.h
-# whenever volrover's inc/ appears earlier in the include search path.
-# Force libcvc's include dir to be searched first globally so that
-# <cvc/foo.h> always resolves to the libcvc copy.
+# On case-insensitive filesystems (macOS, Windows), libcvc's headers may
+# be shadowed by directories with conflicting names if volrover's own
+# include path appears earlier in the search order. Force libcvc's
+# include dirs first globally so that <cvc/foo.h> always resolves there.
 include_directories(BEFORE ${libcvc_SOURCE_DIR}/inc)
 include_directories(BEFORE ${libcvc_BINARY_DIR}/inc)
 

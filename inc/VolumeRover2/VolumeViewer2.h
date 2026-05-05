@@ -26,9 +26,10 @@
 #ifndef __VOLUMEVIEWER2_H__
 #define __VOLUMEVIEWER2_H__
 
-#include <CVC/App.h>
-#include <CVC/State.h>
-#include <CVC/BoundingBox.h>
+#include <cvc/state_object.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 #include <VolumeRenderer/VolumeRenderer.h>
 #include <QGLViewer/qglviewer.h>
 #include <string>
@@ -44,8 +45,8 @@ namespace CVC_NAMESPACE
   //  Updated version of VolumeViewer that uses cvcstate.
   // ---- Change History ----
   // 03/30/2012 -- Joe R. -- Started.
-  // 06/15/2012 -- Joe R. -- Using StateObject<>
-  class VolumeViewer2 : public QGLViewer, public StateObject<VolumeViewer2>
+  // 06/15/2012 -- Joe R. -- Using state_object<>
+  class VolumeViewer2 : public QGLViewer, public state_object<VolumeViewer2>
   {
   Q_OBJECT
 
@@ -55,7 +56,8 @@ namespace CVC_NAMESPACE
 
     explicit VolumeViewer2(QWidget* parent=nullptr, 
                           Qt::WindowFlags flags=Qt::WindowFlags())
-      : QGLViewer(parent, flags)
+      : QGLViewer(parent, flags),
+        state_object<VolumeViewer2>(volrover_app_instance())
     { defaultConstructor(); }
 
     ~VolumeViewer2();

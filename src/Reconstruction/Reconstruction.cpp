@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
 All right are reserved by The National Key Lab of Scientific and Engineering Computing,
 Chinese Academy of Sciences.

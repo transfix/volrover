@@ -26,7 +26,7 @@
 #ifndef __CVC_VIEWERS_H__
 #define __CVC_VIEWERS_H__
 
-#include <CVC/Namespace.h>
+#include <cvc_compat.h>
 #include <VolumeRover2/VolumeViewer.h>
 #include <ColorTable2/ColorTable.h>
 

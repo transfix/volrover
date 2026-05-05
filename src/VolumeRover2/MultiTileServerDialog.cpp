@@ -24,7 +24,7 @@
 #ifndef __MULTITILESERVERDIALOG_CPP__
 #define __MULTITILESERVERDIALOG_CPP__
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <VolumeRover2/MultiTileServerDialog.h>
 
 #include <VolMagick/VolMagick.h>

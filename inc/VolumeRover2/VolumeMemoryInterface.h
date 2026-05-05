@@ -26,7 +26,7 @@
 #ifndef __VOLUMEMEMORYINTERFACE_H__
 #define __VOLUMEMEMORYINTERFACE_H__
 
-#include <CVC/Namespace.h>
+#include <cvc_compat.h>
 
 
 #include <VolumeRover2/DataWidget.h>

@@ -39,12 +39,12 @@
 #include <VolMagick/VolMagick.h>
 #endif
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 
 #define PRINT_GLERROR                              \
         {                                          \
           using namespace std;                     \
-          using namespace boost;                   \
+          using namespace boost; using boost::format;                   \
           cerr<<str(format("%1%,%2%,%3%,glGetError()==%4%\n")        \
                     % BOOST_CURRENT_FUNCTION       \
                     % __FILE__                     \
@@ -365,7 +365,7 @@ bool FragmentProgramGLSLImpl::initTextureNames()
 // Gets the fragment program ready
 bool FragmentProgramGLSLImpl::initFragmentProgram()
 {
-  using namespace boost;
+  using namespace boost; using boost::format;
   using namespace std;
 
   _isGL2_0 = glewIsSupported("GL_VERSION_2_0");
@@ -653,7 +653,7 @@ void FragmentProgramGLSLImpl::unsetFragmentShader()
 
 void FragmentProgramGLSLImpl::updateUniforms()
 {
-  using namespace boost;
+  using namespace boost; using boost::format;
   using namespace std;
  
   if(!initialized())
@@ -714,7 +714,7 @@ void FragmentProgramGLSLImpl::updateUniforms()
 void FragmentProgramGLSLImpl::printUniformInfo(const std::string& uniformName)
 {
   using namespace std;
-  using namespace boost;
+  using namespace boost; using boost::format;
 
   if(!initialized())
     throw UninitializedException("renderer not yet initialized");

@@ -106,7 +106,7 @@
 #include <VolumeGridRover/bspline_opt.h>
 #include <VolumeGridRover/sdf_opt.h>
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 
 #ifdef USING_VOLUMEGRIDROVER_MEDAX
 #include <VolumeGridRover/medax.h>
@@ -3572,7 +3572,7 @@ void VolumeGridRover::saveContoursSlot()
 					k != tmplist.end();
 					k++)
 				      {
-					using namespace boost;
+					using namespace boost; using boost::format;
 					Line ante, des;
 
 					//border cases and regular case
@@ -4361,7 +4361,7 @@ void VolumeGridRover::loadContoursSlot()
       else if(filename.endsWith(".config"))
 	{
 	  using namespace std;
-	  using namespace boost;
+	  using namespace boost; using boost::format;
 	  using namespace boost::algorithm;
      
 	  //ContourTiler's pts/config format
@@ -4747,7 +4747,7 @@ void VolumeGridRover::loadContoursSlot()
   //if a volume isn't loaded, lets generate one
   if(!m_VolumeFileInfo.isSet())
     {
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace std;
       //calculate the needed bounding box and dimension to fit all contours
       VolMagick::BoundingBox globalbox(-0.5,-0.5,-0.5,0.5,0.5,0.5);
@@ -6864,7 +6864,7 @@ void VolumeGridRover::LocalGenSegThread::run()
   else
     {
       using namespace std;
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace boost::algorithm;
 
       //successfully ran general segmentation.. now convert output to a rawv volume and load that and remove the temporary subunit files

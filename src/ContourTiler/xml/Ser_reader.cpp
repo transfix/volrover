@@ -6,12 +6,13 @@
 #include <boost/tokenizer.hpp>
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/format.hpp>
 
 #include <ContourTiler/xml/tinyxml.h>
 #include <ContourTiler/xml/Ser_reader.h>
 
 using namespace std;
-using namespace boost;
+using namespace boost; using boost::format;
 
 //------------------------------------------------------------
 // class Ser_transform

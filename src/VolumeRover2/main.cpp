@@ -51,15 +51,15 @@
 #include <VolumeRover2/ContoursInterface.h>
 #endif
 
-#include <CVC/App.h>
-#include <CVC/BoundingBox.h>
-#include <CVC/Dimension.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 
 #ifndef CVC_HDF5_DISABLED
-#include <CVC/HDF5_Utilities.h>
+#include <cvc_compat.h>
 #endif
 
-#include <CVC/log4cplus_compat.h>
+#include <log4cplus_compat.h>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
@@ -229,7 +229,7 @@ namespace
     {
 #ifndef CVC_HDF5_DISABLED
       using namespace std;
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace CVC::HDF5_Utilities;
 
       CVC::ThreadFeedback feedback(BOOST_CURRENT_FUNCTION);
@@ -332,7 +332,7 @@ namespace
 
     try
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
 
         std::string actualPath;
         std::string objectName;
@@ -424,7 +424,7 @@ namespace
 
   bool load_cvcgeom(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     try
       {
@@ -474,7 +474,7 @@ namespace
 
   bool load_image(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     try
       {
@@ -571,7 +571,7 @@ namespace
 
   bool load_2DMRC(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     try
       {
@@ -671,7 +671,7 @@ namespace
 
   bool load_ser(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
     static log4cplus::Logger logger = FUNCTION_LOGGER;
 
     try

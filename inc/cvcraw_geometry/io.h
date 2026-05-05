@@ -57,7 +57,7 @@ namespace cvcraw_geometry
 			   const std::string& filename)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     typedef typename geometry_map_container::points_t    points_t;
     typedef typename geometry_map_container::boundary_t  boundary_t;
@@ -230,7 +230,7 @@ namespace cvcraw_geometry
 					     const std::string& filename)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::lambda;
 
     typedef typename geometry_map_container::points_t    points_t;

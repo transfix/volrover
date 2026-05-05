@@ -36,9 +36,9 @@
 #include <VolumeRover2/VolumeViewer.h>
 
 using namespace boost::placeholders;
-#include <CVC/CVCEvent.h>
-#include <CVC/State.h>
-#include <CVC/log4cplus_compat.h>
+#include <CVCEvent.h>
+#include <cvc_compat.h>
+#include <log4cplus_compat.h>
 
 #include <QGLViewer/quaternion.h>
 
@@ -2202,7 +2202,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::updateVBO()
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     if(_vboUpdated) return;
 
@@ -2812,7 +2812,7 @@ namespace CVC_NAMESPACE
   std::vector<cvcraw_geometry::cvcgeom_t> VolumeViewer::getGeometriesFromDatamap() const
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
     
     vector<cvcraw_geometry::cvcgeom_t> geoms =
@@ -2976,7 +2976,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handlePropertiesChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
 
     static log4cplus::Logger logger = log4cplus::Logger::getInstance("VolumeViewer.handlePropertiesChanged");
@@ -3524,7 +3524,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handleDataChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
 
     //if everything changed, iterate across all keys
@@ -3675,7 +3675,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handleThreadsChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     //ignore empty keys.  TODO: find out where they're coming from...
     if(key.empty()) return;
@@ -3710,7 +3710,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handleStateChanged(const std::string& childState)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     
     static log4cplus::Logger logger = log4cplus::Logger::getInstance("VolumeViewer.handleStateChanged");
 
@@ -4228,7 +4228,7 @@ namespace CVC_NAMESPACE
     
     //set camera position property
     {
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace std;
 
       //ss << camera()->position();

@@ -15,7 +15,8 @@
 
 #include <cvc/volmagick.h>
 #include <cvc/app.h>
-#include <CVC/Namespace.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 #include <VolMagick/Exceptions.h>
 
 namespace VolMagick
@@ -51,7 +52,7 @@ namespace VolMagick
     using cvc::voxels::voxels; // inherit constructors
     using cvc::voxels::voxel_dimensions;
 
-    Voxels() : cvc::voxels(cvc::app::instance()) {}
+    Voxels() : cvc::voxels(cvc::volrover_app_instance()) {}
 
     Dimension& dimension() { return voxel_dimensions(); }
     const Dimension& dimension() const { return voxel_dimensions(); }
@@ -65,13 +66,13 @@ namespace VolMagick
     using cvc::volume::volume; // inherit constructors
     using cvc::volume::voxel_dimensions;
 
-    Volume() : cvc::volume(cvc::app::instance()) {}
+    Volume() : cvc::volume(cvc::volrover_app_instance()) {}
     Volume(const cvc::volume& v) : cvc::volume(v) {}
     Volume(const Volume& v) : cvc::volume(v) {}
     Volume(const Dimension& d, cvc::data_type vt = cvc::UChar)
-      : cvc::volume(cvc::app::instance(), d, vt) {}
+      : cvc::volume(cvc::volrover_app_instance(), d, vt) {}
     Volume(const Dimension& d, cvc::data_type vt, const BoundingBox& bb)
-      : cvc::volume(cvc::app::instance(), d, vt, bb) {}
+      : cvc::volume(cvc::volrover_app_instance(), d, vt, bb) {}
 
     Dimension& dimension() { return voxel_dimensions(); }
     const Dimension& dimension() const { return voxel_dimensions(); }
@@ -84,6 +85,13 @@ namespace VolMagick
   public:
     using cvc::volume_file_info::volume_file_info;
     using cvc::volume_file_info::voxel_dimensions;
+    using cvc::volume_file_info::read;
+
+    // Convenience: filename-only ctor + read() route through volrover app.
+    explicit VolumeFileInfo(const std::string& file)
+      : cvc::volume_file_info(cvc::volrover_app_instance(), file) {}
+    void read(const std::string& filename)
+    { cvc::volume_file_info::read(cvc::volrover_app_instance(), filename); }
 
     Dimension& dimension() { return voxel_dimensions(); }
     const Dimension& dimension() const { return voxel_dimensions(); }
@@ -102,7 +110,7 @@ namespace VolMagick
                               const std::string& filename)
   {
     std::vector<cvc::volume> base_vols(vols.begin(), vols.end());
-    cvc::writeVolumeFile(base_vols, filename);
+    cvc::writeVolumeFile(cvc::volrover_app_instance(), base_vols, filename);
   }
 
   // ctx-aware overload for std::vector<VolMagick::Volume>

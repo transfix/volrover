@@ -24,7 +24,7 @@
 #include <log4cplus/configurator.h>
 
 using namespace std;
-using namespace boost;
+using namespace boost; using boost::format;
 using namespace CONTOURTILER_NAMESPACE;
 
 struct cn_options

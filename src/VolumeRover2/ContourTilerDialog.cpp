@@ -23,7 +23,7 @@
 
 #ifdef USING_TILING
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <VolumeRover2/ContourTilerDialog.h>
 #include <ContourTiler/tiler.h>
 #include <ContourTiler/cl_options.h>

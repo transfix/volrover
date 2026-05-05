@@ -48,6 +48,7 @@ endif(VOLUMEROVER2_FLOAT_COLORTABLE)
 set(SOURCE_FILES
 #  VolumeViewerPage.cpp
   main.cpp
+  ${CMAKE_SOURCE_DIR}/src/volrover_app_instance.cpp
   CVCMainWindow.cpp
   Viewers.cpp
   VolumeViewer.cpp
