@@ -126,7 +126,8 @@ TEST(VolMagick_Volume, DimensionCompatMethod)
 
 TEST(VolMagick_Volume, ConstructFromCvcVolume)
 {
-    cvc::volume cv(cvc::app::instance());
+    static cvc::app test_app;
+    cvc::volume cv(test_app);
     cv.voxelType(cvc::Float);
     cv.voxel_dimensions(cvc::dimension(4, 4, 4));
 

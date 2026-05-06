@@ -47,11 +47,14 @@ namespace CVC_NAMESPACE
   typedef dimension          Dimension;
   typedef exception          Exception;
 
-  // The volrover-owned cvc::app context. Defined in
-  // src/volrover_app_instance.cpp and linked into the VolumeRover2
-  // executable; legacy static libraries that reference cvcapp/cvcstate
-  // resolve this symbol at final link time.
-  app &volrover_app_instance();
+  // The volrover-owned cvc::app context. An inline function-local static
+  // gives every TU a single shared instance without requiring callers to
+  // link a dedicated object file (matters for unit tests).
+  inline app &volrover_app_instance()
+  {
+    static app instance_;
+    return instance_;
+  }
 
   // libcvc 3.1.0 made thread_info / thread_feedback / scoped_lock take a
   // leading app& argument. Wrap them so legacy volrover code can keep
