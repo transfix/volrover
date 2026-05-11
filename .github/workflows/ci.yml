@@ -2,7 +2,7 @@ name: CI/CD
 
 on:
   pull_request:
-    branches: [ main, master, develop, use-libcvc-volutils ]
+    branches: [ main, master, develop ]
   push:
     branches: [ main, master ]
     tags:
