@@ -271,9 +271,29 @@ else()
 endif()
 
 # ************* libcvc dependency *************
-# libcvc provides volume operations, I/O, geometry, and algorithms.
-# For local development, override with:
-#   -DFETCHCONTENT_SOURCE_DIR_LIBCVC=/path/to/libcvc
+# Resolution order, falling through on failure:
+#   1. find_package(cvc CONFIG) against a pre-installed libcvc on
+#      CMAKE_PREFIX_PATH (fastest, no download or build).
+#   2. Download the prebuilt release tarball matching this platform /
+#      build type from https://github.com/transfix/libcvc/releases and
+#      find_package against the extracted tree.
+#   3. FetchContent_Declare(GIT_REPOSITORY ...) and build from source.
+#      Override with -DLIBCVC_FORCE_SOURCE=ON or
+#      -DFETCHCONTENT_SOURCE_DIR_LIBCVC=/path/to/libcvc for local dev.
+#
+# volrover links cvc::xmlrpc (used by VolumeGridRover, CompServ, all the
+# Segmentation/Seg* modules, SecStruct, GenSeg, VolumeRover2). libcvc
+# release archives <= 3.1.1 do not ship cvc::xmlrpc, so the resolver
+# verifies the target exists before accepting a prebuilt package and
+# falls through to the source build otherwise. Once libcvc starts
+# shipping xmlrpc, the prebuilt path activates automatically.
+set(LIBCVC_TAG     "v3.1.1" CACHE STRING "libcvc release tag to consume")
+set(LIBCVC_VERSION "3.1.1"  CACHE STRING "libcvc package version to look up")
+set(LIBCVC_GIT_SHA "4af186a0641191b82ec3ea4799e81465c274c52c"
+    CACHE STRING "libcvc commit SHA used when falling through to source build")
+option(LIBCVC_FORCE_SOURCE "Skip prebuilt libcvc and always build from source" OFF)
+set(LIBCVC_NEEDS_XMLRPC TRUE)
+
 include(FetchContent)
 
 # Disable libcvc sub-features we don't need during volrover build
@@ -281,22 +301,104 @@ set(CVC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(CVC_ENABLE_CUDA OFF CACHE BOOL "" FORCE)
 set(CVC_ENABLE_COVERAGE OFF CACHE BOOL "" FORCE)
 set(CVC_BUILD_VOLROVER3 OFF CACHE BOOL "" FORCE)
-# volrover consumes libcvc's vendored XmlRPC library as cvc::xmlrpc
 set(CVC_USING_XMLRPC ON CACHE BOOL "" FORCE)
 
-FetchContent_Declare(
-  libcvc
-  GIT_REPOSITORY https://github.com/transfix/libcvc.git
-  GIT_TAG        972afd8552b4755356e572f9b4ffc33d4366cda9 # v3.1.0
-)
-FetchContent_MakeAvailable(libcvc)
+function(_libcvc_check_usable out_var)
+  set(${out_var} FALSE PARENT_SCOPE)
+  if(NOT cvc_FOUND)
+    return()
+  endif()
+  if(LIBCVC_NEEDS_XMLRPC AND NOT TARGET cvc::xmlrpc)
+    message(STATUS "libcvc package found (${cvc_VERSION}) but cvc::xmlrpc is missing")
+    return()
+  endif()
+  set(${out_var} TRUE PARENT_SCOPE)
+endfunction()
 
-# On case-insensitive filesystems (macOS, Windows), libcvc's headers may
-# be shadowed by directories with conflicting names if volrover's own
-# include path appears earlier in the search order. Force libcvc's
-# include dirs first globally so that <cvc/foo.h> always resolves there.
-include_directories(BEFORE ${libcvc_SOURCE_DIR}/inc)
-include_directories(BEFORE ${libcvc_BINARY_DIR}/inc)
+set(_libcvc_usable      FALSE)
+set(_libcvc_source_built FALSE)
+
+# 1. Pre-installed package
+if(NOT LIBCVC_FORCE_SOURCE)
+  find_package(cvc ${LIBCVC_VERSION} CONFIG QUIET)
+  _libcvc_check_usable(_libcvc_usable)
+  if(_libcvc_usable)
+    message(STATUS "Using pre-installed libcvc ${cvc_VERSION}")
+  endif()
+endif()
+
+# 2. Prebuilt release tarball
+if(NOT _libcvc_usable AND NOT LIBCVC_FORCE_SOURCE)
+  if(WIN32)
+    set(_libcvc_plat "windows-x86_64")
+    set(_libcvc_ext  "zip")
+  elseif(APPLE)
+    set(_libcvc_plat "macos-arm64")
+    set(_libcvc_ext  "zip")
+  elseif(UNIX)
+    set(_libcvc_plat "linux-x86_64")
+    set(_libcvc_ext  "tar.gz")
+  endif()
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(_libcvc_cfg "debug")
+  else()
+    set(_libcvc_cfg "release")
+  endif()
+  if(DEFINED _libcvc_plat)
+    set(_libcvc_archive "libcvc-${LIBCVC_VERSION}-${_libcvc_plat}-${_libcvc_cfg}.${_libcvc_ext}")
+    set(_libcvc_url     "https://github.com/transfix/libcvc/releases/download/${LIBCVC_TAG}/${_libcvc_archive}")
+    set(_libcvc_stage   "${CMAKE_BINARY_DIR}/libcvc-prebuilt")
+    set(_libcvc_cfgfile "${_libcvc_stage}/lib/cmake/cvc/cvcConfig.cmake")
+    if(NOT EXISTS "${_libcvc_cfgfile}")
+      message(STATUS "Downloading prebuilt libcvc: ${_libcvc_url}")
+      file(MAKE_DIRECTORY "${_libcvc_stage}")
+      file(DOWNLOAD "${_libcvc_url}" "${_libcvc_stage}/${_libcvc_archive}"
+           STATUS _libcvc_dl TLS_VERIFY ON)
+      list(GET _libcvc_dl 0 _libcvc_dl_code)
+      if(_libcvc_dl_code EQUAL 0)
+        execute_process(
+          COMMAND ${CMAKE_COMMAND} -E tar xzf "${_libcvc_archive}"
+          WORKING_DIRECTORY "${_libcvc_stage}"
+          RESULT_VARIABLE _libcvc_extract)
+        if(NOT _libcvc_extract EQUAL 0)
+          message(STATUS "Failed to extract ${_libcvc_archive} (exit ${_libcvc_extract})")
+        endif()
+      else()
+        message(STATUS "Prebuilt libcvc download failed: ${_libcvc_dl}")
+      endif()
+    endif()
+    if(EXISTS "${_libcvc_cfgfile}")
+      list(PREPEND CMAKE_PREFIX_PATH "${_libcvc_stage}")
+      find_package(cvc ${LIBCVC_VERSION} CONFIG QUIET)
+      _libcvc_check_usable(_libcvc_usable)
+      if(_libcvc_usable)
+        message(STATUS "Using prebuilt libcvc ${cvc_VERSION} from ${_libcvc_url}")
+      endif()
+    endif()
+  endif()
+endif()
+
+# 3. Source build (fallback)
+if(NOT _libcvc_usable)
+  message(STATUS "Building libcvc ${LIBCVC_TAG} from source")
+  FetchContent_Declare(
+    libcvc
+    GIT_REPOSITORY https://github.com/transfix/libcvc.git
+    GIT_TAG        ${LIBCVC_GIT_SHA}
+  )
+  FetchContent_MakeAvailable(libcvc)
+  set(_libcvc_source_built TRUE)
+endif()
+
+# On case-insensitive filesystems (macOS, Windows), libcvc's in-tree
+# headers can be shadowed by volrover's own include directories named
+# similarly. Only relevant for the source-build path; the imported
+# cvc::cvc target from find_package carries an absolute include path
+# that does not collide.
+if(_libcvc_source_built)
+  include_directories(BEFORE ${libcvc_SOURCE_DIR}/inc)
+  include_directories(BEFORE ${libcvc_BINARY_DIR}/inc)
+endif()
 
 add_subdirectory(src)
 
