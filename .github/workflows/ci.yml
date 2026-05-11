@@ -107,7 +107,7 @@ jobs:
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install glew fftw3 gsl hdf5 cgal log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
+          vcpkg install glew fftw3 gsl hdf5[cpp] cgal log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
         env:
           VCPKG_MAX_CONCURRENCY: 4
 

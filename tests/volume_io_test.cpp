@@ -11,8 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <VolMagick/VolMagick.h>
-#include <CVC/BoundingBox.h>
-#include <CVC/Dimension.h>
+#include <cvc_compat.h>
 
 #include <cmath>
 

@@ -232,14 +232,14 @@ jobs:
             ${{ env.VCPKG_INSTALLATION_ROOT }}\installed
             ${{ env.VCPKG_INSTALLATION_ROOT }}\packages
             ~\AppData\Local\vcpkg\archives
-          key: vcpkg-volrover-release-v1
+          key: vcpkg-volrover-release-hdf5cpp-v1
           restore-keys: |
             vcpkg-volrover-release-
 
       - name: Install dependencies
         shell: pwsh
         run: |
-          vcpkg install glew fftw3 gsl log4cplus pthreads `
+          vcpkg install glew fftw3 gsl hdf5[cpp] log4cplus pthreads `
             boost-thread boost-date-time boost-regex boost-filesystem `
             boost-system boost-program-options boost-signals2 boost-any `
             boost-tuple boost-format boost-multi-array boost-foreach `

@@ -56,6 +56,17 @@ namespace CVC_NAMESPACE
     return instance_;
   }
 
+} // namespace CVC_NAMESPACE
+
+// Volrover legacy code occasionally refers to `CVC::GenericBoundingBox<T>`
+// (a template alias not provided by libcvc's PascalCase compat block).
+namespace CVC {
+  template <typename T>
+  using GenericBoundingBox = CVC_NAMESPACE::generic_bounding_box<T>;
+}
+
+namespace CVC_NAMESPACE {
+
   // libcvc 3.1.0 made thread_info / thread_feedback / scoped_lock take a
   // leading app& argument. Wrap them so legacy volrover code can keep
   // constructing them with just the (optional) info string.
