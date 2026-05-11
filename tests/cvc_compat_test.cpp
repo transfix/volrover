@@ -6,11 +6,7 @@
 
 #include <gtest/gtest.h>
 
-#include <CVC/Namespace.h>
-#include <CVC/Types.h>
-#include <CVC/BoundingBox.h>
-#include <CVC/Dimension.h>
-#include <CVC/Exception.h>
+#include <cvc_compat.h>
 
 #include <cvc/types.h>
 #include <cvc/bounding_box.h>

@@ -287,7 +287,7 @@ set(CVC_USING_XMLRPC ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
   libcvc
   GIT_REPOSITORY https://github.com/transfix/libcvc.git
-  GIT_TAG        972afd8552b4755356e572f9b4ffc33d4366cda9 # v3.1.0
+  GIT_TAG        4af186a0641191b82ec3ea4799e81465c274c52c # v3.1.1
 )
 FetchContent_MakeAvailable(libcvc)
 
