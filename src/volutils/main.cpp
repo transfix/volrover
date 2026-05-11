@@ -24,6 +24,12 @@
 // Consolidates the ~60 separate VolUtils programs from VolumeRover
 // into a single tool with subcommands.
 
+// MSVC's <cmath> does not define M_PI etc. unless _USE_MATH_DEFINES is
+// defined before the header is included.
+#ifndef _USE_MATH_DEFINES
+#  define _USE_MATH_DEFINES
+#endif
+
 #include <cvc/volume.h>
 #include <cvc/volume_file_info.h>
 #include <cvc/volume_file_io.h>

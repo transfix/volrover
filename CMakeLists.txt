@@ -5,6 +5,14 @@
 cmake_minimum_required(VERSION 3.16)
 project(VolumeRover VERSION 2.1.0 LANGUAGES C CXX)
 
+# On Windows, ensure boost::asio's WinSock2.h is included before any
+# transitive inclusion of windows.h.  Without these defines, MSVC errors
+# with "WinSock.h has already been included" once boost::asio is pulled in
+# (e.g. via boost::process or boost::interprocess from libcvc).
+if(WIN32)
+  add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 NOMINMAX)
+endif()
+
 # Set C++ standard.  libcvc 3.1.0 requires C++20 (uses std::format,
 # concepts, etc.) and is consumed via FetchContent below.
 set(CMAKE_CXX_STANDARD 20)
@@ -258,6 +266,11 @@ install(FILES README.md DESTINATION .)
 
 # Debian package dependencies
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6widgets6, libqt6opengl6, libboost-filesystem1.74.0, libboost-system1.74.0")
+
+# dpkg-shlibdeps can't find bundled libraries (libcvc, libQGLViewer, gtest,
+# gmock) in the build tree; disable automatic shlib dependency generation
+# and rely on the explicit CPACK_DEBIAN_PACKAGE_DEPENDS list above.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
 include(CPack)
 include(InstallRequiredSystemLibraries)
