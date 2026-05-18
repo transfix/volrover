@@ -182,7 +182,7 @@ jobs:
       - name: Package (Unix)
         if: runner.os != 'Windows'
         working-directory: build
-        run: cpack -G ${{ matrix.package_generator }} -C ${{ matrix.build_type }}
+        run: cpack -G ${{ matrix.package_generator }} -C ${{ matrix.build_type }} -D CPACK_DEBIAN_PACKAGE_SHLIBDEPS=OFF
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
