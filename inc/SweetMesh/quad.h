@@ -54,7 +54,7 @@ public:
     quadFace(std::list<hexVertex>::iterator& v0, std::list<hexVertex>::iterator& v1, std::list<hexVertex>::iterator& v2, std::list<hexVertex>::iterator& v3);
     ~quadFace() {}
 
-    bool operator==(const quadFace& op2);
+    bool operator==(const quadFace& op2) const;
 
     std::list<hexVertex>::iterator getV0Itr()	{ return corners[0].myVertexItr; }
     std::list<hexVertex>::iterator getV1Itr()	{ return corners[1].myVertexItr; }

@@ -64,7 +64,7 @@ public:
     hexEdge(const std::list<hexVertex>::iterator& vertexA_Itr, const std::list<hexVertex>::iterator& vertexB_Itr);
     ~hexEdge() {}
 
-    bool operator==(const hexEdge& op2);
+    bool operator==(const hexEdge& op2) const;
 
     void print();
 };
@@ -96,7 +96,7 @@ public:
     };
     ~hexahedron() {}
 
-    bool operator==(const hexahedron& op2);
+    bool operator==(const hexahedron& op2) const;
 
     std::list<hexVertex>::iterator getV0Itr()	{ return cornerItrs[0]->myVertexItr; }
     std::list<hexVertex>::iterator getV1Itr()	{ return cornerItrs[1]->myVertexItr; }
