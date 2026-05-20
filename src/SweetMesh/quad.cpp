@@ -41,7 +41,7 @@ sweetMesh::quadFace::quadFace(std::list<hexVertex>::iterator& v0, std::list<hexV
     displayQuad = false;
 }
 //operator== =======================
-bool sweetMesh::quadFace::operator==(const quadFace& op2) {
+bool sweetMesh::quadFace::operator==(const quadFace& op2) const {
     if (corners[0].myVertexItr == op2.corners[0].myVertexItr && corners[1].myVertexItr == op2.corners[1].myVertexItr && corners[2].myVertexItr == op2.corners[2].myVertexItr && corners[3].myVertexItr == op2.corners[3].myVertexItr)
         return true;
     if (corners[0].myVertexItr == op2.corners[1].myVertexItr && corners[1].myVertexItr == op2.corners[2].myVertexItr && corners[2].myVertexItr == op2.corners[3].myVertexItr && corners[3].myVertexItr == op2.corners[0].myVertexItr)

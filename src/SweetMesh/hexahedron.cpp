@@ -69,7 +69,7 @@ sweetMesh::hexEdge::hexEdge(const std::list<hexVertex>::iterator& vertexA_Itr, c
     displayEdge = false;
 }
 //operator== =======================
-bool sweetMesh::hexEdge::operator==(const hexEdge& op2) {
+bool sweetMesh::hexEdge::operator==(const hexEdge& op2) const {
     if ((vA_Itr == op2.vA_Itr  &&  vB_Itr == op2.vB_Itr) || (vA_Itr == op2.vB_Itr  &&  vB_Itr == op2.vA_Itr))
         return true;
     else return false;
@@ -88,7 +88,7 @@ void sweetMesh::hexEdge::print() {
 //	hexahedron
 /********************************************************************************/
 
-bool sweetMesh::hexahedron::operator==(const hexahedron& op2) {
+bool sweetMesh::hexahedron::operator==(const hexahedron& op2) const {
     bool found;
     for (unsigned int n=0; n<8; n++) {
         found = false;
