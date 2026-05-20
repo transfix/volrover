@@ -7,6 +7,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
+#include <boost/format.hpp>
 
 #include <ContourTiler/reader_gnuplot.h>
 #include <ContourTiler/reader_ser.h>
