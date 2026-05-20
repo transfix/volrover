@@ -302,7 +302,7 @@ endif()
 # shipping xmlrpc, the prebuilt path activates automatically.
 set(LIBCVC_TAG     "v3.2.1" CACHE STRING "libcvc release tag to consume")
 set(LIBCVC_VERSION "3.2.1"  CACHE STRING "libcvc package version to look up")
-set(LIBCVC_GIT_SHA "63a7306785359818459ce19eb1343c16a8298e49"
+set(LIBCVC_GIT_SHA "ab00f545bc74afbd6572c7d0ad8567e858f5a7f4"
     CACHE STRING "libcvc commit SHA used when falling through to source build")
 option(LIBCVC_FORCE_SOURCE "Skip prebuilt libcvc and always build from source" OFF)
 set(LIBCVC_NEEDS_XMLRPC TRUE)
