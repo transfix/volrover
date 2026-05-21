@@ -58,11 +58,31 @@ jobs:
       # manager path.
       - name: Fetch libcvc-deps
         id: libcvc-deps
-        uses: transfix/libcvc/.github/actions/fetch-libcvc-deps@v3.2.1
+        uses: transfix/libcvc/.github/actions/fetch-libcvc-deps@ci/fetch-libcvc-deps-7z
         with:
-          version: '1.0.3'
+          version: '1.1.0'
           build_type: ${{ matrix.build_type }}
           link: shared
+
+      # Make bundled Qt 6 host tools (uic, moc, rcc) able to load
+      # their shared libraries at build time. The bundle's
+      # libexec/uic links against libQt6Core.so/.dylib in the bundle's
+      # lib/, which isn't on the runner's default loader path.
+      - name: Export Qt runtime lib path (Linux/macOS)
+        if: runner.os != 'Windows' && steps.libcvc-deps.outputs.path != ''
+        shell: bash
+        run: |
+          deps='${{ steps.libcvc-deps.outputs.path }}'
+          echo "LD_LIBRARY_PATH=$deps/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "DYLD_LIBRARY_PATH=$deps/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$deps/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> "$GITHUB_ENV"
+
+      - name: Export Qt runtime DLL path (Windows)
+        if: runner.os == 'Windows' && steps.libcvc-deps.outputs.path != ''
+        shell: pwsh
+        run: |
+          $deps = '${{ steps.libcvc-deps.outputs.path }}'
+          "$deps\bin" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
 
       # ── Linux dependencies ──
       # System-only essentials always installed; bundled libs (Boost,
