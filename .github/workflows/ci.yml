@@ -49,8 +49,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ── libcvc-deps prebuilt bundle ──
+      # Pulls a self-contained CMake prefix (Boost, HDF5, FFTW, GSL,
+      # log4cplus, CGAL, ImageMagick, Qt 6) matching the runner OS,
+      # arch, and build_type. Massive speedup on Windows where vcpkg
+      # otherwise compiles Boost from source. On miss the action emits
+      # an empty `path` output and we fall back to the platform package
+      # manager path.
+      - name: Fetch libcvc-deps
+        id: libcvc-deps
+        uses: transfix/libcvc/.github/actions/fetch-libcvc-deps@v3.2.1
+        with:
+          version: '1.0.3'
+          build_type: ${{ matrix.build_type }}
+          link: shared
+
       # ── Linux dependencies ──
-      - name: Install dependencies (Linux)
+      # System-only essentials always installed; bundled libs (Boost,
+      # HDF5, FFTW, GSL, log4cplus, CGAL, ImageMagick, Qt 6) skipped
+      # when libcvc-deps is available.
+      - name: Install dependencies (Linux, system)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -58,32 +76,39 @@ jobs:
             build-essential \
             cmake \
             ninja-build \
-            qt6-base-dev \
-            libqt6opengl6-dev \
-            qt6-base-private-dev \
             libgl1-mesa-dev \
             libglu1-mesa-dev \
             libglew-dev \
+            libnsl-dev \
+            nvidia-cg-toolkit \
+            imagemagick
+
+      - name: Install dependencies (Linux, fallback)
+        if: runner.os == 'Linux' && steps.libcvc-deps.outputs.path == ''
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev \
+            libqt6opengl6-dev \
+            qt6-base-private-dev \
             libboost-all-dev \
             libfftw3-dev \
             libgsl-dev \
             libhdf5-dev \
             libcgal-dev \
             liblog4cplus-dev \
-            libnsl-dev \
-            nvidia-cg-toolkit \
-            imagemagick \
             libmagick++-dev
 
       # ── macOS dependencies ──
-      - name: Install dependencies (macOS)
+      - name: Install dependencies (macOS, system)
         if: runner.os == 'macOS'
         run: |
+          brew install cmake ninja glew
+
+      - name: Install dependencies (macOS, fallback)
+        if: runner.os == 'macOS' && steps.libcvc-deps.outputs.path == ''
+        run: |
           brew install \
-            cmake \
-            ninja \
             qt@6 \
-            glew \
             boost \
             fftw \
             gsl \
@@ -94,52 +119,70 @@ jobs:
           echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
 
       # ── Windows dependencies ──
-      # Use install-qt-action for pre-built Qt binaries (much faster than vcpkg)
-      # and vcpkg only for smaller C libraries
+      # On libcvc-deps hit: skip both install-qt-action and the heavy
+      # vcpkg install (Boost from source ~20 min). On miss: full path.
       - name: Install Qt (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.libcvc-deps.outputs.path == ''
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.*'
           arch: win64_msvc2022_64
           cache: true
 
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
+      - name: Install dependencies (Windows, fallback)
+        if: runner.os == 'Windows' && steps.libcvc-deps.outputs.path == ''
         run: |
           vcpkg install glew fftw3 gsl hdf5[cpp] cgal log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
         env:
           VCPKG_MAX_CONCURRENCY: 4
 
+      # GLEW + pthreads aren't in the libcvc-deps bundle, so install
+      # them via vcpkg unconditionally on Windows.
+      - name: Install GLEW + pthreads (Windows, libcvc-deps hit)
+        if: runner.os == 'Windows' && steps.libcvc-deps.outputs.path != ''
+        run: |
+          vcpkg install glew pthreads --triplet x64-windows
+        env:
+          VCPKG_MAX_CONCURRENCY: 4
+
       # ── Configure ──
+      # Prepend the libcvc-deps prefix to CMAKE_PREFIX_PATH when the
+      # bundle was fetched, so find_package picks up bundled Boost/Qt6/
+      # FFTW/etc. ahead of any system installs.
       - name: Configure (Linux)
         if: runner.os == 'Linux'
         run: |
+          extra_prefix="${{ steps.libcvc-deps.outputs.path }}"
           cmake -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
+            -DCMAKE_PREFIX_PATH="$extra_prefix" \
             -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
+          extra_prefix="${{ steps.libcvc-deps.outputs.path }}"
+          combined_prefix="$extra_prefix${CMAKE_PREFIX_PATH:+;$CMAKE_PREFIX_PATH}"
           cmake -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
-            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
+            -DCMAKE_PREFIX_PATH="$combined_prefix" \
             -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         run: |
+          $depsPath = '${{ steps.libcvc-deps.outputs.path }}'
+          $prefix = if ($depsPath) { "$depsPath;$env:Qt6_DIR" } else { "$env:Qt6_DIR" }
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DCMAKE_PREFIX_PATH="$prefix" `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/_install"
