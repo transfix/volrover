@@ -33,6 +33,9 @@ CMAKE_ARGS=(
 
 if [[ -n "${CVC_DEPS_PREFIX:-}" ]]; then
   CMAKE_ARGS+=("-DCMAKE_PREFIX_PATH=$CVC_DEPS_PREFIX")
+  # Magick++-config (queried at configure time for ImageMagick 7
+  # defines) resolves its flags through pkg-config.
+  export PKG_CONFIG_PATH="$CVC_DEPS_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 fi
 
 cmake "${CMAKE_ARGS[@]}"

@@ -44,9 +44,16 @@ if(OPENMP_FOUND)
 endif(OPENMP_FOUND)
 
 #Make sure we've got boost
+# Prefer static boost for the standalone tools (historical behavior with
+# apt/vcpkg-provisioned deps), but fall back to shared when only shared
+# libraries are available (e.g. a cvcpkg prefix ships shared-only).
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 find_package(Boost 1.34.0 COMPONENTS regex program_options)
+if(NOT Boost_FOUND)
+  set(Boost_USE_STATIC_LIBS OFF)
+  find_package(Boost 1.34.0 COMPONENTS regex program_options)
+endif()
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
   message("Boost includes: ${Boost_INCLUDE_DIRS}")

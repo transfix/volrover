@@ -1,0 +1,40 @@
+# cvc-requirements.yaml — cvcpkg component set for VolumeRover 2.0.
+#
+# Usage:
+#   cvcpkg install --from cvc-requirements.yaml --prefix ./deps
+#   cmake -B build -DCMAKE_PREFIX_PATH=./deps -DUSE_QT6=ON -DDISABLE_CGAL=ON
+#
+# Consumed by .github/workflows/publish-cvcpkg.yml via the
+# transfix/libcvc-deps cvcpkg-install composite action. Components with
+# no catalog bundle for the current platform tuple are skipped by the
+# resolver (that is how pthreads4w, a Windows-only component, can be
+# listed unconditionally). Transitive bundle dependencies (zlib,
+# libpng, …) are resolved automatically from the bundle manifests —
+# VolumeRover 2.0 does not link them directly, so they are not listed.
+#
+# Deliberately NOT listed:
+#   - cgal        — the packaging build configures with DISABLE_CGAL=ON
+#   - hdf5        — optional (CVC_USING_HDF5 finds it opportunistically);
+#                   kept out for parity with the proven CI configuration
+#   - OpenGL/GLU  — platform infrastructure (OS / graphics driver), not
+#                   catalog components
+
+platform: auto
+arch: auto
+config: release
+link: shared
+
+components:
+  - qt6
+  - boost
+  - fftw3
+  - gsl
+  - log4cplus
+  # glew: linux/x86_64 release bundle is published; other platforms
+  # source-fallback (~2 min CMake build) until fleet builds exist.
+  - glew
+  # Magick++ is optional (VolUtils image import) but the catalog covers
+  # linux/macos/windows, so it is enabled everywhere.
+  - imagemagick
+  # Windows-only pthreads implementation; skipped elsewhere.
+  - pthreads4w

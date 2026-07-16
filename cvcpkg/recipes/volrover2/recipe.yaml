@@ -29,13 +29,13 @@ depends:
     - name: fftw3
     - name: gsl
     - name: log4cplus
-    # glew has no cvcpkg recipe yet (follow-up in libcvc-deps); until
-    # then GLEW comes from the system (apt/brew) or vcpkg on Windows.
+    # glew recipe: libcvc-deps#272 (linux/x86_64 bundle published;
+    # other platforms source-fallback until fleet builds exist).
     - name: glew
-    # Magick++ is optional (VolUtils image import); the Windows CI
-    # build provisions deps via vcpkg without ImageMagick, so scope it.
+    # Magick++ is optional (VolUtils image import); the catalog covers
+    # it on linux/macos/windows so it is enabled everywhere. Keep in
+    # sync with cvc-requirements.yaml.
     - name: imagemagick
-      platforms: [linux, macos, freebsd, openbsd, netbsd]
     - name: pthreads4w
       platforms: [windows]
   host_tools:

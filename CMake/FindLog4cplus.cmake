@@ -10,11 +10,15 @@
 
 # Try config mode first (works on Linux with liblog4cplus-dev, vcpkg, etc.)
 find_package(log4cplus CONFIG QUIET)
-if(log4cplus_FOUND)
+if(log4cplus_FOUND AND TARGET log4cplus::log4cplus)
   return()
 endif()
 
-# Fallback: find headers and library manually (e.g., Homebrew on macOS)
+# Fallback: find headers and library manually (e.g., Homebrew on macOS).
+# Also reached when config mode succeeds without exporting the expected
+# shared target — the cvcpkg log4cplus bundle's config exports only the
+# static log4cplus::log4cplusS even though liblog4cplus.so is shipped;
+# manual detection synthesizes log4cplus::log4cplus from that library.
 find_path(LOG4CPLUS_INCLUDE_DIR
   NAMES log4cplus/logger.h
   HINTS
