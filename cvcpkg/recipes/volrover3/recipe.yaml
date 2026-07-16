@@ -1,0 +1,72 @@
+schema_version: 1
+recipe:
+  name: volrover3
+  upstream_version: "3.2.4"
+  cvc_revision: 1
+  maintainer: "cvcpkg group"
+  maintainer_email: "info@cvcpkg.org"
+  maintainer_url: "https://cvcpkg.org"
+  description: "VolumeRover3 — next-generation CVC visualization application built on the libcvc SDK, Qt6, and VTK."
+  homepage: https://github.com/transfix/volrover
+  license: GPL-2.0-or-later
+  tags: [scientific, volumetric, visualization, application]
+
+source:
+  # Co-located with the VolumeRover source tree (the volrover3 app lives
+  # under volrover3/ behind the BUILD_VOLROVER3 CMake option, default
+  # OFF — enabling it never disturbs the VolumeRover 2.0 targets).
+  type: vendored
+  path: ../../..
+
+patches: []
+
+depends:
+  build: []
+  runtime:
+    # volrover3 consumes libcvc as an EXTERNAL SDK:
+    # find_package(cvc CONFIG) -> cvc::cvc, published as @cvc/libcvc on
+    # cvcpkg.org. This recipe can only be built once that package (and
+    # its dependency closure) is available on the catalog.
+    - name: libcvc
+    - name: qt6
+    - name: vtk
+  host_tools:
+    - cmake
+    - ninja
+
+build:
+  # The BSD entries do not run in GitHub Actions; they let the cvcpkg
+  # remote-builder fleet build them later (`cvcpkg builds submit --org
+  # cvc`) — the qt6/vtk dependency recipes already cover the BSDs.
+  # A wasm entry is a long-shot aspiration and intentionally not listed.
+  matrix:
+    - platform: linux
+      script: build.sh
+    - platform: macos
+      script: build.sh
+      env:
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+    - platform: windows
+      script: build.ps1
+    - platform: freebsd
+      script: build.sh
+    - platform: openbsd
+      script: build.sh
+    - platform: netbsd
+      script: build.sh
+
+package:
+  # `cvcpkg pack --from-prefix` ships the whole staged prefix; the
+  # build scripts stage only the `volrover3` CPack/install component,
+  # so the prefix contains exactly the volrover3 app tree.
+  files:
+    # Linux/BSD/Windows binary (plus bundled DLLs / Qt plugins from
+    # windeployqt on Windows)
+    - bin/
+    # Freedesktop .desktop entry, icon, and README
+    - share/
+    # macOS: the .app bundle is installed at the prefix root
+    - VolumeRover3.app/
+
+abi:
+  cxx_std: 20
