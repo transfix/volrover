@@ -2,10 +2,21 @@
 #
 # Triggered by version tags (v*) and manual dispatch. Builds the
 # VolumeRover 2.0 application (recipe: cvcpkg/recipes/volrover2) on
-# Linux (x86_64 + experimental arm64), macOS (arm64 + x86_64), and
-# Windows (x86_64), packs each install into an archive with
-# `cvcpkg pack --from-prefix`, and publishes to the `cvc` organization
-# on cvcpkg.org (created if it doesn't exist yet).
+# Linux (x86_64 + experimental arm64), macOS (arm64 + experimental
+# x86_64), and Windows (x86_64), packs each install into an archive
+# with `cvcpkg pack --from-prefix`, and publishes to the `cvc`
+# organization on cvcpkg.org (created if it doesn't exist yet).
+#
+# DEPENDENCY PROVISIONING: all third-party libraries come from the
+# cvcpkg.org catalog via cvc-requirements.yaml (installed by the
+# transfix/libcvc-deps cvcpkg-install composite action) — NOT from
+# apt/brew/vcpkg. Only platform infrastructure (OpenGL/GLU headers,
+# ninja) is apt-installed on Linux. On Windows the vcpkg toolchain
+# file is deliberately NOT used: in libcvc it injected conflicting
+# MSVC flags that crashed CL.exe (transfix/libcvc#103) — pointing
+# CMAKE_PREFIX_PATH at the cvcpkg prefix is the whole story.
+# VolumeRover's own ci.yml/release.yml stay apt/brew/vcpkg-based
+# until this pipeline proves out (follow-up).
 #
 # A second, gated job builds the VolumeRover3 application (recipe:
 # cvcpkg/recipes/volrover3). It is OFF by default because volrover3
@@ -100,9 +111,10 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x86_64
-          # Experimental: dependency provisioning on hosted arm64 Linux
-          # runners may lag (all deps come from apt, so this should
-          # work, but do not let it block a release).
+          # Experimental: the catalog has no linux/arm64 bundles yet, so
+          # this lane fails fast at dependency provisioning. It goes
+          # green automatically once the fleet publishes arm64 bundles;
+          # continue-on-error keeps it from blocking a release.
           - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
@@ -110,9 +122,13 @@ jobs:
           - os: macos-14
             platform: macos
             arch: arm64
+          # Experimental: the catalog's macOS coverage is arm64-only
+          # today — no macos/x86_64 bundles. Same deal as linux/arm64:
+          # auto-activates when fleet x86_64-macos builds land.
           - os: macos-13
             platform: macos
             arch: x86_64
+            experimental: true
           - os: windows-latest
             platform: windows
             arch: x86_64
@@ -123,86 +139,105 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install cvcpkg
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Pull from libcvc-deps master rather than PyPI so we always
-          # pick up server/schema fixes without a release cadence.
-          python -m pip install --upgrade pip
-          pip install 'git+https://github.com/transfix/libcvc-deps@master'
-          cvcpkg --version
-
-      # ── Dependencies (mirrors .github/workflows/release.yml) ──
-      - name: Install dependencies (Linux)
+      # Platform infrastructure only — OpenGL/GLU headers come from the
+      # OS (they are not catalog components), plus ninja for -G Ninja
+      # and libnsl for the XmlRPC server code. Every third-party
+      # LIBRARY dependency comes from the cvcpkg catalog below.
+      - name: Install platform infrastructure (Linux)
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build \
-            qt6-base-dev libqt6opengl6-dev qt6-base-private-dev \
-            libgl1-mesa-dev libglu1-mesa-dev libglew-dev \
-            libboost-all-dev libfftw3-dev libgsl-dev \
-            liblog4cplus-dev libnsl-dev \
-            imagemagick libmagick++-dev
+            ninja-build libgl1-mesa-dev libglu1-mesa-dev libnsl-dev
 
-      - name: Install dependencies (macOS)
-        if: matrix.platform == 'macos'
-        run: |
-          brew install cmake ninja qt@6 glew boost fftw gsl log4cplus imagemagick
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
-
-      - name: Install Qt (Windows)
-        if: matrix.platform == 'windows'
-        uses: jurplel/install-qt-action@v4
+      # ── Dependencies from the cvcpkg.org catalog ──
+      - name: Install dependencies (cvcpkg)
+        id: deps
+        uses: transfix/libcvc-deps/.github/actions/cvcpkg-install@master
         with:
-          version: '6.8.*'
-          arch: win64_msvc2022_64
-          cache: true
+          requirements: cvc-requirements.yaml
+          # Always Release deps — even for future debug VolumeRover
+          # builds (the libcvc pattern): the catalog's debug coverage
+          # is partial, and shared Release deps are ABI-stable to link
+          # a Debug app against on Linux/macOS.
+          build_type: Release
+          link: shared
 
-      - name: Install dependencies (Windows)
-        if: matrix.platform == 'windows'
+      # The composite action installs cvcpkg from a sparse libcvc-deps
+      # checkout that excludes recipes/. Reinstall the full package so
+      # the bundled recipes are present for the glew source-fallback
+      # below (and pin the same master used for pack/publish fixes).
+      - name: Install cvcpkg (full, with bundled recipes)
+        shell: bash
         run: |
-          vcpkg install glew fftw3 gsl log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
-        env:
-          VCPKG_MAX_CONCURRENCY: 4
+          set -euo pipefail
+          pip install --force-reinstall --no-deps 'git+https://github.com/transfix/libcvc-deps@master'
+          cvcpkg --version
 
-      # ── Configure (mirrors release.yml; VOLROVER_RELEASE=ON gives a
-      # clean version string, BUILD_VOLROVER3 stays OFF here) ──
-      - name: Configure (Linux)
-        if: matrix.platform == 'linux'
+      # glew has a published bundle for linux/x86_64 only so far; on
+      # other platforms build it from its recipe (~2 min CMake build)
+      # into the same prefix. No-op risk is zero on Linux because the
+      # step is skipped there. Requires the glew recipe on libcvc-deps
+      # master (transfix/libcvc-deps#272).
+      - name: Ensure GLEW (source fallback where no bundle exists yet)
+        if: matrix.platform != 'linux'
+        shell: bash
         run: |
+          set -euo pipefail
+          deps_prefix="${{ steps.deps.outputs.path }}"
+          if [ -z "$deps_prefix" ]; then
+            echo "cvcpkg dependency prefix missing — provisioning failed earlier"
+            exit 1
+          fi
+          cvcpkg install glew \
+            --prefix "$deps_prefix" \
+            --platform "${{ matrix.platform }}" \
+            --config release \
+            --link shared \
+            --fallback-to-source
+
+      # ── Configure ──
+      # VOLROVER_RELEASE=ON gives a clean version string; BUILD_VOLROVER3
+      # stays OFF here. The ONLY third-party search path is the cvcpkg
+      # prefix.
+      - name: Configure (Linux/macOS)
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deps_prefix="${{ steps.deps.outputs.path }}"
+          if [ -z "$deps_prefix" ]; then
+            deps_prefix="$HOME/libcvc-deps"
+          fi
+          # Magick++-config (queried at configure time for ImageMagick 7
+          # defines) resolves its flags through pkg-config.
+          export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
             -DBUILD_VOLROVER3=OFF \
+            -DCMAKE_PREFIX_PATH="$deps_prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/stage"
 
-      - name: Configure (macOS)
-        if: matrix.platform == 'macos'
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DVOLROVER_RELEASE=ON \
-            -DUSE_QT6=ON \
-            -DDISABLE_CGAL=ON \
-            -DBUILD_VOLROVER3=OFF \
-            -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
-            -DCMAKE_INSTALL_PREFIX="$PWD/stage"
-
+      # No vcpkg toolchain file and no install-qt-action: Qt6, Boost,
+      # GLEW, FFTW3, GSL, log4cplus, ImageMagick, and pthreads4w all
+      # come from the cvcpkg prefix. (find_package(PThreads4W) is
+      # served by CMake/FindPThreads4W.cmake against that prefix.)
       - name: Configure (Windows)
         if: matrix.platform == 'windows'
         run: |
+          $depsPath = '${{ steps.deps.outputs.path }}'
+          if (-not $depsPath) { $depsPath = 'D:\libcvc-deps' }
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_CONFIGURATION_TYPES=Release `
             -DVOLROVER_RELEASE=ON `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DBUILD_VOLROVER3=OFF `
+            -DCMAKE_PREFIX_PATH="$depsPath" `
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/stage"
 
       - name: Build & install
