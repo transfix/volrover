@@ -1,1 +1,37 @@
 build-test/
+
+# Build output directories
+build/
+/build*/
+cmake-build-*/
+
+# Build logs
+build_log.txt
+*.log
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+install_manifest.txt
+
+# Compiled objects / libraries / binaries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Editor / IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
