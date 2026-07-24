@@ -1,0 +1,313 @@
+# volrover3 Embedded Python Environment — Design
+
+**Status:** design · initial branch `feat/embedded-python-interpreter`
+**Goal:** bake a **first-class** CPython interpreter into volrover3 (not a plugin) so scripts can drive
+the *running* application — its `cvc::app` state tree, its scene graph, and (see §7) its **Qt UI** — through
+a robust, volrover3-specific binding surface. Conceptually modeled on the **verlihub `plugins/python`**
+embedding, adapted to Python 3 + SWIG + the no-singleton architecture.
+
+---
+
+## 0. Requirements (verbatim intent)
+
+1. **Model the embedding on verlihub's python3 plugin** — one interpreter, disciplined GIL bracketing on every
+   crossing, name-based hook discovery, per-script exception isolation, a load/reload/unload control surface.
+2. **Bake it in** as a core subsystem owned by the app — *not* a loadable plugin.
+3. **Single interpreter by default**, multi offered but off — because pycvc / pycvc_gl / VTK / numpy call into C
+   libraries that are **not sub-interpreter-safe** (single-phase-init C globals alias across sub-interpreters).
+4. **SWIG bindings against volrover3-specific host objects.**
+5. **A host-control module** that controls the running application's **state** and **delivers the live
+   `cvc::app`** to pycvc scripts (so they operate on the *running* app, not a fresh one).
+6. **No singletons** — own the `cvc::app` explicitly and thread it; remove `volrover3::app()` and
+   `AppState::instance()`. (Authorized: edit volrover3 as needed.)
+7. **Qt UI from Python** (§7) — expose the live `QMainWindow` so scripts can manipulate, extend, or **outright
+   replace** the UI with PySide6 widgets defined in Python.
+
+## 1. Roadmap alignment
+
+This subsystem is the **native runtime form** of the embedded-interpreter goal already on the cvcpkg roadmap —
+it is not new scope, it is the concrete first step:
+
+- **CVCPKG-ROADMAP Phase 19 (Application Packaging & Desktop Delivery)** — the "Embedded-Python single binaries"
+  note and `cvcpkg bake`. The interpreter designed here is later *baked* (single-interpreter, inittab-registered
+  host module, embedded entry script — the exact stitching in
+  [`libcvc-deps/docs/roadmap/static-single-binary-python.md`](../../../libcvc-deps/docs/roadmap/static-single-binary-python.md) §2).
+- **static-single-binary-python.md Case B** is literally *"WASM VolRover with an embedded interpreter (libcvc +
+  vtk-python)"* — this design's single-interpreter + host-module-inittab shape is what that bake consumes.
+- **Phase 20** lists **verlihub** as a featured recipe — the app we model the embedding on.
+- The **Python/Qt binding + hermeticity** architecture doc (engagement-docs `modernization/`) already scopes the
+  `pycvc` / `pycvc_gl` / `pycvc.qt` surface and the **PySide6 + Shiboken6** hermetic recipes as the "linchpin
+  heavy lift" — §7 here builds directly on that.
+
+## 2. What we copy from verlihub (and what we drop)
+
+Grounded in `/home/joe/src/verlihub/plugins/python`:
+
+**Copy (the load-bearing patterns):**
+- **Exactly-once-per-process interpreter lifecycle.** verlihub brings CPython up once (`w_Begin`:
+  `PyEval_InitThreads` + `Py_Initialize`, then parks the GIL via `PyThreadState_Swap(NULL)` +
+  `PyEval_ReleaseLock`, `wrapper.cpp:1275-1285`) and finalizes once (`w_End`, `wrapper.cpp:1302-1304`). **Never
+  per-script.**
+- **Disciplined GIL bracketing on every C++↔Python crossing** (`w_CallHook` Acquire/Release,
+  `wrapper.cpp:1633/1957`; Python→host releases + reacquires the same state, `Call()` `wrapper.cpp:554-561`).
+- **Name-based hook discovery** — scan a script's namespace for well-known functions and cache a presence
+  bitmap (`wrapper.cpp:1475-1482`); scripts subscribe just by defining `OnFoo`, no register API.
+- **Per-script exception isolation** — catch, `PyErr_Print`, clear, return a safe default, keep going
+  (`wrapper.cpp:1903-1955`) so one bad script never takes down the host.
+- **A load/reload/unload + filesystem-as-registry control surface** (`cconsole` `!pyload/!pylist/!pyunload/
+  !pyreload/!pylog`) → ported to a Qt dock (§4.4).
+
+**Drop (chat/plugin-specific or Py2-era):**
+- The **MULTI sub-interpreter-per-script** model (`Py_NewInterpreter`, `wrapper.cpp:1363`) — unsafe for
+  C-extension packages (§6). We default to **single**.
+- The **flat scalar/string marshalling ABI** (`w_Targs`, `wrapper.h:182-185`) — **SWIG proxy objects** replace
+  it entirely (the whole point of wrapping real volrover3 objects).
+- The **`cpiPython::me` process-global singleton + `vh.myid` reflection identity** (`cpipython.cpp:60,68`;
+  `wrapper.cpp:340-362`) — replaced by an **injected wrapped host handle** (§4/§5), and consistent with the
+  no-singleton rule.
+- The **separate `dlopen(RTLD_GLOBAL)` wrapper `.so`** (`cpipython.cpp:102-124`) — needed only because the
+  verlihub plugin is itself a `.so` that must not link libpython. volrover3 is an **executable**, so it links
+  libpython directly and uses **`-Wl,--export-dynamic`** to make libpython symbols visible to imported
+  C-extensions (numpy/vtk) — the executable-world equivalent of `RTLD_GLOBAL`.
+- Everything is **Python 2 C-API** (`Py_InitModule`, `PyString/PyInt`, `PyEval_ReleaseLock`) → ported to the
+  Py3 C-API + SWIG-generated init.
+
+## 3. No-singleton app ownership (a volrover3 refactor)
+
+Today the process app is a **Meyers singleton**: `cvc::app& volrover3::app()` returns a function-local `static`
+(`volrover3_app.cpp:4-7`), used at **155 sites** across 12 files; `AppState::instance()` (`AppState.h:15`) is a
+second singleton, **45 sites**. Both violate the no-singleton rule and force the app-delivery workaround
+(aliasing a static with a no-op deleter).
+
+**Target model — own it, thread it:**
+- `main()` (or a small `volrover3::Application` bootstrap object) constructs **one** `std::shared_ptr<cvc::app>`
+  and hands it to `MainWindow`.
+- `MainWindow` owns the `shared_ptr<cvc::app>` and threads it into: the **cvcGL** `SceneGraph` (via #136's
+  **injected-app ctor** `SceneGraph(cvc::app&, prefix)`), `AppState` (now a plain object owned by `MainWindow`,
+  constructed with the app), the SceneNodes (already thread the app as `SceneNode::_ctx`, `SceneNode.h:16,21` —
+  good), and the new `EmbeddedInterpreter`.
+
+**Converge onto cvcGL (companion to Phase 0).** volrover3 today carries a **private fork** of the scene graph —
+its own global-namespace `SceneGraph` plus `GraphicsNode` / `VolumeNode` / `GeometryNode` / `SceneNode`
+(`inc/volrover3/SceneGraph.h`, links only `cvc::cvc`). It should instead use **cvcGL** (`cvc::cvcGL`, the
+`cvcgl` package) — the *same* global-namespace `SceneGraph` that `pycvc_gl` wraps and that carries the
+injected-app ctor. Dropping the fork and linking cvcGL means: the C++ app, `pycvc_gl` scripts, and the state
+tree all share **one** scene-graph type over **one** app — so a script's `pycvc_gl.Scene(app)` and the running
+UI's scene are literally the same objects. Using cvcGL's injected-app ctor also fixes today's coupling gap,
+where the default `SceneGraph()` at `MainWindow.cpp:71` runs under `cvc::gl::context()` (a *separate* app) rather
+than the one the widgets watch.
+- `volrover3::app()` and `AppState::instance()` are **deleted**; call sites take the app/appstate from their
+  owner (widgets from `MainWindow`, nodes from the SceneGraph, dialogs constructed with a reference).
+
+This is staged (§10 Phase 0) because it touches ~200 call sites; it is a mechanical "thread the handle that is
+already reachable" refactor, and it is a prerequisite for a clean (non-aliased) app delivery in §5.
+
+## 4. Components (new C++, all compiled into `volrover3_lib` so they are unit-testable)
+
+`volrover3_lib` is the existing `STATIC` library of all sources minus `main.cpp` (`CMakeLists.txt:415`); the
+tests link it. The interpreter subsystem compiles **into** it.
+
+1. **`volrover3::EmbeddedInterpreter`** (`inc/volrover3/EmbeddedInterpreter.h` / `.cpp`)
+   Owns the CPython lifecycle (`Py_InitializeEx(0)` once on the UI thread, `Py_FinalizeEx` once in the dtor), the
+   GIL policy (`m_mainState = PyEval_SaveThread()` to park after init), script load/exec/unload, and the injected
+   host handle. One instance, owned by `MainWindow` as `std::unique_ptr<EmbeddedInterpreter> m_interp`,
+   constructed **right after** `m_sceneGraph` (`MainWindow.cpp:71`) and destroyed in `~MainWindow` **before**
+   any exit-time static teardown. Holds `PyThreadState* m_mainState`, `std::shared_ptr<PyHost> m_host`, and a
+   `std::map<std::string, PyObject*>` of per-script module namespaces (single-interpreter isolation).
+
+2. **`volrover3::PyHost`** (`inc/volrover3/PyHost.h` / `.cpp`) — the host-control facade SWIG wraps and scripts
+   drive. Constructed with the injected `std::shared_ptr<cvc::app>` + `std::shared_ptr<SceneGraph>` + (later) the
+   `QMainWindow*`. **Not a singleton.** Surface:
+   - `std::shared_ptr<cvc::app> app()` — **the delivery method**; returns the owned app handle verbatim (§5).
+   - `std::string state_prefix() const` → `"volrover3"`.
+   - Scene control: `scene()`, `request_render()` (posts via `SceneGraph::postEvent`, drained by the 16 ms
+     `QTimer`, `VTKRenderWidget.cpp:25`), `list_nodes()`.
+   - Typed host-state helpers over the same subtree `AppState` writes (camera fov/position, world bounds with
+     the `readOnly(true)` toggle gotcha, show-fps) — ergonomic sugar; a script can equivalently call
+     `pycvc.state_set(host.app(), "volrover3.camera.fov", …)`.
+   - (§7) `quintptr main_window_ptr()` — the live `QMainWindow*` as an int, for the PySide6/Shiboken bridge.
+
+3. **`vrhost` SWIG module** (`bindings/vrhost.i`) — `%module vrhost`, **`%import "pycvc.i"`**. Wraps `PyHost` and
+   (read-mostly) `SceneGraph`. Co-resident in the one interpreter with `pycvc`/`pycvc_gl`.
+
+4. **`volrover3::PyConsoleDock`** (Qt dock widget) — the control surface (verlihub's `cconsole` ported 1:1 to
+   Qt): load/reload/unload/list scripts, a REPL line, log-level combo, output pane (redirected
+   `sys.stdout`/`sys.stderr` + surfaced `PyErr`). Mirrors how `StateDashboardWidget` is created
+   (`MainWindow.cpp:767`).
+
+## 5. App delivery — the crux
+
+pycvc (#136) crosses `cvc::app` **only** as `std::shared_ptr<cvc::app>` (`%shared_ptr(cvc::app)`,
+`pycvc.i:99`), with **no module-global current app** — every op takes it explicitly (`state_set(app,…)`,
+`volume(app)`, `sdf(app,…)`, `observer.watch(app)`). With the no-singleton refactor (§3) volrover3 **owns** a
+`std::shared_ptr<cvc::app>`, so `PyHost::app()` simply returns it — real ownership, real control block, no alias
+hack, no dangling risk (the interpreter is torn down in `~MainWindow` before the app shared_ptr drops).
+
+Because `vrhost.i` does **`%import "pycvc.i"`**, the `shared_ptr<cvc::app>` it returns is the **same SWIG proxy
+type** pycvc consumes (SWIG merges the `%shared_ptr(cvc::app)` `swig_type_info` in a per-process runtime table
+keyed by mangled name). The handle round-trips into pycvc with **zero conversion**. The exact Phase-1 script:
+
+```python
+import vrhost, pycvc
+app = vrhost.host.app()                              # THE live volrover3 app, as shared_ptr<cvc::app>
+pycvc.state_set(app, "volrover3.camera.fov", "42")   # writes the RUNNING app's state tree
+print(pycvc.state_get(app, "volrover3.camera.fov"))  # -> 42; the FOV widget updates on the UI thread
+```
+
+Because `app` **is** the process app, `cvc::state::instance(*app)` inside pycvc *is* the tree the
+`StateTreeWidget`/`StateDashboardWidget` and `SceneNode`s already watch — the round-trip is observable
+end-to-end. A script that instead called `pycvc.make_app()` would get a **fresh, disconnected** tree the UI never
+sees — exactly the bug #136 + this host module exist to prevent.
+
+`vrhost.host` is bound at boot by wrapping the live `PyHost*` with
+`SWIG_NewPointerObj(m_host.get(), SWIGTYPE_p_volrover3__PyHost, 0)` — the **injected-handle** pattern, no
+singleton, no `vh.myid` reflection.
+
+## 6. Single vs multi interpreter policy
+
+**Default = SINGLE**; MULTI exposed as a `Mode` enum but **off by default and forbidden for any script importing
+pycvc/pycvc_gl/vtk/numpy.** Rationale: `Py_NewInterpreter()` sub-interpreters share single-phase-init C
+extensions' C-global state; a second sub-interpreter importing such a module **aliases and corrupts** those
+globals. pycvc/pycvc_gl wrap libcvc/VTK (exactly this character) and are not sub-interpreter-safe; VTK also
+self-initializes in `main.cpp` (`VTK_MODULE_INIT` + `vtk_module_autoinit`, `CMakeLists.txt:200`) so a second
+interpreter re-initializing VTK-python risks double init. Per-interpreter GIL is only 3.12+ (PEP 684) and only
+for modules that opt in via multi-phase init — which these don't.
+
+**Single mechanics:** one `Py_InitializeEx(0)` for the process; per-script isolation at the Python level (a
+fresh module/globals dict per script in the shared `sys.modules`), **not** `Py_NewInterpreter`. All C extensions
+imported **once** and shared. **GIL:** `PyImport_AppendInittab` for `vrhost` (+ any baked pycvc) **before**
+`Py_InitializeEx`; `PyEval_SaveThread()` to park; every C++→Python entry brackets `PyGILState_Ensure/Release`;
+blocking cvc ops called from Python release the GIL (SWIG `-threads` / `Py_BEGIN_ALLOW_THREADS`) so
+`app().startThread` workers aren't starved.
+
+## 7. The Qt bridge — manipulating & replacing the UI from Python
+
+**Yes — confirmed possible and tractable.** This is precisely the architecture of Qt-for-Python's official
+**"Scriptable Application"** example: a C++ Qt app that owns the `QApplication` + `MainWindow`, embeds CPython,
+and hands the live C++ `MainWindow*` to Python via shiboken (`pythonutils.cpp` binds it into the interpreter's
+globals as `mainWindow`, after which Python calls dispatch into the real C++ object). Embedded-Python-in-a-
+C++-QApp is a first-class, upstream-supported pattern — not the usual Python-drives-Qt.
+
+**Mechanism.** Qt objects are *not* wrapped with SWIG — they use **PySide6 + Shiboken6** (Qt's official Python
+bindings). The bridge between the two binding worlds is a **raw pointer exchanged as an integer** — the same
+pattern as the already-shipped pycvc↔VTK `vtkPythonUtil` bridge (SWIG and Shiboken type tables are mutually
+opaque, so the *only* safe handoff is an `int` address):
+
+- `PyHost` exposes `quintptr main_window_ptr()` (the live `QMainWindow*` as an int).
+- A Python helper `vrhost.main_window()` internally calls `shiboken6.wrapInstance(ptr, QtWidgets.QMainWindow)`
+  → a **live PySide6 wrapper around the existing C++ QMainWindow**, in the one C++ `QApplication` event loop.
+- Reverse direction: `shiboken6.getCppPointer(pyWidget)` hands a Python-created widget's `QWidget*` back to C++.
+
+Once a script holds the `QMainWindow`, it can do **anything Qt exposes** — on the GUI thread:
+- `setCentralWidget(w)` to swap the central widget; `addDockWidget/removeDockWidget`; rebuild menus/toolbars.
+- Build whole `QWidget`/`QLayout` trees in PySide6 (incl. Python `QWidget` subclasses with signals/slots) that
+  live natively in the C++ app.
+- **Outright replace the UI:** tear down the C++ docks/central and install a fully Python-authored widget tree —
+  leaving the C++ side as `QApplication` + interpreter + the backend objects (`vrhost`/`pycvc`). The one thing
+  that stays C++ is the bootstrap (`QApplication`, interpreter init) and the VTK render widget's GL context
+  (which can still be *re-parented* by Python).
+
+**Hard constraints (confirmed against upstream):**
+- **One Qt, one ABI.** PySide6 links whatever Qt it is built against; it **must** be the **same cvcpkg Qt6**
+  volrover3 links, or QObject vtables mismatch → UB/crash. The Scriptable-Application docs state this outright
+  ("use the same Qt version … to ensure binary compatibility"). This is the hermeticity linchpin.
+- **One `QApplication`, one loop.** The embedded Python side must adopt the existing app
+  (`QtWidgets.QApplication.instance()`) and **must not** create its own or call `app.exec()` — the C++ host owns
+  the loop. All wrapped objects + Python-created widgets are driven by that one loop automatically.
+- **GUI-thread only + GIL.** All Qt manipulation on the main (interpreter-calling) thread; background Python
+  marshals via `QMetaObject::invokeMethod(QueuedConnection)` / queued signals; every Qt→Python slot fired from
+  the loop must hold the GIL (composes with §6).
+- **Ownership.** `shiboken6.wrapInstance(addr, T)` adopts an existing C++ object **without** taking ownership
+  (Python GC won't delete the C++ `QMainWindow`) — but if C++ deletes it, the wrapper goes invalid (guard with
+  `shiboken6.isValid`). Python-*created* widgets start Python-owned; **parenting them into the C++ tree**
+  (`setCentralWidget`, `layout.addWidget`) transfers ownership to the Qt parent — so always parent injected
+  widgets immediately (or hold a Python ref until you do). `setCentralWidget(new)` deletes the old central
+  widget (Qt semantics), invalidating any wrapper of it.
+- **Reverse handoff:** `shiboken6.getCppPointer(pyWidget)[0]` (returns a tuple — take element 0).
+
+**Gating dependency (the heavy lift):** hermetic **`shiboken6` + `pyside6` cvcpkg recipes** built against the
+existing `qt6` recipe (Shiboken needs libclang). Already roadmapped as the "linchpin." Optionally a
+`volrover3.qt` Shiboken module wrapping volrover3's *own* widgets (`VTKRenderWidget`, dialogs) for typed
+handles — additive; the generic `QMainWindow` handle already unlocks full control via Qt's own API.
+
+## 8. SWIG plan
+
+Two binding families in **one** interpreter, sharing SWIG's runtime type table:
+- **pycvc / pycvc_gl** — reused as-is from #136 (already a cvcpkg package). `%module(directors="1") pycvc` with
+  `%shared_ptr(cvc::app)`; `pycvc_gl` already `%import`s `pycvc.i`.
+- **`bindings/vrhost.i`** (new) — `%module vrhost`, **`%import "pycvc.i"`** (mandatory: otherwise `vrhost` mints
+  a *distinct* `shared_ptr<cvc::app>` type and `pycvc.state_set(app)` rejects the handle). `%{ #include
+  "PyHost.h" %}` + `%include "PyHost.h"`; a thin `%inline PyHost* _current_host();` plus a `.py`-level
+  `host = _current_host()`. Add `directors="1"` + a director base if Python→C++ event hooks (`OnSceneChanged`,
+  `OnTimer`) are needed. Unlike verlihub (hand-written `PyMethodDef`, `Py_InitModule`, no SWIG), we use
+  SWIG-generated wrappers that yield **real proxy objects** — the reason to wrap real volrover3 objects.
+
+## 9. Build plan
+
+`volrover3/CMakeLists.txt` (no SWIG/Python today):
+- `find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Embed)` + `find_package(SWIG REQUIRED)` +
+  `include(UseSWIG)`.
+- Link `Python3::Python` into `volrover3_lib` (so the subsystem is unit-testable); the executable inherits it.
+- `target_link_options(volrover3 PRIVATE -Wl,--export-dynamic)` so libpython symbols reach imported
+  C-extensions (numpy/vtk) — the executable equivalent of `RTLD_GLOBAL`.
+- Generate `vrhost` and compile `vrhostPYTHON_wrap.cxx` **into** `volrover3_lib`, registered via
+  `PyImport_AppendInittab("vrhost", PyInit_vrhost)` (no `.so` to locate on disk). SWIG needs pycvc's include dir
+  on `-I`.
+- Ship pycvc/pycvc_gl as cvcpkg runtime deps (already published); import from bundled site-packages. Keep the
+  **same libcvc** (`cvc::cvc`) so `cvc::app` ABI matches. Ensure VTK-python matches the app's VTK.
+- Ship a `scripts/` dir the console enumerates.
+- **cvcpkg recipe:** volrover3 gains build deps `swig` + `python3-dev`; runtime deps `python3` + `pycvc` +
+  `pycvc_gl` (+ transitive numpy/vtk-python); later `pyside6` + `shiboken6` (§7). Validate with `cvcpkg validate`.
+
+## 10. Phased plan
+
+- **Phase 0 — no-singleton app ownership + cvcGL convergence + build scaffolding.** Own `shared_ptr<cvc::app>`
+  in `main()`/`MainWindow`; thread it; delete `volrover3::app()` (155 sites) + de-singleton `AppState` (45
+  sites); **drop the private SceneGraph fork and link cvcGL (`cvc::cvcGL`)**, constructing it with the
+  injected-app ctor. Add Python3/SWIG to CMake, `-Wl,--export-dynamic`. Proves volrover3 still builds/links with
+  embedded libpython. (Largest mechanical change; ~200 call sites + the cvcGL swap — may be split into 0a
+  no-singleton / 0b cvcGL / 0c scaffolding.)
+- **Phase 1 — smallest end-to-end slice.** `EmbeddedInterpreter` boots once + parks the GIL; `PyHost::app()`
+  returns the owned handle; `vrhost.i` compiled in + `vrhost.host` injected; pycvc importable; `run_string()`.
+  **Acceptance gtest (in `volrover3_lib`):** run `import vrhost, pycvc; pycvc.state_set(vrhost.host.app(),
+  'volrover3.camera.fov','42')` and assert C++-side that `cvc::state::instance(app)('volrover3')('camera.fov')
+  == '42'` **and** the camera-changed handler fired — proving the script drove the *running* app.
+- **Phase 2 — GIL + threading correctness.** Worker→Python and Python→UI through the existing channels; a Python
+  `pycvc.state_observer` `watch(app)` whose `on_changed(path)` fires on cvc worker writes, marshaled to the UI
+  via `SceneGraph::postEvent` / `QMetaObject::invokeMethod`. Add SWIG `-threads`.
+- **Phase 3 — script lifecycle + isolation.** load/exec/unload `.py` from `scripts/` into per-script namespaces
+  in the one interpreter; name-based hook discovery + exception isolation (ported from verlihub).
+- **Phase 4 — PyConsoleDock Qt UI** (REPL + load/reload/unload/list + output pane).
+- **Phase 5 — host-state control surface** (typed PyHost helpers; director hooks for host events; API docs).
+- **Phase 6 — Qt bridge (PySide6/Shiboken).** `main_window_ptr()` + `vrhost.main_window()` wrapInstance helper;
+  demo scripts that add a dock and replace the central widget from Python. **Gated on** the hermetic
+  `pyside6`/`shiboken6` cvcpkg recipes.
+- **Phase 7 — packaging + CI** (cvcpkg deps; Linux/macOS/Windows; ship `scripts/` + site-packages).
+
+## 11. Open decisions (for review) & risks
+
+**Decisions:**
+- **AppState de-singletoning scope** — full removal now (Phase 0), or keep `AppState` as an owned object but
+  retain a thin `instance()` shim temporarily to bound the diff? (Rule says remove; flagging the size.)
+- **pycvc distribution into the interpreter** — bundle prebuilt `.so` on a private `PYTHONPATH`, or bake the
+  wrapper into `volrover3_lib` via inittab (like `vrhost`)?
+- **State-exposure boundary** — whole tree, just the `volrover3` subtree, or also `volrover3.graphics.root.*`
+  (SceneNode-owned, different lifetime)?
+- **Script capability boundary** — scripts currently get *full* host access (verlihub-style). Do we want an
+  opt-in sandbox/capability layer, given §7 lets a script replace the entire UI?
+- **When to pull PySide6/Shiboken** — the §7 Qt bridge is high-value but the recipes are the heavy lift; land
+  Phases 0–5 (pycvc/app/state/console) first, or parallelize the recipe work?
+
+**Risks:** static-destruction-order UB (mitigated by `~MainWindow` teardown before exit-time statics); sub-
+interpreter corruption if MULTI ever enabled for C-ext scripts (mitigated by the hard policy); SWIG cross-module
+type mismatch if `vrhost.i` fails to `%import pycvc.i` or is built against a different libcvc/SWIG (enforce in
+CI); GIL deadlocks from a missing bracket (verlihub's load-bearing discipline); libpython symbol visibility
+without `--export-dynamic`; VTK double-init between the app and pycvc_gl; the `readOnly(true)` world-bounds write
+no-op gotcha; PySide6 ABI mismatch vs cvcpkg Qt6; cvcpkg closure completeness for the new dep set (bit libcvc
+before — imagemagick/libxml2).
+```
+
+*Grounding: verlihub `plugins/python` (cpythoninterpreter/cpipython/wrapper/cconsole); volrover3
+`volrover3_app.cpp`, `MainWindow.cpp`, `AppState.*`, `SceneNode.*`, `CMakeLists.txt`; pycvc `bindings/pycvc`
+(#136); CVCPKG-ROADMAP Phase 19/20 + `static-single-binary-python.md`; the Python/Qt binding + hermeticity
+architecture doc.*
