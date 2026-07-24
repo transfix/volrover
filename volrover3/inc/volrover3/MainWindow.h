@@ -25,6 +25,9 @@ class GeometryDialog;
 class VolumeDialog;
 class ViewerOptionsDialog;
 class CameraSettingsDialog;
+namespace volrover3 {
+class EmbeddedInterpreter;
+}
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -79,6 +82,9 @@ private:
   VTKRenderWidget *m_renderWidget;
   TransferFunctionWidget *m_transferFunctionWidget;
   std::shared_ptr<SceneGraph> m_sceneGraph;
+  // Embedded Python interpreter — built right after m_sceneGraph so it captures
+  // the live app + scene; owns CPython's lifecycle + the injected PyHost.
+  std::unique_ptr<volrover3::EmbeddedInterpreter> m_interp;
   ThreadMonitorWidget *m_threadMonitor;
   StateTreeWidget *m_stateTreeWidget;
   StateDashboardWidget *m_stateDashboardWidget;

@@ -58,21 +58,22 @@ public:
   // The state subtree prefix volrover3 owns, so scripts need not hardcode it.
   std::string state_prefix() const { return "volrover3"; }
 
-  // -- scene control -------------------------------------------------------
+  // NOTE: there are deliberately NO typed state/scene helpers here. State is
+  // already SWIG-wrapped by pycvc (state_set/state_get/…) and the scene graph
+  // by pycvc_gl — both operate on the app() this delivers. A script writes
+  // `pycvc.state_set(vrhost.host.app(), "volrover3.camera.fov", "42")`, not a
+  // bespoke PyHost method. PyHost only exposes what those bindings CANNOT get
+  // for themselves: the live app handle, the Qt main window, and host-loop
+  // actions.
+
+  // -- scene / host-loop ---------------------------------------------------
+  // The host's live SceneGraph (so a script can bridge it into pycvc_gl rather
+  // than spin up a parallel scene).
   std::shared_ptr<SceneGraph> scene() const { return m_scene; }
   // Enqueue a render on the UI thread (via SceneGraph::postEvent, drained by
-  // VTKRenderWidget's QTimer). Safe to call from Python worker threads.
+  // VTKRenderWidget's QTimer). A host-loop action pycvc_gl does not cover;
+  // safe to call from Python worker threads.
   void request_render();
-  // Names of the graphics nodes under volrover3.graphics.root.*
-  std::vector<std::string> list_nodes() const;
-
-  // -- typed host-state helpers (ergonomic sugar over the same cvc::state
-  //    subtree AppState writes; a script can equivalently drive app() through
-  //    pycvc.state_set). These encapsulate gotchas like the world-bounds
-  //    readOnly(true) toggle. --------------------------------------------
-  void set_camera_fov(double fov);
-  double camera_fov() const;
-  void set_show_fps(bool on);
 
   // -- Qt bridge (Phase 6; see docs/EMBEDDED_PYTHON.md §7) -----------------
   // The live QMainWindow* as an integer, for PySide6/Shiboken:

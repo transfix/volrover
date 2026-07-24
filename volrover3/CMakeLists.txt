@@ -49,6 +49,14 @@ endif()
 find_package(VTK REQUIRED)
 find_package(OpenGL REQUIRED)
 
+# ── Embedded Python interpreter (docs/EMBEDDED_PYTHON.md) ──
+# volrover3 hosts a first-class CPython interpreter: Development.Embed links
+# libpython so the app IS the interpreter; SWIG generates the `vrhost`
+# host-control module. See EmbeddedInterpreter + PyHost.
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Embed)
+find_package(SWIG 4.0 REQUIRED)
+include(UseSWIG)
+
 # Source files
 set(VOLROVER3_SOURCES
   main.cpp
@@ -57,6 +65,9 @@ set(VOLROVER3_SOURCES
   # Scene-graph nodes (SceneGraph/SceneNode/Geometry/Graphics/Volume/Null/Grid/
   # Axis/BBox) now come from cvcGL (cvc::cvcGL); volrover3 no longer forks them.
   CameraController.cpp
+  # Embedded Python interpreter subsystem (docs/EMBEDDED_PYTHON.md).
+  PyHost.cpp
+  EmbeddedInterpreter.cpp
   TransferFunctionWidget.cpp
   ThreadMonitorWidget.cpp
   StateTreeWidget.cpp
@@ -80,6 +91,8 @@ set(VOLROVER3_HEADERS
   ${PROJECT_SOURCE_DIR}/inc/volrover3/VTKRenderWidget.h
   # Scene-graph node headers now come from cvcGL (<cvc/gl/*.h>).
   ${PROJECT_SOURCE_DIR}/inc/volrover3/CameraController.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/PyHost.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/EmbeddedInterpreter.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/TransferFunctionWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/ThreadMonitorWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/StateTreeWidget.h
@@ -163,6 +176,7 @@ if(QT_VERSION_MAJOR EQUAL 6)
   target_link_libraries(volrover3
     cvc::cvc
     cvc::cvcGL
+    Python3::Python
     Qt6::Core
     Qt6::Widgets
     Qt6::OpenGL
@@ -174,12 +188,20 @@ else()
   target_link_libraries(volrover3
     cvc::cvc
     cvc::cvcGL
+    Python3::Python
     Qt5::Core
     Qt5::Widgets
     Qt5::OpenGL
     ${VTK_LIBRARIES}
     ${OPENGL_LIBRARIES}
   )
+endif()
+
+# Make libpython symbols visible to dynamically-imported C-extension modules
+# (numpy, vtk, pycvc's _pycvc.so): the executable-world equivalent of the
+# RTLD_GLOBAL trick verlihub's python plugin uses. See docs/EMBEDDED_PYTHON.md.
+if(UNIX AND NOT APPLE)
+  target_link_options(volrover3 PRIVATE "LINKER:--export-dynamic")
 endif()
 
 # Auto-initialize VTK modules
@@ -410,6 +432,7 @@ if(VOLROVER3_BUILD_TESTS)
     target_link_libraries(volrover3_lib
       cvc::cvc
       cvc::cvcGL
+      Python3::Python
       Qt6::Core
       Qt6::Widgets
       Qt6::OpenGL
@@ -421,6 +444,7 @@ if(VOLROVER3_BUILD_TESTS)
     target_link_libraries(volrover3_lib
       cvc::cvc
       cvc::cvcGL
+      Python3::Python
       Qt5::Core
       Qt5::Widgets
       Qt5::OpenGL
@@ -442,6 +466,20 @@ if(VOLROVER3_BUILD_TESTS)
     GTest::gtest
     GTest::gtest_main)
   add_test(NAME AppStateTest COMMAND volrover3_appstate_test)
+
+  # Embedded Python interpreter smoke test (Phase 0c). Derive CPython's home
+  # from the interpreter we linked so it finds its stdlib at runtime.
+  get_filename_component(_VR3_PYBIN "${Python3_EXECUTABLE}" DIRECTORY)
+  get_filename_component(_VR3_PYHOME "${_VR3_PYBIN}" DIRECTORY)
+  add_executable(volrover3_interpreter_test
+    tests/EmbeddedInterpreterTest.cpp)
+  target_link_libraries(volrover3_interpreter_test
+    volrover3_lib
+    GTest::gtest
+    GTest::gtest_main)
+  add_test(NAME EmbeddedInterpreterTest COMMAND volrover3_interpreter_test)
+  set_tests_properties(EmbeddedInterpreterTest PROPERTIES
+    ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib")
 
   # TransferFunction tests
   add_executable(volrover3_transferfunction_test

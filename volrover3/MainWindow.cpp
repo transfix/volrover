@@ -15,6 +15,7 @@
 #include <cvc/geometry/geometry_file_io.h>
 #include <cvc/volume/volume_file_io.h>
 #include <volrover3/AppState.h>
+#include <volrover3/EmbeddedInterpreter.h>
 #include <volrover3/BoundingBoxDialog.h>
 #include <volrover3/CameraController.h>
 #include <volrover3/CameraSettingsDialog.h>
@@ -68,6 +69,14 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   // injected-app ctor roots the scene state under the same owned app's
   // "volrover3" subtree, unifying the state tree with AppState.
   m_sceneGraph = std::make_shared<SceneGraph>(*m_app, "volrover3");
+
+  // Boot the embedded Python interpreter now that the app + scene exist. It
+  // captures the live app (delivered to scripts via vrhost.host.app()) and the
+  // scene. Graceful: if CPython can't initialize (e.g. no python home), the app
+  // still runs without scripting — see EmbeddedInterpreter.
+  m_interp = std::make_unique<volrover3::EmbeddedInterpreter>(m_app, m_sceneGraph);
+  if (!m_interp->ok())
+    qWarning("volrover3: embedded Python interpreter unavailable (scripting disabled)");
 
   // Create central render widget
   m_renderWidget = new VTKRenderWidget(*m_app, *m_appState, this);
