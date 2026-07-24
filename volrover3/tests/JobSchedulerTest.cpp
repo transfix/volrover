@@ -107,6 +107,40 @@ TEST_F(JobSchedulerTest, WorkerJobStepsOffThreadAndStopsCleanly) {
   EXPECT_EQ(sched.size(), 0u);
 }
 
+TEST_F(JobSchedulerTest, MultiModeIsolatesAndGatesImports) {
+  volrover3::JobScheduler sched(interp.get(), 50, volrover3::InterpreterMode::Multi);
+  EXPECT_EQ(sched.mode(), volrover3::InterpreterMode::Multi);
+
+  // A pure-Python job runs in its OWN sub-interpreter, ticked cooperatively.
+  const int iso = sched.submit("iso", "n=0\ndef step(dt):\n global n\n n+=1\n");
+  ASSERT_GE(iso, 0);
+  sched.tick();
+  sched.tick();
+  {
+    auto jobs = sched.listJobs();
+    ASSERT_EQ(jobs.size(), 1u);
+    EXPECT_EQ(jobs[0].steps, 2u);
+    EXPECT_EQ(jobs[0].status, JobStatus::Running);
+  }
+
+  // The import gate: a step that imports a denied C-extension raises ImportError
+  // from the gate (with its message), isolating the job.
+  const int gated = sched.submit("gated", "def step(dt):\n import numpy\n");
+  ASSERT_GE(gated, 0); // loads fine; the import is deferred to step()
+  sched.tick();
+  for (const auto &j : sched.listJobs()) {
+    if (j.name == "gated") {
+      EXPECT_EQ(j.status, JobStatus::Error);
+      EXPECT_NE(j.lastError.find("multi-interpreter mode"), std::string::npos); // the gate spoke
+    }
+  }
+
+  // Kill both cleanly (each ends its own sub-interpreter).
+  EXPECT_TRUE(sched.kill(iso));
+  EXPECT_TRUE(sched.kill(gated));
+  EXPECT_EQ(sched.size(), 0u);
+}
+
 int main(int argc, char **argv) {
   QCoreApplication qapp(argc, argv); // JobScheduler is a QObject / owns a QTimer
   ::testing::InitGoogleTest(&argc, argv);

@@ -16,6 +16,8 @@
 // path (for force-terminating a runaway C-extension loop) is layered on top.
 // --------------------------------------------------------------------
 
+#include <volrover3/EmbeddedInterpreter.h> // InterpreterMode
+
 #include <QObject>
 
 #include <cstdint>
@@ -26,8 +28,6 @@
 class QTimer;
 
 namespace volrover3 {
-
-class EmbeddedInterpreter;
 
 // Mirrors libcvc state_exec's process_status vocabulary so the jobs tab renders
 // uniformly across Python + DSL jobs.
@@ -46,8 +46,16 @@ struct JobInfo {
 class JobScheduler : public QObject {
   Q_OBJECT
 public:
-  JobScheduler(EmbeddedInterpreter *interp, int tickMs, QObject *parent = nullptr);
+  // `mode` selects the job launcher: Single = jobs share the process
+  // interpreter (each in its own module namespace); Multi = each job gets its
+  // own Py_NewInterpreter sub-interpreter with an enforced import gate
+  // (pycvc/pycvc_gl/vrhost/vtk/numpy denied — they corrupt across
+  // sub-interpreters; docs/EMBEDDED_PYTHON.md §12.2).
+  JobScheduler(EmbeddedInterpreter *interp, int tickMs,
+               InterpreterMode mode = InterpreterMode::Single, QObject *parent = nullptr);
   ~JobScheduler() override;
+
+  InterpreterMode mode() const { return m_mode; }
 
   // Submit a Python job. `source` is exec'd ONCE into a fresh module namespace
   // to define a `step(dt)` callable (verlihub's OnTimer). The scheduler then
@@ -86,9 +94,13 @@ private:
   // touch the private Job; workerLoop is the sacrificial-thread body.
   static bool runStepUnderGil(Job *j, double dt, std::string &err, unsigned long &tid);
   static void workerLoop(Job *j);
+  // Free a job's Python resources: single -> decref; multi -> Py_EndInterpreter
+  // its sub-interpreter. Its worker (if any) must already be stopped/joined.
+  static void teardownJob(Job *j);
 
   EmbeddedInterpreter *m_interp;
   int m_tickMs;
+  InterpreterMode m_mode;
   int m_nextId = 0;
   QTimer *m_timer = nullptr;
   std::int64_t m_lastTickNs = 0;

@@ -91,7 +91,8 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
 
   // Job scheduler (cooperative tick over the job registry) + the console dock
   // that drives it and the REPL (docs/EMBEDDED_PYTHON.md §12).
-  m_scheduler = std::make_unique<volrover3::JobScheduler>(m_interp.get(), m_settings->tickMs());
+  m_scheduler =
+      std::make_unique<volrover3::JobScheduler>(m_interp.get(), m_settings->tickMs(), m_interp->mode());
   m_scheduler->start();
   m_consoleDock = new volrover3::PyConsoleDock(m_interp.get(), m_scheduler.get(), this);
   addDockWidget(Qt::BottomDockWidgetArea, m_consoleDock);

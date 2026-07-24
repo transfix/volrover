@@ -86,6 +86,10 @@ PyConsoleDock::PyConsoleDock(EmbeddedInterpreter *interp, JobScheduler *sched, Q
 
   if (!m_interp || !m_interp->ok())
     m_output->appendPlainText(tr("[interpreter unavailable — scripting disabled]"));
+  else if (m_sched && m_sched->mode() == InterpreterMode::Multi)
+    m_output->appendPlainText(
+        tr("[multi-interpreter mode: jobs are isolated pure-Python; app scripting "
+           "via pycvc/vrhost is disabled — switch to single mode in ~/.volrover/settings.yaml]"));
 }
 
 PyConsoleDock::~PyConsoleDock() = default;

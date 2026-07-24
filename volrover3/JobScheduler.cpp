@@ -22,8 +22,9 @@ struct JobScheduler::Job {
   int id = -1;
   std::string name;
   bool onWorker = false;
-  PyObject *module = nullptr; // owned; the job's isolated namespace (vr_job_<id>)
-  PyObject *stepFn = nullptr; // owned; the cached step(dt) callable
+  PyObject *module = nullptr;      // owned; the job's isolated namespace (vr_job_<id>)
+  PyObject *stepFn = nullptr;      // owned; the cached step(dt) callable
+  PyThreadState *subState = nullptr; // Multi mode: the job's own sub-interpreter
 
   mutable std::mutex mtx;     // guards the fields below (cross-thread for workers)
   JobStatus status = JobStatus::Ready;
@@ -73,6 +74,8 @@ std::int64_t nowNs() {
 // before returning, so state updates by the caller take no GIL.
 bool JobScheduler::runStepUnderGil(Job *j, double dt, std::string &err, unsigned long &tid) {
   PyGILState_STATE gil = PyGILState_Ensure();
+  // Multi mode: enter the job's own sub-interpreter for the call.
+  PyThreadState *prev = j->subState ? PyThreadState_Swap(j->subState) : nullptr;
   tid = PyThread_get_thread_ident();
   bool ok = false;
   if (PyObject *res = PyObject_CallFunction(j->stepFn, "d", dt)) {
@@ -81,6 +84,8 @@ bool JobScheduler::runStepUnderGil(Job *j, double dt, std::string &err, unsigned
   } else {
     err = fetchError();
   }
+  if (j->subState)
+    PyThreadState_Swap(prev);
   PyGILState_Release(gil);
   return ok;
 }
@@ -119,8 +124,27 @@ void JobScheduler::workerLoop(Job *j) {
   j->finished.store(true);
 }
 
-JobScheduler::JobScheduler(EmbeddedInterpreter *interp, int tickMs, QObject *parent)
-    : QObject(parent), m_interp(interp), m_tickMs(tickMs) {
+// The import gate installed in every Multi sub-interpreter: a sys.meta_path
+// finder that raises ImportError for the C-extension denylist (they alias
+// single-phase-init C globals across sub-interpreters -> corruption). GIL must
+// be held and the target sub-interpreter must be the current thread state.
+static const char *kImportGate = R"PY(
+import sys as _sys
+class _VRImportGate:
+    _DENY = {'pycvc', 'pycvc_gl', 'vrhost', 'vtk', 'vtkmodules', 'numpy'}
+    def find_spec(self, name, path=None, target=None):
+        top = name.split('.', 1)[0]
+        if top in self._DENY:
+            raise ImportError(
+                top + " is disabled in multi-interpreter mode "
+                "(app scripting via pycvc/vrhost requires single-interpreter mode)")
+        return None
+_sys.meta_path.insert(0, _VRImportGate())
+)PY";
+
+JobScheduler::JobScheduler(EmbeddedInterpreter *interp, int tickMs, InterpreterMode mode,
+                           QObject *parent)
+    : QObject(parent), m_interp(interp), m_tickMs(tickMs), m_mode(mode) {
   m_timer = new QTimer(this);
   m_timer->setInterval(tickMs);
   connect(m_timer, &QTimer::timeout, this, &JobScheduler::tick);
@@ -136,12 +160,8 @@ JobScheduler::~JobScheduler() {
     }
   }
   if (m_interp && m_interp->ok()) {
-    PyGILState_STATE gil = PyGILState_Ensure();
-    for (auto &j : m_jobs) {
-      Py_XDECREF(j->stepFn);
-      Py_XDECREF(j->module);
-    }
-    PyGILState_Release(gil);
+    for (auto &j : m_jobs)
+      teardownJob(j.get());
   }
   m_jobs.clear();
   // m_zombies are intentionally leaked (their detached threads may still run).
@@ -149,46 +169,100 @@ JobScheduler::~JobScheduler() {
     (void)z.release();
 }
 
+// Free a job's Python resources. GIL acquired here.
+void JobScheduler::teardownJob(Job *j) {
+  PyGILState_STATE gil = PyGILState_Ensure();
+  if (j->subState) {
+    // Multi: drop our step ref inside the sub, then end the sub-interpreter.
+    PyThreadState *mainTS = PyThreadState_Get();
+    PyThreadState_Swap(j->subState);
+    Py_XDECREF(j->stepFn);
+    Py_EndInterpreter(j->subState);
+    PyThreadState_Swap(mainTS);
+    j->subState = nullptr;
+  } else {
+    Py_XDECREF(j->stepFn);
+    Py_XDECREF(j->module);
+  }
+  j->stepFn = nullptr;
+  j->module = nullptr;
+  PyGILState_Release(gil);
+}
+
 int JobScheduler::submit(const std::string &name, const std::string &source, bool onWorker) {
   if (!m_interp || !m_interp->ok())
     return -1;
   const int id = m_nextId++;
 
+  const bool multi = (m_mode == InterpreterMode::Multi);
+  const bool worker = onWorker && !multi; // sub-interpreter thread state is thread-bound
+
   PyGILState_STATE gil = PyGILState_Ensure();
-  const std::string modName = "vr_job_" + std::to_string(id);
-  PyObject *mod = PyModule_New(modName.c_str()); // new
-  PyObject *step = nullptr;
+  PyThreadState *mainTS = multi ? PyThreadState_Get() : nullptr;
+  PyThreadState *sub = nullptr;
+  PyObject *mod = nullptr;   // single: the fresh module namespace (owned)
+  PyObject *step = nullptr;  // the cached step(dt) (owned)
   bool loaded = false;
-  if (mod) {
-    PyObject *dict = PyModule_GetDict(mod); // borrowed
-    if (PyDict_GetItemString(dict, "__builtins__") == nullptr)
-      PyDict_SetItemString(dict, "__builtins__", PyEval_GetBuiltins());
-    if (PyObject *res = PyRun_String(source.c_str(), Py_file_input, dict, dict)) {
-      Py_DECREF(res);
-      step = PyObject_GetAttrString(mod, "step"); // new or null
-      loaded = step && PyCallable_Check(step);
+
+  if (multi) {
+    sub = Py_NewInterpreter(); // creates the sub + makes it current
+    if (sub) {
+      PyObject *mainMod = PyImport_AddModule("__main__"); // borrowed (the sub's)
+      PyObject *dict = PyModule_GetDict(mainMod);
+      // Install the import gate FIRST, then run the job source.
+      if (PyObject *g = PyRun_String(kImportGate, Py_file_input, dict, dict))
+        Py_DECREF(g);
+      else
+        (void)fetchError();
+      if (PyObject *res = PyRun_String(source.c_str(), Py_file_input, dict, dict)) {
+        Py_DECREF(res);
+        step = PyObject_GetAttrString(mainMod, "step");
+        loaded = step && PyCallable_Check(step);
+      }
+    }
+  } else {
+    const std::string modName = "vr_job_" + std::to_string(id);
+    mod = PyModule_New(modName.c_str());
+    if (mod) {
+      PyObject *dict = PyModule_GetDict(mod);
+      if (PyDict_GetItemString(dict, "__builtins__") == nullptr)
+        PyDict_SetItemString(dict, "__builtins__", PyEval_GetBuiltins());
+      if (PyObject *res = PyRun_String(source.c_str(), Py_file_input, dict, dict)) {
+        Py_DECREF(res);
+        step = PyObject_GetAttrString(mod, "step");
+        loaded = step && PyCallable_Check(step);
+      }
     }
   }
+
   if (!loaded) {
     (void)fetchError();
     Py_XDECREF(step);
     Py_XDECREF(mod);
+    if (multi && sub) {
+      Py_EndInterpreter(sub); // tear down the sub we just made
+      PyThreadState_Swap(mainTS);
+    }
     PyGILState_Release(gil);
     return -1;
   }
+
+  if (multi)
+    PyThreadState_Swap(mainTS); // back to the main interpreter
   PyGILState_Release(gil);
 
   auto job = std::make_unique<Job>();
   job->id = id;
   job->name = name;
-  job->onWorker = onWorker;
-  job->module = mod;
-  job->stepFn = step;
+  job->onWorker = worker;
+  job->module = mod;      // null in multi mode (namespace is the sub's __main__)
+  job->stepFn = step;     // lives in the sub for multi; in `mod` for single
+  job->subState = sub;    // null for single
   job->status = JobStatus::Ready;
   job->tickMs = m_tickMs;
   Job *raw = job.get();
   m_jobs.push_back(std::move(job));
-  if (onWorker)
+  if (worker)
     raw->thread = std::thread(&JobScheduler::workerLoop, raw); // self-driving
   return id;
 }
@@ -308,11 +382,9 @@ bool JobScheduler::kill(int id) {
   Job *j = it->get();
 
   if (!j->onWorker) {
-    // Cooperative: just drop it + clear the namespace.
-    PyGILState_STATE gil = PyGILState_Ensure();
-    Py_XDECREF(j->stepFn);
-    Py_XDECREF(j->module);
-    PyGILState_Release(gil);
+    // Cooperative (incl. all multi jobs): drop it + clear its namespace /
+    // end its sub-interpreter.
+    teardownJob(j);
     m_jobs.erase(it);
     return true;
   }
@@ -326,10 +398,7 @@ bool JobScheduler::kill(int id) {
 
   if (j->finished.load()) {
     j->thread.join();
-    PyGILState_STATE gil = PyGILState_Ensure();
-    Py_XDECREF(j->stepFn);
-    Py_XDECREF(j->module);
-    PyGILState_Release(gil);
+    teardownJob(j);
     m_jobs.erase(it);
   } else {
     // Genuinely hung (a tight C loop holding the GIL). Cannot force-kill safely:
