@@ -71,6 +71,7 @@ set(VOLROVER3_SOURCES
   # Embedded Python interpreter subsystem (docs/EMBEDDED_PYTHON.md).
   PyHost.cpp
   EmbeddedInterpreter.cpp
+  JobScheduler.cpp
   Settings.cpp
   TransferFunctionWidget.cpp
   ThreadMonitorWidget.cpp
@@ -97,6 +98,7 @@ set(VOLROVER3_HEADERS
   ${PROJECT_SOURCE_DIR}/inc/volrover3/CameraController.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/PyHost.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/EmbeddedInterpreter.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/JobScheduler.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/Settings.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/TransferFunctionWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/ThreadMonitorWidget.h
@@ -503,6 +505,16 @@ if(VOLROVER3_BUILD_TESTS)
   add_test(NAME SettingsTest COMMAND volrover3_settings_test)
   set_tests_properties(SettingsTest PROPERTIES
     ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/settings-test-home;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
+
+  # JobScheduler (cooperative tick over the job registry). Custom main() makes
+  # the QCoreApplication the QTimer/QObject need; needs CPython's home.
+  add_executable(volrover3_jobscheduler_test tests/JobSchedulerTest.cpp)
+  target_link_libraries(volrover3_jobscheduler_test
+    volrover3_lib
+    GTest::gtest)
+  add_test(NAME JobSchedulerTest COMMAND volrover3_jobscheduler_test)
+  set_tests_properties(JobSchedulerTest PROPERTIES
+    ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib;QT_QPA_PLATFORM=offscreen")
 
   # TransferFunction tests
   add_executable(volrover3_transferfunction_test
