@@ -2,10 +2,8 @@
 #include <cvc/core/app.h>
 #include <cvc/core/state.h>
 #include <gtest/gtest.h>
-#include <volrover3/AppState.h>
 #include <volrover3/TransferFunctionWidget.h>
 #include <cvc/gl/VolumeNode.h>
-#include <volrover3/volrover3_app.h>
 
 // Need QApplication for Qt widgets
 class TransferFunctionTest : public ::testing::Test {
@@ -20,15 +18,14 @@ protected:
   }
 
   void SetUp() override {
-    widget = new TransferFunctionWidget();
-    appState = &AppState::instance();
+    // TransferFunctionWidget now takes the owned app (Phase-0b: no singleton).
+    widget = new TransferFunctionWidget(ctx);
   }
 
   void TearDown() override { delete widget; }
 
   static QApplication *app;
   TransferFunctionWidget *widget;
-  AppState *appState;
 };
 
 QApplication *TransferFunctionTest::app = nullptr;

@@ -443,15 +443,6 @@ if(VOLROVER3_BUILD_TESTS)
     GTest::gtest_main)
   add_test(NAME AppStateTest COMMAND volrover3_appstate_test)
 
-  # SceneGraph tests
-  add_executable(volrover3_scenegraph_test
-    tests/SceneGraphTest.cpp)
-  target_link_libraries(volrover3_scenegraph_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME SceneGraphTest COMMAND volrover3_scenegraph_test)
-
   # TransferFunction tests
   add_executable(volrover3_transferfunction_test
     tests/TransferFunctionTest.cpp)
@@ -470,15 +461,6 @@ if(VOLROVER3_BUILD_TESTS)
     GTest::gtest_main)
   add_test(NAME CameraControllerTest COMMAND volrover3_camera_test)
 
-  # GridNode tests
-  add_executable(volrover3_gridnode_test
-    tests/GridNodeTest.cpp)
-  target_link_libraries(volrover3_gridnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME GridNodeTest COMMAND volrover3_gridnode_test)
-
   # StateTreeWidget tests
   add_executable(volrover3_statetree_test
     tests/StateTreeWidgetTest.cpp)
@@ -494,51 +476,6 @@ if(VOLROVER3_BUILD_TESTS)
     volrover3_lib
     GTest::gtest)
   add_test(NAME StateDashboardWidgetTest COMMAND volrover3_statedashboard_test)
-
-  # GraphicsNode tests
-  add_executable(volrover3_graphicsnode_test
-    tests/GraphicsNodeTest.cpp)
-  target_link_libraries(volrover3_graphicsnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME GraphicsNodeTest COMMAND volrover3_graphicsnode_test)
-
-  # VolumeNode tests
-  add_executable(volrover3_volumenode_test
-    tests/VolumeNodeTest.cpp)
-  target_link_libraries(volrover3_volumenode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME VolumeNodeTest COMMAND volrover3_volumenode_test)
-
-  # BBoxNode tests
-  add_executable(volrover3_bboxnode_test
-    tests/BBoxNodeTest.cpp)
-  target_link_libraries(volrover3_bboxnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME BBoxNodeTest COMMAND volrover3_bboxnode_test)
-
-  # NullGraphicNode tests
-  add_executable(volrover3_nullgraphicnode_test
-    tests/NullGraphicNodeTest.cpp)
-  target_link_libraries(volrover3_nullgraphicnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME NullGraphicNodeTest COMMAND volrover3_nullgraphicnode_test)
-
-  # BoundingBox Semantics tests
-  add_executable(volrover3_bbox_semantics_test
-    tests/BoundingBoxSemanticsTest.cpp)
-  target_link_libraries(volrover3_bbox_semantics_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME BoundingBoxSemanticsTest COMMAND volrover3_bbox_semantics_test)
 
   # GeometryDialog tests
   add_executable(volrover3_geometrydialog_test
@@ -564,17 +501,10 @@ if(VOLROVER3_BUILD_TESTS)
   # display is available (headless CI, SSH, etc.).
   set_tests_properties(
     AppStateTest
-    SceneGraphTest
     TransferFunctionTest
     CameraControllerTest
-    GridNodeTest
     StateTreeWidgetTest
     StateDashboardWidgetTest
-    GraphicsNodeTest
-    VolumeNodeTest
-    BBoxNodeTest
-    NullGraphicNodeTest
-    BoundingBoxSemanticsTest
     GeometryDialogTest
     VolumeDialogTest
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"

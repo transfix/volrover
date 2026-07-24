@@ -12,7 +12,6 @@
 #include <gtest/gtest.h>
 #include <volrover3/AppState.h>
 #include <volrover3/StateDashboardWidget.h>
-#include <volrover3/volrover3_app.h>
 
 using namespace cvc;
 using namespace cvc::state_exec;
@@ -24,7 +23,7 @@ using namespace cvc::state_exec;
 class StateDashboardTreeTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    root = &state::instance(volrover3::app())("dashboard_test");
+    root = &state::instance(ctx)("dashboard_test");
     root->operator()("alpha").value("aaa");
     root->operator()("beta").value("bbb");
     root->operator()("gamma").value("parent");
@@ -40,6 +39,7 @@ protected:
     root->reset();
   }
 
+  cvc::app ctx;
   state *root;
   StateDashboardWidget *widget;
 };
@@ -321,10 +321,10 @@ TEST_F(StateDashboardExecTest, RefreshWithProcesses) {
 class StateDashboardClusterTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    root = &state::instance(volrover3::app())("cluster_dashboard_test");
+    root = &state::instance(ctx)("cluster_dashboard_test");
     root->value("cluster_root");
 
-    shard = std::make_unique<state_cluster_shard>(volrover3::app(), "test_cluster", "node_local");
+    shard = std::make_unique<state_cluster_shard>(ctx, "test_cluster", "node_local");
     membership = std::make_unique<state_cluster_membership>("test_cluster", "node_local");
     telemetry = std::make_unique<state_telemetry_aggregator>("test_cluster");
 
@@ -339,6 +339,7 @@ protected:
     root->reset();
   }
 
+  cvc::app ctx;
   state *root;
   std::unique_ptr<state_cluster_shard> shard;
   std::unique_ptr<state_cluster_membership> membership;
@@ -426,12 +427,12 @@ TEST_F(StateDashboardClusterTest, MembershipCounters) {
 class StateDashboardIntegrationTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    root = &state::instance(volrover3::app())("integration_dashboard_test");
+    root = &state::instance(ctx)("integration_dashboard_test");
     root->operator()("config")("greeting").value("hello");
 
     env = builtins::make_default_environment();
     sched = std::make_unique<scheduler>();
-    shard = std::make_unique<state_cluster_shard>(volrover3::app(), "integ_cluster", "integ_node");
+    shard = std::make_unique<state_cluster_shard>(ctx, "integ_cluster", "integ_node");
     membership = std::make_unique<state_cluster_membership>("integ_cluster", "integ_node");
 
     widget = new StateDashboardWidget();
@@ -446,6 +447,7 @@ protected:
     root->reset();
   }
 
+  cvc::app ctx;
   state *root;
   environment_ptr env;
   std::unique_ptr<scheduler> sched;
@@ -514,7 +516,7 @@ TEST_F(StateDashboardIntegrationTest, MultipleWidgets) {
 class StateDashboardTreeUITest : public ::testing::Test {
 protected:
   void SetUp() override {
-    root = &state::instance(volrover3::app())("tree_ui_test");
+    root = &state::instance(ctx)("tree_ui_test");
     root->operator()("apple").value("red");
     root->operator()("banana").value("yellow");
     root->operator()("cherry").value("dark");
@@ -567,6 +569,7 @@ protected:
     return nullptr;
   }
 
+  cvc::app ctx;
   state *root;
   StateDashboardWidget *widget;
   QTreeWidget *tree;
@@ -1090,10 +1093,10 @@ TEST_F(StateDashboardExecUITest, CompletedProcessShowsTerminated) {
 class StateDashboardClusterUITest : public ::testing::Test {
 protected:
   void SetUp() override {
-    root = &state::instance(volrover3::app())("cluster_ui_test");
+    root = &state::instance(ctx)("cluster_ui_test");
     root->value("cluster_ui_root");
 
-    shard = std::make_unique<state_cluster_shard>(volrover3::app(), "ui_cluster", "ui_node");
+    shard = std::make_unique<state_cluster_shard>(ctx, "ui_cluster", "ui_node");
     membership = std::make_unique<state_cluster_membership>("ui_cluster", "ui_node");
     telemetry = std::make_unique<state_telemetry_aggregator>("ui_cluster");
 
@@ -1137,6 +1140,7 @@ protected:
     root->reset();
   }
 
+  cvc::app ctx;
   state *root;
   std::unique_ptr<state_cluster_shard> shard;
   std::unique_ptr<state_cluster_membership> membership;

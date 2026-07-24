@@ -1,22 +1,22 @@
 #include <QApplication>
+#include <cvc/core/app.h>
 #include <cvc/core/state.h>
 #include <gtest/gtest.h>
-#include <volrover3/AppState.h>
 #include <volrover3/StateTreeWidget.h>
-#include <volrover3/volrover3_app.h>
 
 class StateTreeWidgetTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    // Create a temporary state tree for testing
-    testState = &cvc::state::instance(volrover3::app())("test_widget");
+    // Own a fresh cvc::app per test (Phase-0b: no singleton). State lives in
+    // this app's tree, and StateTreeWidget now takes the owned app.
+    testState = &cvc::state::instance(ctx)("test_widget");
 
     // Create some test states
     testState->operator()("child1").value("value1");
     testState->operator()("child2").value("value2");
     testState->operator()("nested")("deep").value("deep_value");
 
-    widget = new StateTreeWidget();
+    widget = new StateTreeWidget(ctx);
     widget->setRootState(testState);
   }
 
@@ -26,6 +26,7 @@ protected:
     testState->reset();
   }
 
+  cvc::app ctx;
   cvc::state *testState;
   StateTreeWidget *widget;
 };

@@ -16,15 +16,14 @@ protected:
       char **argv = nullptr;
       app = new QApplication(argc, argv);
     }
-    // Disable threading for state_object to avoid destruction race conditions
-    cvc::state_object<AppState>::setUseThreading(false);
   }
 
   void SetUp() override {
-    // Create AppState with unique prefix for test isolation
-    // Each test instance gets its own state subtree
+    // Own a fresh cvc::app per test — gtest constructs a new fixture per
+    // TEST_F, so m_ctx (and thus its state tree) is isolated between tests.
+    // AppState is no longer a singleton; construct it against the owned app.
     m_statePrefix = "appstate_test_" + std::to_string(testCounter++);
-    state = std::make_unique<AppState>(m_statePrefix);
+    state = std::make_unique<AppState>(m_ctx, m_statePrefix);
   }
 
   void TearDown() override {
@@ -35,6 +34,7 @@ protected:
 
   static QApplication *app;
   static int testCounter;
+  cvc::app m_ctx;
   std::string m_statePrefix;
   std::unique_ptr<AppState> state;
 };
@@ -42,13 +42,11 @@ protected:
 QApplication *AppStateTest::app = nullptr;
 int AppStateTest::testCounter = 0;
 
-TEST_F(AppStateTest, SingletonInstance) {
-  // Verify that the singleton instance is different from our test instance
-  // (they use different state prefixes)
-  AppState &singleton = AppState::instance();
-  EXPECT_NE(state->getStatePrefix(), singleton.getStatePrefix());
-  EXPECT_EQ(singleton.getStatePrefix(), "volrover3");
-  // Our test instance uses unique prefix
+// NOTE: the former SingletonInstance test was removed — AppState::instance()
+// no longer exists after the Phase-0b no-singleton refactor; AppState is now an
+// explicitly-owned object constructed against a cvc::app.
+
+TEST_F(AppStateTest, StatePrefixMatchesConstruction) {
   EXPECT_EQ(state->getStatePrefix(), m_statePrefix);
 }
 
