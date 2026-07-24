@@ -445,3 +445,18 @@ runtime-gated on imagemagick for `import pycvc`).
   state — hard-kill tears down the whole *job* (its sub-interpreter) and quarantines it, never the process; the
   UI marks a hard-killed job "terminated (unclean)". Cross-thread GIL hand-off + scene marshaling is the load-
   bearing discipline (§6 rules apply per worker).
+
+**IMPLEMENTATION FINDING (the hard limit of "hard-kill"):** CPython gives no safe way to force-terminate a
+thread that is **hung inside a C-extension call while holding the GIL**. `PyThreadState_SetAsyncExc` only fires
+at Python **bytecode boundaries** — it breaks a pure-Python `while True: pass` but *cannot* interrupt a tight
+C loop (a long VTK/pycvc call). And you must **never** `pthread_cancel`/detach-then-free a GIL-holding thread:
+in single-interpreter mode the abandoned thread keeps the one GIL → the whole interpreter deadlocks; freeing the
+job's `PyObject`s under it is a use-after-free. So the worker path is engineered as: (a) each worker steps on its
+own thread and **releases the GIL between steps**, so a *yielding* slow job never freezes the app and can be
+stopped cleanly (stop flag + join) or interrupted (`SetAsyncExc`, effective for Python loops); (b) a job that is
+**genuinely hung in a C call** cannot be force-killed — `kill()` raises `SetAsyncExc`, then on a join timeout
+**detaches the thread and moves the (still-referenced) Job to a zombie list** (never freed, never joined at
+dtor) marking it `Killed (unclean)`, and stops managing it. True force-termination of such a job is only the
+process boundary. This is honest: the worker path buys off-UI-thread execution + clean/interruptible stop for
+the common case, and graceful quarantine (not a crash) for the pathological one. (Full force-kill would need
+per-job **multi-mode** sub-interpreters *and* a cooperative job — still not a hung C-loop.)

@@ -82,6 +82,10 @@ private:
   struct Job; // defined in the .cpp (holds PyObject* + optional worker thread)
   Job *find(int id);
   const Job *find(int id) const;
+  // Run one step(dt) under the GIL (released before return). Static so they can
+  // touch the private Job; workerLoop is the sacrificial-thread body.
+  static bool runStepUnderGil(Job *j, double dt, std::string &err, unsigned long &tid);
+  static void workerLoop(Job *j);
 
   EmbeddedInterpreter *m_interp;
   int m_tickMs;
@@ -89,6 +93,10 @@ private:
   QTimer *m_timer = nullptr;
   std::int64_t m_lastTickNs = 0;
   std::vector<std::unique_ptr<Job>> m_jobs;
+  // Hung worker jobs that could not be joined: detached + kept alive here so the
+  // abandoned thread never dereferences freed Job memory (see EMBEDDED_PYTHON.md
+  // §12.6 hard-kill finding). Never freed, never joined.
+  std::vector<std::unique_ptr<Job>> m_zombies;
 };
 
 } // namespace volrover3
