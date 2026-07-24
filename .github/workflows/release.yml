@@ -1,15 +1,20 @@
-name: Release
+name: Release (VolumeRover 2.x)
 
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      # Legacy VolumeRover 2.x series only. VolumeRover3 (v3.* tags) is
+      # released by release-volrover3.yml. This split keeps the two
+      # series independent and lets the 2.x series be retired by simply
+      # deleting this workflow once its libs finish migrating to libcvc.
+      - 'v2.[0-9]+.[0-9]+*'
 
 permissions:
   contents: write
 
 # ───────────────────────────────────────────────────────────────────
-# Release artifacts (legacy volrover, end-user application)
+# Release artifacts (legacy VolumeRover 2.x, end-user application)
+# Triggered by v2.* tags. VolumeRover3 → release-volrover3.yml.
 #
 #   - Linux:   volrover-<ver>-linux-<arch>.tar.gz             (portable)
 #              volrover-<ver>-linux-<arch>.deb                (Debian/Ubuntu)
