@@ -30,3 +30,34 @@ TEST(EmbeddedInterpreterTest, BootsAndRunsAScript) {
   ASSERT_TRUE(interp.host() != nullptr);
   EXPECT_EQ(interp.host()->app().get(), app.get());
 }
+
+TEST(EmbeddedInterpreterTest, ReplCaptureEchoesAndIsolatesErrors) {
+  auto app = std::make_shared<cvc::app>();
+  volrover3::EmbeddedInterpreter interp(app, /*scene=*/nullptr);
+  ASSERT_TRUE(interp.ok());
+
+  std::string out, err;
+  // print() output is captured.
+  EXPECT_TRUE(interp.run_string_capture("print('hi there')", out, err));
+  EXPECT_NE(out.find("hi there"), std::string::npos);
+  EXPECT_TRUE(err.empty());
+
+  // A bare expression echoes its repr (REPL behavior, Py_single_input).
+  out.clear();
+  err.clear();
+  EXPECT_TRUE(interp.run_string_capture("6 * 7", out, err));
+  EXPECT_NE(out.find("42"), std::string::npos);
+
+  // A raising snippet: false, traceback captured in err, streams restored.
+  out.clear();
+  err.clear();
+  EXPECT_FALSE(interp.run_string_capture("raise ValueError('boom')", out, err));
+  EXPECT_NE(err.find("ValueError"), std::string::npos);
+  EXPECT_NE(err.find("boom"), std::string::npos);
+
+  // Streams were restored: a subsequent normal capture still works.
+  out.clear();
+  err.clear();
+  EXPECT_TRUE(interp.run_string_capture("print('again')", out, err));
+  EXPECT_NE(out.find("again"), std::string::npos);
+}

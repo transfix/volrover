@@ -67,6 +67,14 @@ public:
   // throws) so one bad script can't take down the host.
   bool run_string(const std::string &source);
 
+  // REPL-style run for the console (docs/EMBEDDED_PYTHON.md §12.4): like
+  // run_string, but under the GIL it swaps sys.stdout/sys.stderr to io.StringIO,
+  // runs with Py_single_input so a bare expression echoes its repr (a real
+  // REPL), captures both streams into `out`/`err`, and ALWAYS restores the real
+  // streams (even on error). Returns false on a Python error (traceback in
+  // `err`). run_string is left untouched.
+  bool run_string_capture(const std::string &source, std::string &out, std::string &err);
+
   // The injected host facade (surfaced to scripts as `vrhost.host` once the
   // vrhost module is registered — Phase 1).
   std::shared_ptr<PyHost> host() const { return m_host; }

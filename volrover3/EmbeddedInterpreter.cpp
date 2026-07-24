@@ -80,4 +80,69 @@ bool EmbeddedInterpreter::run_string(const std::string &source) {
   return rc == 0;
 }
 
+bool EmbeddedInterpreter::run_string_capture(const std::string &source, std::string &out,
+                                             std::string &err) {
+  out.clear();
+  err.clear();
+  if (!m_initialized)
+    return false;
+
+  PyGILState_STATE gil = PyGILState_Ensure();
+  bool ok = false;
+
+  PyObject *mainMod = PyImport_AddModule("__main__"); // borrowed
+  PyObject *sysMod = PyImport_ImportModule("sys");    // new
+  PyObject *ioMod = PyImport_ImportModule("io");      // new
+
+  if (mainMod && sysMod && ioMod) {
+    PyObject *mainDict = PyModule_GetDict(mainMod);              // borrowed
+    PyObject *oldOut = PyObject_GetAttrString(sysMod, "stdout"); // new (or null)
+    PyObject *oldErr = PyObject_GetAttrString(sysMod, "stderr"); // new (or null)
+    PyObject *capOut = PyObject_CallMethod(ioMod, "StringIO", nullptr); // new
+    PyObject *capErr = PyObject_CallMethod(ioMod, "StringIO", nullptr); // new
+
+    if (capOut && capErr) {
+      PyObject_SetAttrString(sysMod, "stdout", capOut);
+      PyObject_SetAttrString(sysMod, "stderr", capErr);
+
+      // Py_single_input: a bare expression echoes its repr via displayhook ->
+      // our captured stdout, exactly like an interactive REPL.
+      PyObject *res = PyRun_String(source.c_str(), Py_single_input, mainDict, mainDict);
+      if (res) {
+        Py_DECREF(res);
+        ok = true;
+      } else {
+        PyErr_Print(); // -> capErr, and clears the error
+      }
+
+      auto drain = [](PyObject *sio) -> std::string {
+        std::string s;
+        if (PyObject *v = PyObject_CallMethod(sio, "getvalue", nullptr)) {
+          if (const char *c = PyUnicode_AsUTF8(v))
+            s = c;
+          Py_DECREF(v);
+        }
+        return s;
+      };
+      out = drain(capOut);
+      err = drain(capErr);
+
+      // ALWAYS restore the real streams (even on error).
+      if (oldOut)
+        PyObject_SetAttrString(sysMod, "stdout", oldOut);
+      if (oldErr)
+        PyObject_SetAttrString(sysMod, "stderr", oldErr);
+    }
+    Py_XDECREF(oldOut);
+    Py_XDECREF(oldErr);
+    Py_XDECREF(capOut);
+    Py_XDECREF(capErr);
+  }
+  Py_XDECREF(sysMod);
+  Py_XDECREF(ioMod);
+
+  PyGILState_Release(gil);
+  return ok;
+}
+
 } // namespace volrover3
