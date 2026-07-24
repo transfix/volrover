@@ -16,6 +16,8 @@
 #include <cvc/volume/volume_file_io.h>
 #include <volrover3/AppState.h>
 #include <volrover3/EmbeddedInterpreter.h>
+#include <volrover3/JobScheduler.h>
+#include <volrover3/PyConsoleDock.h>
 #include <volrover3/Settings.h>
 #include <volrover3/BoundingBoxDialog.h>
 #include <volrover3/CameraController.h>
@@ -86,6 +88,13 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   m_interp = std::make_unique<volrover3::EmbeddedInterpreter>(m_app, m_sceneGraph, icfg);
   if (!m_interp->ok())
     qWarning("volrover3: embedded Python interpreter unavailable (scripting disabled)");
+
+  // Job scheduler (cooperative tick over the job registry) + the console dock
+  // that drives it and the REPL (docs/EMBEDDED_PYTHON.md §12).
+  m_scheduler = std::make_unique<volrover3::JobScheduler>(m_interp.get(), m_settings->tickMs());
+  m_scheduler->start();
+  m_consoleDock = new volrover3::PyConsoleDock(m_interp.get(), m_scheduler.get(), this);
+  addDockWidget(Qt::BottomDockWidgetArea, m_consoleDock);
 
   // Create central render widget
   m_renderWidget = new VTKRenderWidget(*m_app, *m_appState, this);

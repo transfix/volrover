@@ -28,6 +28,8 @@ class CameraSettingsDialog;
 namespace volrover3 {
 class EmbeddedInterpreter;
 class Settings;
+class JobScheduler;
+class PyConsoleDock;
 }
 
 class MainWindow : public QMainWindow {
@@ -89,6 +91,10 @@ private:
   // Embedded Python interpreter — built right after m_sceneGraph so it captures
   // the live app + scene; owns CPython's lifecycle + the injected PyHost.
   std::unique_ptr<volrover3::EmbeddedInterpreter> m_interp;
+  // The job scheduler (owns the QTimer tick + job registry) and the console dock
+  // that drives it + the REPL. m_consoleDock is Qt-owned (added via addDockWidget).
+  std::unique_ptr<volrover3::JobScheduler> m_scheduler;
+  volrover3::PyConsoleDock *m_consoleDock = nullptr;
   ThreadMonitorWidget *m_threadMonitor;
   StateTreeWidget *m_stateTreeWidget;
   StateDashboardWidget *m_stateDashboardWidget;

@@ -72,6 +72,7 @@ set(VOLROVER3_SOURCES
   PyHost.cpp
   EmbeddedInterpreter.cpp
   JobScheduler.cpp
+  PyConsoleDock.cpp
   Settings.cpp
   TransferFunctionWidget.cpp
   ThreadMonitorWidget.cpp
@@ -99,6 +100,7 @@ set(VOLROVER3_HEADERS
   ${PROJECT_SOURCE_DIR}/inc/volrover3/PyHost.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/EmbeddedInterpreter.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/JobScheduler.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/PyConsoleDock.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/Settings.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/TransferFunctionWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/ThreadMonitorWidget.h
@@ -515,6 +517,15 @@ if(VOLROVER3_BUILD_TESTS)
   add_test(NAME JobSchedulerTest COMMAND volrover3_jobscheduler_test)
   set_tests_properties(JobSchedulerTest PROPERTIES
     ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib;QT_QPA_PLATFORM=offscreen")
+
+  # PyConsoleDock (REPL + Jobs tabs). Widgets need a QApplication; run offscreen.
+  add_executable(volrover3_pyconsole_test tests/PyConsoleDockTest.cpp)
+  target_link_libraries(volrover3_pyconsole_test
+    volrover3_lib
+    GTest::gtest)
+  add_test(NAME PyConsoleDockTest COMMAND volrover3_pyconsole_test)
+  set_tests_properties(PyConsoleDockTest PROPERTIES
+    ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
 
   # TransferFunction tests
   add_executable(volrover3_transferfunction_test
