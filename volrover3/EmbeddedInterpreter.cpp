@@ -24,6 +24,10 @@ EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
     // EmbeddedInterpreter, or an embedding host). Reuse it; do not finalize it.
     m_initialized = true;
     m_booted = false;
+    // The GIL is parked by whoever booted; take it to (re)bind our host.
+    PyGILState_STATE gil = PyGILState_Ensure();
+    m_hostBound = bind_host();
+    PyGILState_Release(gil);
     return;
   }
 
@@ -53,10 +57,65 @@ EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
   m_initialized = true;
   m_booted = true;
 
+  // Deliver the live cvc::app to scripts: `import vrhost` + capsule-bind the host
+  // while the GIL is still held from init (before we park it below).
+  m_hostBound = bind_host();
+
   // Park the GIL so UI/worker threads acquire it per-crossing via
   // PyGILState_Ensure (the Py3 analogue of verlihub's PyThreadState_Swap(NULL) +
   // release-lock). Every C++->Python entry brackets Ensure/Release.
   m_mainState = PyEval_SaveThread();
+}
+
+// GIL must be held. Best-effort: never throws; logs + returns false on failure.
+bool EmbeddedInterpreter::bind_host() {
+  // Resolve the dir holding _vrhost.so + vrhost.py (Config, else env). pycvc
+  // itself rides on the python-home site-packages, so only this dir is added.
+  std::string dir = m_config.module_path;
+  if (dir.empty()) {
+    if (const char *env = std::getenv("VOLROVER3_PYMODULE_PATH"))
+      dir = env;
+  }
+  if (!dir.empty()) {
+    if (PyObject *sysPath = PySys_GetObject("path")) { // borrowed
+      PyObject *p = PyUnicode_FromString(dir.c_str());
+      if (p) {
+        PyList_Insert(sysPath, 0, p); // prepend so our module wins
+        Py_DECREF(p);
+      }
+    }
+  }
+
+  // `import vrhost` also imports pycvc (SWIG emits it), registering the shared
+  // std::shared_ptr<cvc::app> SWIG type so PyHost::app() round-trips into pycvc.
+  PyObject *vr = PyImport_ImportModule("vrhost"); // new
+  if (!vr) {
+    PyErr_Print(); // report + clear
+    std::cerr << "volrover3: `import vrhost` failed — app scripting unavailable "
+                 "(set VOLROVER3_PYMODULE_PATH to the dir containing _vrhost.so)\n";
+    return false;
+  }
+
+  bool bound = false;
+  // Hand the live PyHost* across as a name-matched PyCapsule (see vrhost.i).
+  PyObject *cap = PyCapsule_New(m_host.get(), "volrover3.PyHost", nullptr); // new
+  if (cap) {
+    if (PyObject *r = PyObject_CallMethod(vr, "_bind_host_capsule", "O", cap)) { // new
+      Py_DECREF(r);
+      // `host` was captured as None at import (before this bind) — refresh it so
+      // `vrhost.host` is the live host (vrhost.app() is already dynamic).
+      if (PyObject *live = PyObject_CallMethod(vr, "_current_host", nullptr)) { // new
+        PyObject_SetAttrString(vr, "host", live);
+        Py_DECREF(live);
+        bound = true;
+      }
+    } else {
+      PyErr_Print();
+    }
+    Py_DECREF(cap);
+  }
+  Py_DECREF(vr);
+  return bound;
 }
 
 EmbeddedInterpreter::~EmbeddedInterpreter() {

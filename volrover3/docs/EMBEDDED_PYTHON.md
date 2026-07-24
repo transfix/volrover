@@ -460,3 +460,49 @@ dtor) marking it `Killed (unclean)`, and stops managing it. True force-terminati
 process boundary. This is honest: the worker path buys off-UI-thread execution + clean/interruptible stop for
 the common case, and graceful quarantine (not a crash) for the pathological one. (Full force-kill would need
 per-job **multi-mode** sub-interpreters *and* a cooperative job — still not a hung C-loop.)
+
+## 13. As-built: the `vrhost` module (Phase 1 capstone) — deltas from §5/§8/§9
+
+The design's app-delivery crux (§5) is implemented and verified end-to-end
+(`tests/VrHostBindingTest.cpp`: a script calls `pycvc.state_set(vrhost.host.app(), …)`
+and C++ reads the value back out of the **same** `cvc::state` tree). Two deviations
+from the written plan, plus one hard operational constraint:
+
+- **Bundled `_vrhost.so`, not baked-into-`volrover3_lib` + inittab.** §9 proposed
+  compiling `vrhostPYTHON_wrap.cxx` into `volrover3_lib` and
+  `PyImport_AppendInittab("vrhost", …)`. As built, `vrhost` is a normal
+  `swig_add_library` module (`_vrhost.so` + `vrhost.py`) shipped in
+  `share/volrover3/pymod`; `EmbeddedInterpreter` prepends that dir to `sys.path`
+  (`Config::module_path`, else `$VOLROVER3_PYMODULE_PATH`) and `import`s it at boot.
+  This reuses pycvc's proven UseSWIG path and keeps `PyHost.cpp` self-contained
+  (it compiles into `_vrhost.so`, linking only `cvc::cvc`/`cvc::cvcGL`).
+- **Host handed over by `PyCapsule`, not a direct `SWIG_NewPointerObj` in the host TU.**
+  Because `_vrhost.so` is a separate object from `volrover3_lib`, the interpreter
+  passes the live `PyHost*` across as a name-matched capsule
+  (`PyCapsule_New(host, "volrover3.PyHost", …)` → `vrhost._bind_host_capsule`),
+  then refreshes the module-level `vrhost.host`. No SWIG type is needed from the
+  host TU. `EmbeddedInterpreter::bind_host()` does this once, GIL-held, right after
+  init (and in the "already-initialized" reuse path via `PyGILState_Ensure`).
+- **CRITICAL — SWIG runtime-version must match pycvc's.** Cross-module type sharing
+  (the whole point of `%import "pycvc.i"`) works only if both modules register into
+  the **same** SWIG runtime type table, whose capsule name is versioned:
+  SWIG 4.2.x → `swig_runtime_data4`, SWIG ≥4.3 → `swig_runtime_data5`. The published
+  **pycvc was built with SWIG 4.2.0**, but the cvcpkg `swig` recipe is **4.4.1**
+  (`…data5`). Building `vrhost` with 4.4.1 makes `pycvc.state_set(vrhost.host.app())`
+  fail with `TypeError: argument 1 of type 'std::shared_ptr< cvc::app > const &'`
+  (+ a `"no destructor found"` leak) even though the mangled type names are identical
+  — the tables simply never link. **vrhost must be generated with the same SWIG
+  runtime version pycvc was.** Locally this is the system `/usr/bin/swig` 4.2.0
+  (`-DSWIG_EXECUTABLE=/usr/bin/swig -DSWIG_DIR=$(swig -swiglib)`). The durable fix is
+  to align the ecosystem: rebuild/republish pycvc (and pycvc_gl) with the cvcpkg
+  4.4.1 swig, **or** pin the cvcpkg swig recipe to 4.2.x — a coordination decision,
+  since the SWIG runtime bump is not ABI-compatible across the pycvc family.
+
+Two `%import`-specific SWIG mechanics also had to be handled in `vrhost.i` (all
+documented inline): `%import` does **not** re-emit the base module's `%{ … %}`
+header block, its library `%include`s, or its `%shared_ptr` **typemaps** — only the
+type *registrations*. So `vrhost.i` re-`#include`s `<cvc/core/exception.h>`, declares
+its own self-contained `%exception` (via the always-emitted `SWIG_exception_fail`),
+re-declares `%include <std_shared_ptr.i>` + `%shared_ptr(cvc::app)`, and forces
+`import pycvc` **before** the `_vrhost` C-extension via `%pythonbegin` (SWIG links
+type tables in import order — pycvc must register first).

@@ -40,6 +40,7 @@ public:
   struct Config {
     InterpreterMode mode = InterpreterMode::Single;
     std::string python_home;          // "" -> $VOLROVER3_PYTHON_HOME / CPython default
+    std::string module_path;          // dir with _vrhost.so + vrhost.py; "" -> $VOLROVER3_PYMODULE_PATH
     bool gate_multi_imports = true;   // deny pycvc/vtk/numpy in Multi sub-interpreters
   };
 
@@ -79,12 +80,24 @@ public:
   // vrhost module is registered — Phase 1).
   std::shared_ptr<PyHost> host() const { return m_host; }
 
+  // True once `import vrhost` succeeded AND the live PyHost was bound into it
+  // (so `vrhost.host` / `vrhost.app()` deliver the running app). False in Multi
+  // mode, when the vrhost module dir is unknown, or if the import failed.
+  bool host_bound() const { return m_hostBound; }
+
 private:
+  // After boot (GIL held): put the vrhost module dir on sys.path, `import vrhost`
+  // (which auto-imports pycvc, registering the shared cvc::app SWIG type), then
+  // hand it the live PyHost via a PyCapsule so `vrhost.host` is the running app.
+  // Best-effort: logs + returns false on failure, never throws. GIL must be held.
+  bool bind_host();
+
   Config m_config;
   std::shared_ptr<PyHost> m_host;
   void *m_mainState = nullptr; // PyThreadState* parked after init
   bool m_initialized = false;
-  bool m_booted = false; // this instance called Py_Initialize (so it finalizes)
+  bool m_booted = false;    // this instance called Py_Initialize (so it finalizes)
+  bool m_hostBound = false; // vrhost imported + live host bound
 };
 
 } // namespace volrover3

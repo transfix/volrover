@@ -9,6 +9,8 @@
 
 #include <QCoreApplication>
 
+#include <cstdlib>
+#include <filesystem>
 #include <memory>
 
 TEST(SettingsTest, StateBackedAndPersisted) {
@@ -61,6 +63,12 @@ TEST(SettingsTest, InstancesGetDistinctSections) {
 // QSqlDatabase (used by Settings::load for data.db) requires a QCoreApplication.
 int main(int argc, char **argv) {
   QCoreApplication qapp(argc, argv);
+  // Start from a clean ~/.volrover so a persisted value from a prior run (HOME is
+  // the ctest-redirected temp dir) can't leak in and fail the defaults check.
+  if (const char *home = std::getenv("HOME")) {
+    std::error_code ec;
+    std::filesystem::remove_all(std::filesystem::path(home) / ".volrover", ec);
+  }
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

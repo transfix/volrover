@@ -17,25 +17,62 @@
 //
 // Build note: SWIG needs pycvc.i on its -I path at generation time (the cvcpkg
 // pycvc package must ship its .i, or volrover3 references the libcvc source).
-// The generated vrhostPYTHON_wrap.cxx is compiled INTO volrover3_lib and
-// registered via PyImport_AppendInittab("vrhost", PyInit_vrhost) -- no .so to
-// find on disk. This is a baked-in first-class module, not a plugin.
+// vrhost is built as a bundled `_vrhost.so` + `vrhost.py` shipped inside the
+// volrover3 install; EmbeddedInterpreter puts that dir on sys.path and imports
+// it at boot (after pycvc), then hands it the live host via a PyCapsule (below).
+// It is a first-class, always-present environment feature -- not a user-loaded
+// plugin -- even though it rides on a private .so the way pycvc does.
 // ---------------------------------------------------------------------------
 %module(directors="1") vrhost
 
+// CRITICAL import ORDER: pycvc must initialize BEFORE the _vrhost C-extension.
+// SWIG links cross-module type tables in import order, so _pycvc has to register
+// std::shared_ptr<cvc::app> FIRST -- otherwise _vrhost (which SWIG imports at the
+// top of vrhost.py, before the `import pycvc` its %import emits lower down) mints a
+// private, unshared copy of that type and pycvc.state_set(vrhost.host.app())
+// TypeErrors. %pythonbegin runs at the very top of vrhost.py, ahead of _vrhost.
+%pythonbegin %{
+import pycvc as _pycvc_preload  # noqa: F401  (force _pycvc to register its types first)
+%}
+
 %{
+// cvc::exception must be complete here: pycvc's %exception typemap (inherited via
+// the %import below) wraps every vrhost function in `catch (const cvc::exception&)`,
+// but %import does NOT copy pycvc's own header block -- so we include it ourselves.
+#include <cvc/core/exception.h>
 #include <volrover3/PyHost.h>
 using volrover3::PyHost;
 %}
 
-// Reuse pycvc's %shared_ptr(cvc::app) registration + exception translation so
-// the app handle is one shared type across both modules.
+// %shared_ptr's TYPEMAPS are per-module. %import shares pycvc's cvc::app type
+// REGISTRATION (same mangled name -> unified in the per-process SWIG runtime), but
+// we must ALSO re-declare %shared_ptr(cvc::app) HERE so PyHost::app()'s
+// std::shared_ptr<cvc::app> return actually uses the shared_ptr typemap. Without
+// this, vrhost mints a distinct shared_ptr<cvc::app> proxy ("no destructor found")
+// that pycvc.state_set rejects with a TypeError. std_shared_ptr.i must precede it.
+%include <std_shared_ptr.i>
 %import "pycvc.i"
+%shared_ptr(cvc::app)
+
+// pycvc's %exception typemap is INHERITED via %import, but the SWIG_exception
+// macro it expands to is only emitted into a module that %includes exception.i
+// DIRECTLY -- %import brings the handler, not the supporting runtime macro. So
+// re-declare a self-contained handler for vrhost's own wrappers. SWIG_exception_fail
+// is always emitted; cvc::exception is complete via the #include in the header block.
+%exception {
+  try {
+    $action
+  } catch (const cvc::exception &e) {
+    SWIG_exception_fail(SWIG_RuntimeError, e.what());
+  } catch (const std::exception &e) {
+    SWIG_exception_fail(SWIG_RuntimeError, e.what());
+  }
+}
 
 %include <std_string.i>
-%include <std_vector.i>
 %include <stdint.i>
-%template(StringVector) std::vector<std::string>;
+// std::vector<std::string> (StringVector) is already instantiated by pycvc.i and
+// inherited via %import -- do not re-instantiate it here (SWIG Warning 404).
 
 // PyHost is delivered as an injected proxy (vrhost.host); scripts never build
 // one. Hide the ctor; expose the control surface.
@@ -54,6 +91,18 @@ static PyHost *g_current_host = nullptr;
 PyHost *_current_host() { return g_current_host; }
 void _set_current_host(PyHost *h) { g_current_host = h; }
 } // namespace volrover3
+
+// Called by the embedding host (EmbeddedInterpreter) at boot: it passes the live
+// PyHost* wrapped in a PyCapsule, so no wrapper-internal SWIG type is needed from
+// the host TU (vrhost may be a separate _vrhost.so). PyObject* params/returns
+// pass through SWIG untouched.
+static PyObject *_bind_host_capsule(PyObject *cap) {
+  void *p = PyCapsule_GetPointer(cap, "volrover3.PyHost");
+  if (!p)
+    return NULL;
+  volrover3::g_current_host = static_cast<volrover3::PyHost *>(p);
+  Py_RETURN_NONE;
+}
 %}
 
 // Convenience Python surface: `vrhost.host` (the injected live host) and
