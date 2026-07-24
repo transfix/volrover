@@ -414,8 +414,19 @@ capture). · 4. **JobScheduler** (single mode: QTimer tick + registry). · 5. **
 7. *(optional)* **DSL job kind** (wrap `pycvc::Exec`). Runs alongside the `vrhost` registration (Phase 1 core,
 runtime-gated on imagemagick for `import pycvc`).
 
-### 12.6 Decisions taken (defaults; correct me) & open product choices
-- Tick **100 ms**; interrupt **cooperative** (`SetAsyncExc`), hard-kill deferred; jobs submittable from **both**
-  the REPL and `scripts_dir` (alphabetical load like verlihub); Python + DSL jobs **unified** in one table;
-  `cvc::state`→data.db **out of scope** for now. · **Open:** yaml-cpp recipe vs libyaml-C fallback; hard-kill
-  worker thread wanted? These are the two that materially change the build.
+### 12.6 Decisions (locked)
+- **YAML: add a `yaml-cpp` cvcpkg recipe** (libcvc-deps/recipes/, `cvcpkg validate`, built into deps-vr3) — the
+  `Settings` class round-trips settings.yaml via `YAML::LoadFile`/`YAML::Emitter`.
+- **Interrupt model: cooperative tick + a hard-kill worker path.** Normal jobs run cooperatively on the UI-thread
+  tick (interrupt = `PyThreadState_SetAsyncExc`). A job may also be launched on a **sacrificial worker thread**
+  so a runaway C-extension loop can be **force-terminated** (hard stop). Worker-thread jobs own their GIL via
+  `PyGILState_Ensure` per step and marshal any scene/UI effect back through `SceneGraph::postEvent` /
+  `QMetaObject::invokeMethod(QueuedConnection)` (never touch VTK/widgets off the UI thread). `JobKind`/launch
+  carries a `runOnWorker` flag; the Jobs tab's Stop offers cooperative-stop for tick jobs and hard-kill (thread
+  cancel + `Py_EndInterpreter` for its sub-interpreter, or interpreter-scoped teardown) for worker jobs.
+- Tick **100 ms**; jobs submittable from **both** the REPL and `scripts_dir` (alphabetical load like verlihub);
+  Python + DSL jobs **unified** in one table; `cvc::state`→data.db **out of scope** for now.
+- **Risk to honor (hard-kill):** force-terminating a thread mid-C-call can leak/corrupt that job's interpreter
+  state — hard-kill tears down the whole *job* (its sub-interpreter) and quarantines it, never the process; the
+  UI marks a hard-killed job "terminated (unclean)". Cross-thread GIL hand-off + scene marshaling is the load-
+  bearing discipline (§6 rules apply per worker).
