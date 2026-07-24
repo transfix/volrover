@@ -332,3 +332,90 @@ before — imagemagick/libxml2).
 `volrover3_app.cpp`, `MainWindow.cpp`, `AppState.*`, `SceneNode.*`, `CMakeLists.txt`; pycvc `bindings/pycvc`
 (#136); CVCPKG-ROADMAP Phase 19/20 + `static-single-binary-python.md`; the Python/Qt binding + hermeticity
 architecture doc.*
+
+---
+
+## 12. Scheduler, interpreter modes, settings & console (design — grounded in verlihub's `dispatcher.py`)
+
+Reference material vendored under `docs/reference/verlihub-scripts/` (verlihub `plugins/python/scripts/`:
+`dispatcher.py` + `README.md`). verlihub's "scheduler" is a **host tick → `CallAll` fan-out → per-script
+`OnTimer`** loop (`casyncsocketserver.cpp` 1 Hz clock → `cserverdc.cpp:1954` `CallAll` → `cpipython.cpp:1087`
+`OnTimer` → `:465-519` in-order iterate `mPython`), and `dispatcher.py` is the Python-level **hook dispatcher**
+that rides it — a script *registry* (`register_script`/`unregister_script`/`enable_script`/`disable_script`/
+`list_scripts`) that fans a hook out to all registered jobs, solving single-interpreter hook collisions. That
+registry maps 1:1 onto the jobs tab.
+
+### 12.1 JobScheduler — the tick, ported to Qt
+A thin UI-thread `volrover3::JobScheduler` driven by a `QTimer(tickMs)` (default `tick_ms: 100`), the direct
+analog of verlihub's 1 Hz socket loop. `onTick()` = cooperative fan-out over an ordered `std::vector<Job>`:
+skip `!online` / no-`step` jobs, call each `step(dt)` in order under one `PyGILState_Ensure/Release`, per-job
+`try/catch` so one bad job neither kills the loop nor stalls the next tick (verlihub invariants:
+`wrapper.cpp:1475-1483` cache the hook bitmap once, never re-`hasattr`; `cpythoninterpreter.cpp` guard). NOT
+libcvc's `state_exec` engine — that steps a stackless DSL evaluator over `value_t` AST and can't host a CPython
+program; its `register_fn` runs a Python callable only as a synchronous DSL leaf. We **borrow state_exec's
+vocabulary** (`pid→job_id`, the `process_status` enum ready/running/paused/waiting/terminated/killed) so the
+jobs tab renders uniformly, and optionally wrap `pycvc::Exec` as a `JobKind::Dsl` entry (Phase 7) that inherits
+real pid/kill.
+
+`JobInfo { int id; std::string name; JobStatus status; JobKind kind; InterpreterMode mode; double elapsed;
+uint64_t steps; std::string lastError; }`. **Stop** = drop the job + clear its module namespace (single) /
+`Py_EndInterpreter` (multi). **Interrupt** = `PyThreadState_SetAsyncExc(tid, KeyboardInterrupt)` — fires only at
+bytecode boundaries, so a tight C-extension loop (VTK/pycvc) is **not** mid-call preemptible; the UI must say so
+honestly. (Hard-kill of a runaway C loop would need a sacrificial worker thread — deferred.)
+
+### 12.2 Single vs multi interpreter — a restart-applied settings flag (feasible; verlihub ships both)
+verlihub proves both modes are production-ready (10/10 sub-interpreter, 11/11 single) — it selects at *compile*
+time; volrover3 makes it a **`~/.volrover/settings.yaml` flag applied on restart** (never hot-switched:
+`Py_Initialize`/`Py_Finalize` + the `vrhost` inittab registration + GIL park are once-per-process). The
+once-per-process boot is identical in both modes; only the **job launcher** branches on the mode.
+- **SINGLE** (default, the real product): all jobs share the one interpreter + `sys.modules`; cooperatively
+  ticked; **full package compat** — pycvc/pycvc_gl/VTK/numpy work. The *only* mode with the live-app headline
+  feature.
+- **MULTI** (weaker sandbox): each job is a `Py_NewInterpreter` sub-interpreter, still ticked from the same
+  loop (isolation ⟂ scheduling — verlihub already does exactly this). Such a job **cannot import
+  pycvc/pycvc_gl/vrhost/vtk/vtkmodules/numpy** (single-phase-init C-globals corrupt across sub-interpreters —
+  §6). So MULTI = pure-Python compute sandboxes with **no host/app/scene handle**.
+- **Enforce the gate in code, not docs** (an errant `import pycvc` in a sub-interpreter is memory corruption,
+  not a catchable error): a `PySys_AddAuditHook` + `sys.meta_path` denylist raising `ImportError` for
+  `{pycvc, pycvc_gl, vrhost, vtk, vtkmodules, numpy}` in every MULTI job; plus a UI warning "app scripting
+  (pycvc/vrhost) is disabled in multi-interpreter mode." `EmbeddedInterpreter` gains a `Config { InterpreterMode
+  mode; std::string python_home; bool gate_multi_imports; }`, fed from `Settings` at the `MainWindow` boot site.
+
+### 12.3 Settings — `~/.volrover/settings.yaml` + `~/.volrover/data.db`
+Greenfield (no `QSettings`, no `~/.volrover`, no yaml/sqlite in use today). A `volrover3::Settings` object
+(plain, not a singleton), **loaded before `EmbeddedInterpreter`** so `pythonHome()` feeds `PyConfig.home` and
+`mode()` selects the launcher.
+- **`settings.yaml`** (human-editable metadata): `interpreter: {mode: single, python_home: "",
+  gate_multi_imports: true, scripts_dir: ~/.volrover/scripts}` · `console: {history_size: 500}` ·
+  `scheduler: {tick_ms: 100}`. **YAML lib:** deps-vr3 has only libyaml (C); no yaml-cpp. → add a small
+  **yaml-cpp cvcpkg recipe** (house style, `cvcpkg validate`) OR fall back to wrapping libyaml C for the fixed
+  shallow schema. (Decision pending — see below.)
+- **`data.db`** (arbitrary persisted state): **sqlite via Qt6Sql** (`QSQLITE`, already linked) with
+  `PRAGMA journal_mode=WAL`. Tables `kv(key,value,updated_at)`, `console_history(id,ts,source)`,
+  `job_runs(id,name,mode,started,ended,status,error)`; a raw-sqlite3-C second WAL connection is reserved for any
+  future core-side `cvc::state` persistence to the same file.
+
+### 12.4 PyConsoleDock — REPL + Jobs tabs
+A `QDockWidget` cloned structurally from `StateDashboardWidget` (which already has an exec-console tab + a
+process table with Pause/Resume/Kill + a refresh `QTimer`). Installed in `MainWindow::createDockWidgets()`.
+- **REPL tab**: read-only mono output + input line with data.db-backed Up/Down history. Enter runs on the UI
+  thread via a **new** `EmbeddedInterpreter::run_string_capture(src, out, err)` (swap `sys.stdout/stderr` to
+  `io.StringIO` under the GIL, `PyRun_String(..., Py_single_input, ...)` for REPL echo, restore in a
+  finally/RAII) — `run_string` is left unchanged.
+- **Jobs tab**: a `QTableWidget` (Id/Name/Status/Mode/Steps/Elapsed) polled 1 Hz from `JobScheduler::listJobs()`;
+  Interrupt → `interrupt(id)`, Stop → `kill(id)`. Python jobs + (optional) DSL jobs unify in one table; the live
+  `state_exec` DSL scheduler keeps its own StateDashboard tab.
+
+### 12.5 Phased plan
+1. **Settings infra** (Settings class, `~/.volrover`, yaml + Qt6Sql data.db) — unblocked. · 2. **Mode plumbing**
+(`Config` into `EmbeddedInterpreter`, restart-only `setMode`). · 3. **`run_string_capture`** (stdout/stderr
+capture). · 4. **JobScheduler** (single mode: QTimer tick + registry). · 5. **PyConsoleDock** (REPL + Jobs). ·
+6. **Multi mode + import gate** (`Py_NewInterpreter`/`Py_EndInterpreter` + audit-hook denylist + UI warning). ·
+7. *(optional)* **DSL job kind** (wrap `pycvc::Exec`). Runs alongside the `vrhost` registration (Phase 1 core,
+runtime-gated on imagemagick for `import pycvc`).
+
+### 12.6 Decisions taken (defaults; correct me) & open product choices
+- Tick **100 ms**; interrupt **cooperative** (`SetAsyncExc`), hard-kill deferred; jobs submittable from **both**
+  the REPL and `scripts_dir` (alphabetical load like verlihub); Python + DSL jobs **unified** in one table;
+  `cvc::state`→data.db **out of scope** for now. · **Open:** yaml-cpp recipe vs libyaml-C fallback; hard-kill
+  worker thread wanted? These are the two that materially change the build.
