@@ -1,0 +1,424 @@
+name: Release (VolumeRover3)
+
+on:
+  push:
+    tags:
+      # VolumeRover3 series only. Legacy VolumeRover 2.x (v2.* tags) is
+      # released by release.yml. Keeping the two series in separate
+      # workflows lets them evolve — and be retired — independently.
+      - 'v3.[0-9]+.[0-9]+*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build + upload workflow artifacts only; do NOT create a public GitHub Release. (The Release job is also gated to tag pushes, so a manual run never publishes.)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+# ───────────────────────────────────────────────────────────────────
+# Release artifacts (VolumeRover3, next-generation end-user app)
+#
+#   - Linux:   volrover3-<ver>-linux-<arch>.tar.gz            (portable)
+#              volrover3-<ver>-linux-<arch>.deb               (Debian/Ubuntu)
+#              VolumeRover3-<ver>-<arch>.AppImage             (universal Linux)
+#   - macOS:   VolumeRover3-<ver>-<arch>.dmg                  (drag to /Applications)
+#              VolumeRover3-<ver>-macos-<arch>.zip            (alt. archive)
+#   - Windows: VolumeRover3-<ver>-windows-<arch>.zip          (portable)
+#              VolumeRover3-<ver>-windows-<arch>-setup.exe    (NSIS installer)
+#
+# volrover3 consumes libcvc as an EXTERNAL SDK (find_package(cvc CONFIG)
+# -> cvc::cvc) plus VTK. Both are pulled from the cvcpkg.org catalog
+# (`cvcpkg install libcvc vtk`); Qt6 and the top-level VolumeRover 2.0
+# tree's own configure-time deps (GLEW/Boost/FFTW/GSL/log4cplus/...)
+# come from the system toolchain. Packaging uses the volrover3 CPack
+# component (windeployqt / macdeployqt / GET_RUNTIME_DEPENDENCIES DLL
+# bundling are wired into volrover3/CMakeLists.txt).
+#
+# Catalog readiness: as of writing, libcvc is published on cvcpkg.org
+# for linux/x86_64 only, so the macOS and Windows jobs are
+# continue-on-error until libcvc is published for those platforms (vtk
+# already is). The Linux job is the verified path.
+#
+# The version comes from volrover3/CMakeLists.txt (project(volrover3
+# VERSION ...)), independent of the legacy VolumeRover 2.x version.
+# ───────────────────────────────────────────────────────────────────
+
+env:
+  CVCPKG_SERVER: ${{ secrets.CVCPKG_SERVER_URL || 'https://cvcpkg.org' }}
+
+jobs:
+  # ──────────────────────────── Linux ────────────────────────────
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute artifact metadata
+        id: meta
+        run: |
+          VERSION=$(awk '/project\(.*VERSION[[:space:]]+[0-9]/ {
+                          for (i=1;i<=NF;i++) if ($i=="VERSION") {
+                            gsub(/[^0-9.]/,"",$(i+1)); print $(i+1); exit }}' volrover3/CMakeLists.txt)
+          ARCH=$(uname -m)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "arch=$ARCH"       >> "$GITHUB_OUTPUT"
+
+      - name: Install cvcpkg
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install 'git+https://github.com/transfix/libcvc-deps@master'
+          cvcpkg --version
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build \
+            qt6-base-dev qt6-base-dev-tools libqt6opengl6-dev qt6-base-private-dev \
+            libgl1-mesa-dev libglu1-mesa-dev libglew-dev \
+            libxt-dev libxrender-dev libxcursor-dev libxinerama-dev libxi-dev \
+            libboost-all-dev libfftw3-dev libgsl-dev \
+            liblog4cplus-dev libnsl-dev \
+            imagemagick libmagick++-dev \
+            libfuse2 file desktop-file-utils \
+            dpkg-dev
+
+      - name: Install libcvc SDK + VTK from cvcpkg.org
+        run: |
+          set -euo pipefail
+          export CVCPKG_SERVER_URL="$CVCPKG_SERVER"
+          cvcpkg install libcvc vtk \
+            --prefix "$GITHUB_WORKSPACE/cvc-deps" \
+            --platform linux \
+            --config release \
+            --link shared
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVOLROVER_RELEASE=ON \
+            -DUSE_QT6=ON \
+            -DDISABLE_CGAL=ON \
+            -DBUILD_VOLROVER3=ON \
+            -DVOLROVER3_BUILD_TESTS=OFF \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/cvc-deps" \
+            -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build
+        run: cmake --build build --parallel --target volrover3
+
+      - name: Pack tarball + .deb (volrover3 component)
+        working-directory: build
+        run: |
+          set -euo pipefail
+          STEM="volrover3-${{ steps.meta.outputs.version }}-linux-${{ steps.meta.outputs.arch }}"
+          cpack -G TGZ \
+            -D CPACK_COMPONENTS_ALL=volrover3 \
+            -D CPACK_COMPONENT_VOLROVER3_DEPENDS= \
+            -D CPACK_PACKAGE_FILE_NAME="$STEM"
+          cpack -G DEB \
+            -D CPACK_COMPONENTS_ALL=volrover3 \
+            -D CPACK_COMPONENT_VOLROVER3_DEPENDS= \
+            -D CPACK_DEBIAN_PACKAGE_NAME=volrover3 \
+            -D CPACK_DEBIAN_PACKAGE_SHLIBDEPS=OFF \
+            -D CPACK_PACKAGE_FILE_NAME="$STEM"
+          cp "$STEM.tar.gz" "$STEM.deb" "$GITHUB_WORKSPACE/"
+
+      - name: Build AppImage
+        run: |
+          set -euo pipefail
+          STEM="VolumeRover3-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.arch }}"
+          # Stage only the volrover3 component (runs its install(CODE)
+          # deploy hooks) into an AppDir.
+          DESTDIR="$PWD/AppDir" cmake --install build --prefix /usr --component volrover3
+          curl -L -o linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -L -o linuxdeploy-plugin-qt https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy linuxdeploy-plugin-qt
+          # linuxdeploy expects the .desktop + icon at the AppDir root.
+          # volrover3 ships volrover3.desktop + volrover_logo.png; fall
+          # back to synthesizing minimal ones if the layout differs.
+          DESKTOP=$(find AppDir -name 'volrover3.desktop' | head -1 || true)
+          if [ -z "$DESKTOP" ]; then
+            mkdir -p AppDir/usr/share/applications
+            DESKTOP=AppDir/usr/share/applications/volrover3.desktop
+            cat > "$DESKTOP" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=VolumeRover3
+          Exec=volrover3
+          Icon=volrover3
+          Categories=Science;
+          EOF
+          fi
+          cp "$DESKTOP" AppDir/volrover3.desktop
+          ICON=$(find AppDir -iname 'volrover_logo.png' -o -iname 'volrover3.png' | head -1 || true)
+          if [ -z "$ICON" ]; then
+            mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+            printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa3@\xa6\x9b\x00\x00\x00\x00IEND\xaeB`\x82' \
+              > AppDir/usr/share/icons/hicolor/256x256/apps/volrover3.png
+            ICON=AppDir/usr/share/icons/hicolor/256x256/apps/volrover3.png
+          fi
+          cp "$ICON" AppDir/volrover3.png
+          export OUTPUT="${STEM}.AppImage"
+          export LD_LIBRARY_PATH="$PWD/AppDir/usr/lib:$PWD/AppDir/usr/lib/x86_64-linux-gnu:$GITHUB_WORKSPACE/cvc-deps/lib:${LD_LIBRARY_PATH:-}"
+          ./linuxdeploy --appdir AppDir --plugin qt --output appimage \
+                        --desktop-file AppDir/volrover3.desktop \
+                        --icon-file    AppDir/volrover3.png || \
+          ./linuxdeploy --appdir AppDir --output appimage \
+                        --desktop-file AppDir/volrover3.desktop \
+                        --icon-file    AppDir/volrover3.png
+          for f in *.AppImage; do
+            case "$f" in
+              linuxdeploy*) ;;
+              "${STEM}.AppImage") ;;
+              *) mv "$f" "${STEM}.AppImage" ;;
+            esac
+          done
+          ls -la *.AppImage
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-volrover3
+          path: |
+            *.tar.gz
+            *.deb
+            *.AppImage
+          if-no-files-found: error
+
+  # ──────────────────────────── macOS ────────────────────────────
+  # continue-on-error until libcvc is published on cvcpkg.org for macOS
+  # (vtk already is). The build path mirrors the Linux job.
+  macos:
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute artifact metadata
+        id: meta
+        run: |
+          VERSION=$(awk '/project\(.*VERSION[[:space:]]+[0-9]/ {
+                          for (i=1;i<=NF;i++) if ($i=="VERSION") {
+                            gsub(/[^0-9.]/,"",$(i+1)); print $(i+1); exit }}' volrover3/CMakeLists.txt)
+          ARCH=$(uname -m)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "arch=$ARCH"       >> "$GITHUB_OUTPUT"
+
+      - name: Install cvcpkg
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade --break-system-packages pip
+          pip3 install --break-system-packages 'git+https://github.com/transfix/libcvc-deps@master'
+          cvcpkg --version
+
+      - name: Install system dependencies
+        run: |
+          brew install cmake ninja qt@6 glew boost fftw gsl log4cplus imagemagick
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
+          echo "$(brew --prefix qt@6)/bin" >> $GITHUB_PATH
+
+      - name: Install libcvc SDK + VTK from cvcpkg.org
+        run: |
+          set -euo pipefail
+          export CVCPKG_SERVER_URL="$CVCPKG_SERVER"
+          cvcpkg install libcvc vtk \
+            --prefix "$GITHUB_WORKSPACE/cvc-deps" \
+            --platform macos \
+            --config release \
+            --link shared
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVOLROVER_RELEASE=ON \
+            -DUSE_QT6=ON \
+            -DDISABLE_CGAL=ON \
+            -DBUILD_VOLROVER3=ON \
+            -DVOLROVER3_BUILD_TESTS=OFF \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/cvc-deps;$CMAKE_PREFIX_PATH" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/stage"
+
+      - name: Build
+        run: cmake --build build --parallel --target volrover3
+
+      - name: Pack .dmg + .zip (volrover3 component)
+        working-directory: build
+        run: |
+          set -euo pipefail
+          ZIP_STEM="VolumeRover3-${{ steps.meta.outputs.version }}-macos-${{ steps.meta.outputs.arch }}"
+          DMG_STEM="VolumeRover3-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.arch }}"
+          cpack -G DragNDrop \
+            -D CPACK_COMPONENTS_ALL=volrover3 \
+            -D CPACK_COMPONENT_VOLROVER3_DEPENDS= \
+            -D CPACK_PACKAGE_FILE_NAME="$DMG_STEM"
+          # Stage the component to zip the self-contained .app directly.
+          cmake --install . --component volrover3 --prefix "$PWD/stage3"
+          APP=$(find "$PWD/stage3" _CPack_Packages -name "VolumeRover3.app" -type d | head -1)
+          if [ -n "$APP" ]; then
+            ditto -c -k --keepParent "$APP" "$ZIP_STEM.zip"
+          fi
+          cp "$DMG_STEM.dmg" "$GITHUB_WORKSPACE/" 2>/dev/null || true
+          cp "$ZIP_STEM.zip" "$GITHUB_WORKSPACE/" 2>/dev/null || true
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-volrover3
+          path: |
+            *.dmg
+            *.zip
+          if-no-files-found: error
+
+  # ──────────────────────────── Windows ────────────────────────────
+  # continue-on-error until libcvc is published on cvcpkg.org for Windows
+  # (vtk already is). The build path mirrors the Linux job.
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute artifact metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(awk '/project\(.*VERSION[[:space:]]+[0-9]/ {
+                          for (i=1;i<=NF;i++) if ($i=="VERSION") {
+                            gsub(/[^0-9.]/,"",$(i+1)); print $(i+1); exit }}' volrover3/CMakeLists.txt)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "arch=x86_64"      >> "$GITHUB_OUTPUT"
+
+      - name: Install cvcpkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install 'git+https://github.com/transfix/libcvc-deps@master'
+          cvcpkg --version
+
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Install dependencies (vcpkg)
+        shell: pwsh
+        run: |
+          vcpkg install glew fftw3 gsl log4cplus pthreads `
+            boost-thread boost-date-time boost-regex boost-filesystem `
+            boost-system boost-program-options boost-signals2 boost-any `
+            boost-tuple boost-format boost-multi-array boost-foreach `
+            boost-property-tree boost-algorithm boost-asio boost-bind `
+            boost-graph boost-lambda boost-lexical-cast boost-spirit `
+            boost-tokenizer boost-dynamic-bitset boost-numeric-conversion `
+            boost-range boost-smart-ptr boost-functional `
+            --triplet x64-windows
+        env:
+          VCPKG_MAX_CONCURRENCY: 4
+
+      - name: Install libcvc SDK + VTK from cvcpkg.org
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CVCPKG_SERVER_URL="$CVCPKG_SERVER"
+          cvcpkg install libcvc vtk \
+            --prefix "$GITHUB_WORKSPACE/cvc-deps" \
+            --platform windows \
+            --config release \
+            --link shared
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DVOLROVER_RELEASE=ON `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}\cvc-deps;$env:Qt6_DIR" `
+            -DUSE_QT6=ON `
+            -DDISABLE_CGAL=ON `
+            -DBUILD_VOLROVER3=ON `
+            -DVOLROVER3_BUILD_TESTS=OFF `
+            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/stage"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel --target volrover3
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Pack zip + NSIS (volrover3 component)
+        shell: pwsh
+        working-directory: build
+        run: |
+          $stem = "VolumeRover3-${{ steps.meta.outputs.version }}-windows-${{ steps.meta.outputs.arch }}"
+          $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\NSIS' -ErrorAction SilentlyContinue).'(default)'
+          if (-not $nsisPath) {
+            $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\NSIS' -ErrorAction SilentlyContinue).'(default)'
+          }
+          if ($nsisPath) { $env:PATH = "$nsisPath;$env:PATH" }
+
+          cpack -G ZIP  -C Release -D CPACK_COMPONENTS_ALL=volrover3 -D CPACK_COMPONENT_VOLROVER3_DEPENDS= -D CPACK_PACKAGE_FILE_NAME="$stem"
+          cpack -G NSIS -C Release -D CPACK_COMPONENTS_ALL=volrover3 -D CPACK_COMPONENT_VOLROVER3_DEPENDS= -D CPACK_PACKAGE_FILE_NAME="$stem-setup"
+
+          Copy-Item "$stem.zip"       "$env:GITHUB_WORKSPACE/" -ErrorAction SilentlyContinue
+          Copy-Item "$stem-setup.exe" "$env:GITHUB_WORKSPACE/" -ErrorAction SilentlyContinue
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-volrover3
+          path: |
+            *.zip
+            *.exe
+          if-no-files-found: error
+
+  # ──────────────────────────── Release ────────────────────────────
+  # Only publishes on a real v3.* tag push — never on a manual
+  # workflow_dispatch run (the dry-run path), so the plumbing can be
+  # exercised without cutting a public release.
+  release:
+    needs: [linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/v3.')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          # VolumeRover3 is currently a prototype; publish v3.* tags as
+          # pre-releases until the series is promoted to stable.
+          prerelease: true
+          fail_on_unmatched_files: false
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.zip
+            artifacts/*.deb
+            artifacts/*.dmg
+            artifacts/*.exe
+            artifacts/*.AppImage

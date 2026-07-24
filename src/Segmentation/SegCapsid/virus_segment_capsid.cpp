@@ -27,7 +27,7 @@ University of Texas at Austin for a different license.
 #include <stdlib.h>
 #include <string.h>
 #include <string>
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #include <cmath>
 #include <Segmentation/SegCapsid/segcapsid.h>
 

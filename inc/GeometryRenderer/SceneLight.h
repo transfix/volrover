@@ -22,7 +22,7 @@
 
 /* $Id: SceneLight.h 5746 2012-06-17 23:21:45Z transfix $ */
 
-#include <CVC/Namespace.h>
+#include <cvc_compat.h>
 #include <GL/glew.h>
 
 namespace CVC_NAMESPACE

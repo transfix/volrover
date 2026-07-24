@@ -657,7 +657,7 @@ namespace CVCGEOM_NAMESPACE
   void cvcgeom_t::read_off(const std::string & filename) {
 
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
 
     init_ptrs();
@@ -796,7 +796,7 @@ namespace CVCGEOM_NAMESPACE
 
   void cvcgeom_t::read_raw(const std::string & filename) {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     
     init_ptrs();
 

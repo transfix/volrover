@@ -95,7 +95,7 @@
 #include <QXmlStreamWriter>
 #include <qdom.h>
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #include <Segmentation/GenSeg/genseg.h>
 
 #include <QGLViewer/manipulatedCameraFrame.h>
@@ -106,7 +106,7 @@
 #include <VolumeGridRover/bspline_opt.h>
 #include <VolumeGridRover/sdf_opt.h>
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 
 #ifdef USING_VOLUMEGRIDROVER_MEDAX
 #include <VolumeGridRover/medax.h>
@@ -152,7 +152,7 @@ using namespace qglviewer;
 //calculated bounding box when generating a new volume upon contour load.
 //#define CONTOUR_BOUNDING_BOX_FILTER_HEURISTIC
 
-static inline unsigned int upToPowerOfTwo(unsigned int value)
+static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
 {
   unsigned int c = 0;
   unsigned int v = value;
@@ -396,9 +396,9 @@ void SliceCanvas::setVolume(const VolMagick::VolumeFileInfo& vfi)
   unsetVolume();
   if(!vfi.isSet()) return;
   m_VolumeFileInfo = vfi;
-  imgx = upToPowerOfTwo(m_VolumeFileInfo.XDim());
-  imgy = upToPowerOfTwo(m_VolumeFileInfo.YDim());
-  imgz = upToPowerOfTwo(m_VolumeFileInfo.ZDim());
+  imgx = upToPowerOfTwoLocal(m_VolumeFileInfo.XDim());
+  imgy = upToPowerOfTwoLocal(m_VolumeFileInfo.YDim());
+  imgz = upToPowerOfTwoLocal(m_VolumeFileInfo.ZDim());
 
   m_TexCoordMinX = 0.0; m_TexCoordMaxX = 1.0; m_TexCoordMinY = 0.0; m_TexCoordMaxY = 1.0;
   m_VertCoordMinX = -0.5; m_VertCoordMaxX = 0.5; m_VertCoordMinY = -0.5; m_VertCoordMaxY = 0.5;
@@ -596,7 +596,7 @@ void SliceCanvas::updateSlice()
 				    m_VolumeFileInfo.ZMin() + m_Depth*m_VolumeFileInfo.ZSpan());
 
 	/* read a single slice into m_VolumeSlice */
-	VolMagick::readVolumeFile(m_VolumeSlice,
+	VolMagick::readVolumeFile(cvcapp, m_VolumeSlice,
 				  m_VolumeFileInfo.filename(),
 				  m_Variable,m_Timestep,
 				  bbox);
@@ -613,9 +613,9 @@ void SliceCanvas::updateSlice()
 	  }
       
         //initialize slice upload buffer
-        imgx = upToPowerOfTwo(m_VolumeSlice.XDim());
-        imgy = upToPowerOfTwo(m_VolumeSlice.YDim());
-        imgz = upToPowerOfTwo(m_VolumeSlice.ZDim());
+        imgx = upToPowerOfTwoLocal(m_VolumeSlice.XDim());
+        imgy = upToPowerOfTwoLocal(m_VolumeSlice.YDim());
+        imgz = upToPowerOfTwoLocal(m_VolumeSlice.ZDim());
         size = imgx*imgy;
         m_Slice.reset(new unsigned char[size]);
 
@@ -648,7 +648,7 @@ void SliceCanvas::updateSlice()
 								 );
       
 	/* read a single slice into m_VolumeSlice */
-	VolMagick::readVolumeFile(m_VolumeSlice,
+	VolMagick::readVolumeFile(cvcapp, m_VolumeSlice,
 				  m_VolumeFileInfo.filename(),
 				  m_Variable,m_Timestep,
 				  bbox);
@@ -665,9 +665,9 @@ void SliceCanvas::updateSlice()
 	  }
       
         //initialize slice upload buffer
-        imgx = upToPowerOfTwo(m_VolumeSlice.XDim());
-        imgy = upToPowerOfTwo(m_VolumeSlice.YDim());
-        imgz = upToPowerOfTwo(m_VolumeSlice.ZDim());
+        imgx = upToPowerOfTwoLocal(m_VolumeSlice.XDim());
+        imgy = upToPowerOfTwoLocal(m_VolumeSlice.YDim());
+        imgz = upToPowerOfTwoLocal(m_VolumeSlice.ZDim());
         size = imgx*imgz;
         m_Slice.reset(new unsigned char[size]);
 
@@ -700,7 +700,7 @@ void SliceCanvas::updateSlice()
 								 );
       
 	/* read a single slice into m_VolumeSlice */
-	VolMagick::readVolumeFile(m_VolumeSlice,
+	VolMagick::readVolumeFile(cvcapp, m_VolumeSlice,
 				  m_VolumeFileInfo.filename(),
 				  m_Variable,m_Timestep,
 				  bbox);
@@ -717,9 +717,9 @@ void SliceCanvas::updateSlice()
 	  }
 
         //initialize slice upload buffer
-        imgx = upToPowerOfTwo(m_VolumeSlice.XDim());
-        imgy = upToPowerOfTwo(m_VolumeSlice.YDim());
-        imgz = upToPowerOfTwo(m_VolumeSlice.ZDim());
+        imgx = upToPowerOfTwoLocal(m_VolumeSlice.XDim());
+        imgy = upToPowerOfTwoLocal(m_VolumeSlice.YDim());
+        imgz = upToPowerOfTwoLocal(m_VolumeSlice.ZDim());
         size = imgz*imgy;
         m_Slice.reset(new unsigned char[size]);
       
@@ -824,7 +824,7 @@ void SliceCanvas::mouseMoveEvent(QMouseEvent *event)
 	  }
 	//printf("x: %d, y: %d\n",x,y);
 	//printf("coords.x: %f, coords.y: %f\n",coords.x,coords.y);
-	slice+=x+y*upToPowerOfTwo(imgx);
+	slice+=x+y*upToPowerOfTwoLocal(imgx);
     
 	switch(m_SliceAxis)
 	  {
@@ -898,7 +898,7 @@ void SliceCanvas::mouseDoubleClickEvent(QMouseEvent *event)
 	      
 	      cvcapp.log(5, boost::str(boost::format("x: %d, y: %d") % x % y));
 	      cvcapp.log(5, boost::str(boost::format("coords.x: %f, coords.y: %f")%coords.x%coords.y));
-	      slice+=x+y*upToPowerOfTwo(imgx);
+	      slice+=x+y*upToPowerOfTwoLocal(imgx);
 	      
 	      switch(m_SliceAxis)
 		{
@@ -3572,7 +3572,7 @@ void VolumeGridRover::saveContoursSlot()
 					k != tmplist.end();
 					k++)
 				      {
-					using namespace boost;
+					using namespace boost; using boost::format;
 					Line ante, des;
 
 					//border cases and regular case
@@ -4361,7 +4361,7 @@ void VolumeGridRover::loadContoursSlot()
       else if(filename.endsWith(".config"))
 	{
 	  using namespace std;
-	  using namespace boost;
+	  using namespace boost; using boost::format;
 	  using namespace boost::algorithm;
      
 	  //ContourTiler's pts/config format
@@ -4747,7 +4747,7 @@ void VolumeGridRover::loadContoursSlot()
   //if a volume isn't loaded, lets generate one
   if(!m_VolumeFileInfo.isSet())
     {
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace std;
       //calculate the needed bounding box and dimension to fit all contours
       VolMagick::BoundingBox globalbox(-0.5,-0.5,-0.5,0.5,0.5,0.5);
@@ -4839,11 +4839,11 @@ void VolumeGridRover::loadContoursSlot()
 	  cvcapp.log(5, boost::str(boost::format("Creating volume %s")%tmpfile.absoluteFilePath().toStdString().c_str()));
 	  newfilename = QDir::toNativeSeparators(tmpfile.absoluteFilePath());
 	  cvcapp.log(5, boost::str(boost::format("newfilename = %s")%newfilename.toStdString().c_str()));
-	  VolMagick::createVolumeFile(newfilename.toStdString().c_str(),
+	  VolMagick::createVolumeFile(cvcapp, newfilename.toStdString().c_str(),
 				      empty_vol.boundingBox(),
 				      empty_vol.dimension(),
 				      vector<VolMagick::VoxelType>(1, empty_vol.voxelType()));
-	  VolMagick::writeVolumeFile(empty_vol,newfilename.toStdString().c_str());
+	  VolMagick::writeVolumeFile(cvcapp, empty_vol,newfilename.toStdString().c_str());
 	}
       catch(const VolMagick::Exception& e)
 	{
@@ -6059,7 +6059,7 @@ void VolumeGridRover::EMClusteringRunSlot()
 	  VolMagick::Volume tmpvol;
 
 	  /* read a slice */
-	  VolMagick::readVolumeFile(tmpvol,
+	  VolMagick::readVolumeFile(cvcapp, tmpvol,
 				    m_VolumeFileInfo.filename(),
 				    v,t,
 				    0,0,k,
@@ -6109,7 +6109,7 @@ void VolumeGridRover::EMClusteringRunSlot()
   RangeMax = new unsigned char[m_PointClassList[0][0]->count()];
   
   /* load the volume for random access */
-  VolMagick::readVolumeFile(vol,m_VolumeFileInfo.filename());
+  VolMagick::readVolumeFile(cvcapp, vol,m_VolumeFileInfo.filename());
   if(vol.voxelType() != VolMagick::UChar)
     {
       vol.map(0.0,255.0);
@@ -6864,7 +6864,7 @@ void VolumeGridRover::LocalGenSegThread::run()
   else
     {
       using namespace std;
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace boost::algorithm;
 
       //successfully ran general segmentation.. now convert output to a rawv volume and load that and remove the temporary subunit files
@@ -6881,7 +6881,7 @@ void VolumeGridRover::LocalGenSegThread::run()
               std::cout << d.absoluteFilePath(d[i]).toStdString() << std::endl;
 
 	      VolMagick::Volume vol;
-	      VolMagick::readVolumeFile(vol,d.absoluteFilePath(d[i]).toStdString().c_str());
+	      VolMagick::readVolumeFile(cvcapp, vol,d.absoluteFilePath(d[i]).toStdString().c_str());
 	      //set each volume's description to whatever the point class was named in the VGR UI
 	      vol.desc(m_VolumeGridRover->_ui->m_PointClass->itemText(point_class_idx).toStdString().c_str());
 	      volumes.push_back(vol);
@@ -6892,7 +6892,7 @@ void VolumeGridRover::LocalGenSegThread::run()
 
       //QString newvol_filename(m_VolumeGridRover->cacheDir() + "/tmp/tmp.rawv");
       QString newvol_filename("SegTmp.rawv");
-      VolMagick::writeVolumeFile(volumes,string(newvol_filename.toStdString().c_str()));
+      VolMagick::writeVolumeFile(cvcapp, volumes,string(newvol_filename.toStdString().c_str()));
 
       QApplication::postEvent(m_VolumeGridRover,
 			      new SegmentationFinishedEvent("Local general segmentation finished.",newvol_filename));

@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /***************************************************************************
  *   Copyright (C) 2009 by Bharadwaj Subramanian   *
  *   bharadwajs@axon.ices.utexas.edu   *
@@ -144,7 +146,7 @@ int main(int argc,char *argv[])
     matIds.push_back(mIter->second.materialId);
 
     VolMagick::Volume vol;
-    VolMagick::readVolumeFile(vol,mIter->first);
+    VolMagick::readVolumeFile(cvcapp, vol,mIter->first);
     
     isovalues.push_back(mIter->second.isovalue*scalingFactor);
 
@@ -257,7 +259,7 @@ void generateMesh(string manifestFile, float isoratio, float tolerance, float vo
     matIds.push_back(mIter->second.materialId);
 
     VolMagick::Volume vol;
-    VolMagick::readVolumeFile(vol,mIter->first);
+    VolMagick::readVolumeFile(cvcapp, vol,mIter->first);
     
     isovalues.push_back(mIter->second.isovalue*scalingFactor);
 

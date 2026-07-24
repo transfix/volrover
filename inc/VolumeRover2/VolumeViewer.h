@@ -34,9 +34,9 @@
 // GLEW must be included before any OpenGL headers
 #include <GL/glew.h>
 
-#include <CVC/Namespace.h>
-#include <CVC/App.h>
-#include <CVC/State.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 
 #include <cstring>
 #include <string>
@@ -54,7 +54,7 @@
 #include <cvcraw_geometry/cvcgeom.h>
 
 #ifdef USE_XmlRpc
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #else
 #include <Socket/CVCSocket.h>
 #endif

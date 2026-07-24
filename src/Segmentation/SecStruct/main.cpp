@@ -33,7 +33,7 @@ University of Texas at Austin for a different license.
 #include <vector>
 #include <iostream>
 #include <fstream>
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #include <Segmentation/SecStruct/secstruct.h>
 
 #include <Segmentation/SecStruct/fit_cylinder.h>

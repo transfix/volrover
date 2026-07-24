@@ -20,7 +20,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <CVC/Namespace.h>
+#include <cvc_compat.h>
 #include <QApplication>
 
 namespace CVC_NAMESPACE

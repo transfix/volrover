@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /***************************************************************************
  *   Copyright (C) 2010 by Jesse Sweet   *
  *   jessethesweet@gmail.com   *
@@ -140,7 +142,7 @@ void sweetMesh::writeLinecFile(std::list<volRover_linec>& outputLines, std::ofst
 void sweetMesh::runLBIE(VolMagick::VolumeFileInfo& vfi, float outer_isoval, float inner_isoval, double errorTolerance, double innerErrorTolerance, LBIE::Mesher::MeshType meshType, LBIE::Mesher::NormalType normalType, unsigned int qualityImprove_iterations, QString& outputMessage, CVCGEOM_NAMESPACE::cvcgeom_t& geometry, hexMesh& hMesh){
   
   VolMagick::Volume vol;
-  readVolumeFile(vol,vfi.filename());
+  readVolumeFile(cvcapp, vol,vfi.filename());
   LBIE::Mesher mesher(outer_isoval, inner_isoval, errorTolerance, innerErrorTolerance, meshType, LBIE::Mesher::GEO_FLOW, normalType, LBIE::Mesher::DUALLIB, false);
   mesher.extractMesh(vol);
   mesher.qualityImprove(qualityImprove_iterations);

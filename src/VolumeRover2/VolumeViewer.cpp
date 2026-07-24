@@ -36,9 +36,9 @@
 #include <VolumeRover2/VolumeViewer.h>
 
 using namespace boost::placeholders;
-#include <CVC/CVCEvent.h>
-#include <CVC/State.h>
-#include <CVC/log4cplus_compat.h>
+#include <CVCEvent.h>
+#include <cvc_compat.h>
+#include <log4cplus_compat.h>
 
 #include <QGLViewer/quaternion.h>
 
@@ -2009,7 +2009,7 @@ namespace CVC_NAMESPACE
     glPopAttrib();
   }
 
-  static inline unsigned int upToPowerOfTwo(unsigned int value)
+  static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
   {
     unsigned int c = 0;
     unsigned int v = value;
@@ -2054,9 +2054,9 @@ namespace CVC_NAMESPACE
 	_cmVolume.voxelType(UChar);
       }
     
-    VolMagick::uint64 upload_dimx = upToPowerOfTwo(_cmVolume.XDim());
-    VolMagick::uint64 upload_dimy = upToPowerOfTwo(_cmVolume.YDim());
-    VolMagick::uint64 upload_dimz = upToPowerOfTwo(_cmVolume.ZDim());
+    VolMagick::uint64 upload_dimx = upToPowerOfTwoLocal(_cmVolume.XDim());
+    VolMagick::uint64 upload_dimy = upToPowerOfTwoLocal(_cmVolume.YDim());
+    VolMagick::uint64 upload_dimz = upToPowerOfTwoLocal(_cmVolume.ZDim());
     boost::scoped_array<unsigned char> upload_buf(new unsigned char[upload_dimx*upload_dimy*upload_dimz]);
     for(VolMagick::uint64 k = 0; k < _cmVolume.ZDim(); k++)
       for(VolMagick::uint64 j = 0; j < _cmVolume.YDim(); j++)
@@ -2124,9 +2124,9 @@ namespace CVC_NAMESPACE
 	  }
       }
 
-    VolMagick::uint64 upload_dimx = upToPowerOfTwo(_rgbaVolumes[0].XDim());
-    VolMagick::uint64 upload_dimy = upToPowerOfTwo(_rgbaVolumes[0].YDim());
-    VolMagick::uint64 upload_dimz = upToPowerOfTwo(_rgbaVolumes[0].ZDim());
+    VolMagick::uint64 upload_dimx = upToPowerOfTwoLocal(_rgbaVolumes[0].XDim());
+    VolMagick::uint64 upload_dimy = upToPowerOfTwoLocal(_rgbaVolumes[0].YDim());
+    VolMagick::uint64 upload_dimz = upToPowerOfTwoLocal(_rgbaVolumes[0].ZDim());
     boost::scoped_array<unsigned char> upload_buf(new unsigned char[upload_dimx*upload_dimy*upload_dimz*4]);
 
     //QProgressDialog progress("Creating interleaved RGBA 3D texture...","Abort",0,_rgbaVolumes[0].ZDim());
@@ -2202,7 +2202,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::updateVBO()
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     if(_vboUpdated) return;
 
@@ -2812,7 +2812,7 @@ namespace CVC_NAMESPACE
   std::vector<cvcraw_geometry::cvcgeom_t> VolumeViewer::getGeometriesFromDatamap() const
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
     
     vector<cvcraw_geometry::cvcgeom_t> geoms =
@@ -2976,7 +2976,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handlePropertiesChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
 
     static log4cplus::Logger logger = log4cplus::Logger::getInstance("VolumeViewer.handlePropertiesChanged");
@@ -3524,7 +3524,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handleDataChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace boost::algorithm;
 
     //if everything changed, iterate across all keys
@@ -3675,7 +3675,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handleThreadsChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     //ignore empty keys.  TODO: find out where they're coming from...
     if(key.empty()) return;
@@ -3710,7 +3710,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer::handleStateChanged(const std::string& childState)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     
     static log4cplus::Logger logger = log4cplus::Logger::getInstance("VolumeViewer.handleStateChanged");
 
@@ -4228,7 +4228,7 @@ namespace CVC_NAMESPACE
     
     //set camera position property
     {
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace std;
 
       //ss << camera()->position();

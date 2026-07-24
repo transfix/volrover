@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
 All right are reserved by The National Key Lab of Scientific and Engineering Computing,
 Chinese Academy of Sciences.
@@ -5360,7 +5362,7 @@ std::cout<<"Filling in output volume with data\n";
  
 std::cout<<"Creating volume file\n";
 
-     VolMagick::createVolumeFile(volfilename,
+     VolMagick::createVolumeFile(cvcapp, volfilename,
                                   result.boundingBox(),
                                   result.dimension(),
                                   std::vector<VolMagick::VoxelType>(1, result.voxelType()));
@@ -5369,7 +5371,7 @@ std::cout<<"Creating volume file\n";
  std::cout<<"Writing out output file "<<volfilename<<"\n";
 
 
-  VolMagick::writeVolumeFile(result, volfilename);
+  VolMagick::writeVolumeFile(cvcapp, result, volfilename);
   
 
 }
@@ -5882,7 +5884,7 @@ Oimage* Reconstruction::InitialFunction(int function, const char* filename, cons
 //  cout << "Dimension: " << volinfo.XDim() << "x" << volinfo.YDim() << "x" << volinfo.ZDim() << endl;
 
   VolMagick::Volume Vol;
-  VolMagick::readVolumeFile(Vol,filename,0,0);
+  VolMagick::readVolumeFile(cvcapp, Vol,filename,0,0);
   printf("\nVolMagic dim========%d %d %d ",(int)Vol.XDim(), (int)Vol.YDim(),(int)Vol.ZDim());
 
   ddim[0] = Vol.XDim();

@@ -27,6 +27,14 @@
 #include <Contour/Bin.h>
 #include <Contour/hash.h>
 
+#ifdef _WIN32
+#  include <windows.h>
+#  define IPQUEUE_SLEEP_SECONDS(s) Sleep(static_cast<DWORD>((s) * 1000))
+#else
+#  include <unistd.h>
+#  define IPQUEUE_SLEEP_SECONDS(s) sleep(s)
+#endif
+
 extern int verbose;
 
 template <class T, class P, class K>
@@ -238,7 +246,7 @@ inline P IndexedPriorityQueue<T,P,K>::extract(T& item)
 		if(!_h.remove(key))
 		{
 			printf("failed removing from hash\n");
-			sleep(5);
+			IPQUEUE_SLEEP_SECONDS(5);
 		}
 	// remove the item from the priority queue
 	_q[0] = _q[_q.numItems()-1];
@@ -261,7 +269,7 @@ inline void IndexedPriorityQueue<T,P,K>::remove(K k)
 		{
 			printf("failed removing from hash\n");
 #ifndef WIN32
-			sleep(5);
+			IPQUEUE_SLEEP_SECONDS(5);
 #endif
 		}
 	// remove the item from the priority queue

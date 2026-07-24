@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
   Copyright 2012 The University of Texas at Austin
 
@@ -21,8 +23,8 @@
 */
 
 #include <VolumeRover2/VolumeViewer2.h>
-#include <CVC/CVCEvent.h>
-#include <CVC/Exception.h>
+#include <CVCEvent.h>
+#include <cvc_compat.h>
 #include <VolMagick/Volume.h>
 #include <cvcraw_geometry/cvcgeom.h>
 #include <QGLViewer/frame.h>
@@ -37,7 +39,7 @@
 
 namespace
 {
-  static inline unsigned int upToPowerOfTwo(unsigned int value)
+  static inline unsigned int upToPowerOfTwoLocal(unsigned int value)
   {
     unsigned int c = 0;
     unsigned int v = value;
@@ -83,12 +85,12 @@ namespace CVC_NAMESPACE
 
   bool VolumeViewer2::glUpdated() const
   {
-    return bool(state("glUpdated").value<int>());
+    return bool(cvcstate("glUpdated").value<int>());
   }
 
   bool VolumeViewer2::hasBeenInitialized() const
   {
-    return bool(state("hasBeenInitialized").value<int>());
+    return bool(cvcstate("hasBeenInitialized").value<int>());
   }
 
   void VolumeViewer2::defaultConstructor()
@@ -103,82 +105,82 @@ namespace CVC_NAMESPACE
 
     //===============================
     //set this object's initial state
-    state("rendering_mode")
+    cvcstate("rendering_mode")
       .value("colormapped")
       .comment("The volume viewer's volume rendering mode: 'colormapped' or 'rgba'");
-    state("shaded_rendering_enabled")
+    cvcstate("shaded_rendering_enabled")
       .value(int(false))
       .comment("Toggle shaded volume rendering if hardware support available.");
-    state("draw_bounding_box")
+    cvcstate("draw_bounding_box")
       .value(int(true))
       .comment("Toggle the overall bounding box");
-    state("draw_subvolume_selector")
+    cvcstate("draw_subvolume_selector")
       .value(int(true))
       .comment("Toggle the subvolume selector visibility for specifiying subvolumes.");
-    state("volume_rendering_quality")
+    cvcstate("volume_rendering_quality")
       .value(double(0.5))
       .comment("A double value from [0.0,1.0]. Lower number, the faster the rendering but lower the quality.");
-    state("volume_rendering_near_plane")
+    cvcstate("volume_rendering_near_plane")
       .value("0.0")
       .comment("A double value from [0.0,1.0]. If 0.0, the volume rendering near plane is at the view plane. "
                "1.0 means the entire volume is clipped out.");
-    state("projection_mode")
+    cvcstate("projection_mode")
       .value("perspective")
       .comment("The OpenGL projection mode to use: 'perspective' or 'orthographic.'");
-    state("draw_corner_axis")
+    cvcstate("draw_corner_axis")
       .value(int(true))
       .comment("Toggle the corner axis.  Used as a visual hint of orientation in the world coordinate system.");
-    state("draw_geometry")
+    cvcstate("draw_geometry")
       .value(int(true))
       .comment("Toggle drawing of geometry.");
-    state("draw_volumes")
+    cvcstate("draw_volumes")
       .value(int(true))
       .comment("Toggle drawing of volumes.");
-    state("clip_geometry")
+    cvcstate("clip_geometry")
       .value(int(true))
       .comment("Toggle whether the rendered geometry should be clipped by the overall volume bounding box.");
-    state("background_color")
+    cvcstate("background_color")
       .value("#000000")
       .comment("Set the background color.  Uses HTML color format.");
-    state("fov")
+    cvcstate("fov")
       .value(boost::lexical_cast<std::string>(M_PI/4.0f))
       .comment("The volume viewer's field of view.");
-    state("show_entire_scene_on_normalize")
+    cvcstate("show_entire_scene_on_normalize")
       .value(int(true))
       .comment("Toggle whether to reset the camera such that the entire scene is visible whenever the scene"
                " is re-normalized because something was added or removed.");
 
     //stereo related properties
-    state("io_distance")
+    cvcstate("io_distance")
       .value("0.062")
       .comment("Stereo: intra-ocular distance in meters");
-    state("physical_distance_to_screen")
+    cvcstate("physical_distance_to_screen")
       .value("2.0")
       .comment("Stereo: physical distance to screen in meters");
-    state("physical_screen_width")
+    cvcstate("physical_screen_width")
       .value("1.8")
       .comment("Stereo: physical screen width in meters");
-    state("focus_distance")
+    cvcstate("focus_distance")
       .value("1000.0")
       .comment("Stereo: focus distance in meters");
 
     //===============================
 
 #if 0 //the following should be handled by scene geometry objects
-    state("draw_geometry_normals")
+    cvcstate("draw_geometry_normals")
       .value(int(false));
-    state("geometry_line_width").value("1.2");
+    cvcstate("geometry_line_width").value("1.2");
 #endif
 
-    state("syncCamera_with_multiTileServer").value(int(false));
-    state("syncTransferFunc_with_multiTileServer").value(int(false));
-    state("syncShadedRender_with_multiTileServer").value(int(false));
-    state("syncRenderMode_with_multiTileServer").value(int(false));
-    state("interactiveMode_with_multiTileServer").value(int(false));
-    state("syncMode_with_multiTileServer").value("0");
-    state("syncInitial_multiTileServer").value("0");
+    cvcstate("syncCamera_with_multiTileServer").value(int(false));
+    cvcstate("syncTransferFunc_with_multiTileServer").value(int(false));
+    cvcstate("syncShadedRender_with_multiTileServer").value(int(false));
+    cvcstate("syncRenderMode_with_multiTileServer").value(int(false));
+    cvcstate("interactiveMode_with_multiTileServer").value(int(false));
+    cvcstate("syncMode_with_multiTileServer").value("0");
+    cvcstate("syncInitial_multiTileServer").value("0");
 
-    state("glUpdated")
+    cvcstate("glUpdated")
       .value(int(false))
       .comment("Used when scheduling updateGL calls for later via a custom event. "
                "This is useful to compress many redundant updateGL calls into 1 call. "
@@ -188,63 +190,63 @@ namespace CVC_NAMESPACE
 
     //this is set to true once init() has been called.
     //Do not do any GL calls on this widget's GL context before this is true!!!!!!!
-    state("hasBeenInitialized")
+    cvcstate("hasBeenInitialized")
       .value(int(false))
       .comment("This is set to non-zero once init() has been called. "
                "Do not do any GL calls on this widget's GL context before this is true!!!!!!!")
       .hidden(true);
 
-    state("cmVolumeUploaded")
+    cvcstate("cmVolumeUploaded")
       .value(int(false))
       .comment("Flag set when the graphics card has the latest colormapped volume.")
       .hidden(true);
 
-    state("rgbaVolumeUploaded")
+    cvcstate("rgbaVolumeUploaded")
       .value(int(false))
       .comment("Flag set when the graphics card has the latest rgba volume.")
       .hidden(true);
 
-    state("drawable")
+    cvcstate("drawable")
       .value(int(false))
       .comment("Flag set when initializing the colormapped or rgba volume renderers without error.")
       .hidden(true);
 
-    state("usingVBO")
+    cvcstate("usingVBO")
       .value(int(false))
       .comment("Flag set when this viewer is using vertex buffer objects for fast geometry rendering.")
       .hidden(true);
-    state("vboUpdated")
+    cvcstate("vboUpdated")
       .value(int(false))
       .comment("Flag set when the VBOs for geometry have been updated with the latest data from system memory.")
       .hidden(true);
 
-    state("colortableUploaded")
+    cvcstate("colortableUploaded")
       .value(int(false))
       .comment("Flag set when the color table has been uploaded to the graphics card.")
       .hidden(true);
 
-    state("sub_volume_selector")
-      .value(state("scene.region_of_interest").fullName())
+    cvcstate("sub_volume_selector")
+      .value(cvcstate("scene.region_of_interest").fullName())
       .comment("This is set to the name of the scene object containing a bounding box to use as the sub volume region of interest selector.")
       .hidden(true);
 
-    state("selected_object")
+    cvcstate("selected_object")
       .value(int(-1))
       .comment("The id of the selected object, -1 if none")
       .hidden(true);
 
-    state("selected_point")
+    cvcstate("selected_point")
       .value("QPoint")
       .data(QPoint())
       .comment("The screen point where the last selected object was selected from.")
       .hidden(true);
 
-    state("mouse_pressed")
+    cvcstate("mouse_pressed")
       .value(int(false))
       .comment("Flag set when the mouse button is pressed for dragging.")
       .hidden(true);
 
-    state("mouse_moved")
+    cvcstate("mouse_moved")
       .value(int(false))
       .comment("Flag set when the mouse has been clicked and dragged.")
       .hidden(true);
@@ -268,15 +270,15 @@ namespace CVC_NAMESPACE
       {
         if(mwe->name == "handleThreadsChanged")
           handleThreadsChanged(boost::any_cast<std::string>(mwe->data));
-        else if(mwe->name == "updateGL" && !state("glUpdated").value<int>())
+        else if(mwe->name == "updateGL" && !cvcstate("glUpdated").value<int>())
           {
             update();
-            state("glUpdated").value(int(true));
+            cvcstate("glUpdated").value(int(true));
           }
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -288,18 +290,18 @@ namespace CVC_NAMESPACE
     try
       {
         select(e->pos());
-        if(state("selected_object").value<int>() != -1) {
-          state("selected_point").data(e->pos());
+        if(cvcstate("selected_object").value<int>() != -1) {
+          cvcstate("selected_point").data(e->pos());
         }
         else {
           QGLViewer::mousePressEvent(e);
         }
         // to test handling XmlRpc delay
-        state("mouse_pressed").value(int(true));
+        cvcstate("mouse_pressed").value(int(true));
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -312,14 +314,14 @@ namespace CVC_NAMESPACE
 
     try
       {
-        int selectedObj = state("selected_object").value<int>();
+        int selectedObj = cvcstate("selected_object").value<int>();
 
         if(selectedObj != -1)
           {
             double minx, miny, minz;
             double maxx, maxy, maxz;
 	
-            BoundingBox bbox = cvcstate(state("sub_volume_selector").value()).data<BoundingBox>();
+            BoundingBox bbox = cvcstate(cvcstate("sub_volume_selector").value()).data<BoundingBox>();
             minx = bbox.minx; miny = bbox.miny; minz = bbox.minz;
             maxx = bbox.maxx; maxy = bbox.maxy; maxz = bbox.maxz;
 
@@ -327,7 +329,7 @@ namespace CVC_NAMESPACE
                        (maxy-miny)/2+miny,
                        (maxz-minz)/2+minz);
 	
-            QPoint selectedPoint = state("selected_point").data<QPoint>();
+            QPoint selectedPoint = cvcstate("selected_point").data<QPoint>();
             Vec screenCenter = camera()->projectedCoordinatesOf(center);
             Vec transPoint(e->pos().x(),e->pos().y(),screenCenter.z);
             Vec selectPoint(selectedPoint.x(),selectedPoint.y(),screenCenter.z);
@@ -500,8 +502,8 @@ namespace CVC_NAMESPACE
             bbox.maxy = std::max(std::min(maxy,global_bbox.YMax()),global_bbox.YMin());
             bbox.maxz = std::max(std::min(maxz,global_bbox.ZMax()),global_bbox.ZMin());
 
-            cvcstate(state("sub_volume_selector").value()).data(bbox);
-            state("selected_point").data(e->pos());
+            cvcstate(cvcstate("sub_volume_selector").value()).data(bbox);
+            cvcstate("selected_point").data(e->pos());
 
             if(hasBeenInitialized()) scheduleUpdateGL();
           }
@@ -509,13 +511,13 @@ namespace CVC_NAMESPACE
           {
             QGLViewer::mouseMoveEvent(e);
 
-            if(state("mouse_pressed").value<int>())
-              state("mouse_moved").value(int(true));
+            if(cvcstate("mouse_pressed").value<int>())
+              cvcstate("mouse_moved").value(int(true));
           }
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -526,14 +528,14 @@ namespace CVC_NAMESPACE
   {
     try
       {
-        if(state("selected_object").value<int>())
+        if(cvcstate("selected_object").value<int>())
           {
-            state("selected_object").value(int(-1));
+            cvcstate("selected_object").value(int(-1));
 	
             //lets normalize the bounding box in case it is inverted (i.e. min > max)
-            BoundingBox bbox = cvcstate(state("sub_volume_selector").value()).data<BoundingBox>();
+            BoundingBox bbox = cvcstate(cvcstate("sub_volume_selector").value()).data<BoundingBox>();
             bbox.normalize();
-            cvcstate(state("sub_volume_selector").value()).data(bbox);
+            cvcstate(cvcstate("sub_volume_selector").value()).data(bbox);
             
             cvcapp.log(
                        6,
@@ -552,14 +554,14 @@ namespace CVC_NAMESPACE
 
         QGLViewer::mouseReleaseEvent(e);
         // to test handling XmlRpc delay
-        state("mouse_pressed").value(int(false));
+        cvcstate("mouse_pressed").value(int(false));
 
         // for quaternion updates
-        state("mouse_moved").value(int(false));
+        cvcstate("mouse_moved").value(int(false));
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -570,13 +572,13 @@ namespace CVC_NAMESPACE
   {
     try
       {
-        if(state("mouse_pressed").value<int>())
-          state("mouse_moved").value(int(true));
+        if(cvcstate("mouse_pressed").value<int>())
+          cvcstate("mouse_moved").value(int(true));
         QGLViewer::wheelEvent(e);
       }
     catch(Exception& e)
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
         cvcapp.log(2,str(boost::format("%s :: Exception: %s\n")
                          % BOOST_CURRENT_FUNCTION
                          % e.what()));
@@ -596,19 +598,19 @@ namespace CVC_NAMESPACE
 	table[i*4+3] = i;
       }
 
-    state("colortable").data(table);
+    cvcstate("colortable").data(table);
   }
 
   void VolumeViewer2::setDefaultScene()
   {
-    state("scene").reset();
-    state("scene.region_of_interest").data(BoundingBox(-0.25,-0.25,-0.25,0.25,0.25,0.25));
+    cvcstate("scene").reset();
+    cvcstate("scene.region_of_interest").data(BoundingBox(-0.25,-0.25,-0.25,0.25,0.25,0.25));
 
-    state("scene.volume").data(VolMagick::Volume(VolMagick::Dimension(4,4,4),
+    cvcstate("scene.volume").data(VolMagick::Volume(VolMagick::Dimension(4,4,4),
                                                  UChar,
                                                  VolMagick::BoundingBox(-0.5,-0.5,-0.5,0.5,0.5,0.5)));
-    state("scene.volume").value("colormapped"); //effects the way this volume is rendered. can be "colormapped" or "rgba"
-    state("scene.volume.uploaded")
+    cvcstate("scene.volume").value("colormapped"); //effects the way this volume is rendered. can be "colormapped" or "rgba"
+    cvcstate("scene.volume.uploaded")
       .value(int(false))
       .comment("Flag set when the graphics card has the latest volume");
   }
@@ -623,16 +625,16 @@ namespace CVC_NAMESPACE
                             std::max(global_bbox.YMax()-global_bbox.YMin(),
                                      global_bbox.ZMax()-global_bbox.ZMin())));
     if(forceShowAll ||
-       state("show_entire_scene_on_normalize").value<int>())
+       cvcstate("show_entire_scene_on_normalize").value<int>())
       showEntireScene();
   }
 
   BoundingBox VolumeViewer2::globalBoundingBox() const
   {
     BoundingBox global_bbox;
-    if(!state("global_bounding_box").isData<BoundingBox>())
+    if(!cvcstate("global_bounding_box").isData<BoundingBox>())
       calculateGlobalBoundingBox();
-    return state("global_bounding_box").data<BoundingBox>();
+    return cvcstate("global_bounding_box").data<BoundingBox>();
   }
 
   void VolumeViewer2::reset()
@@ -645,7 +647,7 @@ namespace CVC_NAMESPACE
 
   void VolumeViewer2::scheduleUpdateGL()
   {
-    state("glUpdated").value(int(false));
+    cvcstate("glUpdated").value(int(false));
     if(hasBeenInitialized())
       QCoreApplication::postEvent(this,new CVCEvent("updateGL"));
   }
@@ -675,7 +677,7 @@ namespace CVC_NAMESPACE
                             centery + (maxy - centery)/2.0,
                             centerz + (maxz - centerz)/2.0);
 
-    state("scene.region_of_interest").data(default_roi);
+    cvcstate("scene.region_of_interest").data(default_roi);
   }
 
   void VolumeViewer2::init()
@@ -686,14 +688,14 @@ namespace CVC_NAMESPACE
 
     setMouseTracking(true);
 
-    if(!state("drawable").value<int>() &&
+    if(!cvcstate("drawable").value<int>() &&
        _renderer.initRenderer())
-      state("drawable").value(int(true));
+      cvcstate("drawable").value(int(true));
 
     setDefaultColorTable();
     setDefaultScene();
 
-    state("hasBeenInitialized").value(int(true));
+    cvcstate("hasBeenInitialized").value(int(true));
     emit postInit();
   }
 
@@ -702,7 +704,7 @@ namespace CVC_NAMESPACE
     copyCameraToState();
 
     //main scene rendering via renderStates
-    state("scene").traverse(
+    cvcstate("scene").traverse(
       boost::bind(&VolumeViewer2::renderStates, 
         boost::ref(*this), 
         _1));
@@ -711,7 +713,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::drawWithNames()
   {
     //main scene rendering via renderStates
-    state("scene").traverse(
+    cvcstate("scene").traverse(
       boost::bind(&VolumeViewer2::renderStatesWithNames, 
         boost::ref(*this), 
         _1));
@@ -720,7 +722,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::postDraw()
   {
     QGLViewer::postDraw();
-    if(state("draw_corner_axis").value<int>()) 
+    if(cvcstate("draw_corner_axis").value<int>()) 
       doDrawCornerAxis();
   }
 
@@ -792,7 +794,7 @@ namespace CVC_NAMESPACE
                    % BOOST_CURRENT_FUNCTION
                    % s));
 
-    if(state("draw_volumes").value<int>() &&             //single volume
+    if(cvcstate("draw_volumes").value<int>() &&             //single volume
        cvcstate(s).isData<VolMagick::Volume>())
       {
         cvcapp.log(4,
@@ -801,12 +803,12 @@ namespace CVC_NAMESPACE
                        % BOOST_CURRENT_FUNCTION
                        % s));
 
-        if(state("draw_bounding_box").value<int>())
+        if(cvcstate("draw_bounding_box").value<int>())
           doDrawBoundingBox(s);
 
         //TODO: volume renderer generates geometry
       }
-    if(state("draw_volumes").value<int>() &&             //vector of volumes
+    if(cvcstate("draw_volumes").value<int>() &&             //vector of volumes
        cvcstate(s).isData<std::vector<VolMagick::Volume> >())
       {
         cvcapp.log(4,
@@ -822,12 +824,12 @@ namespace CVC_NAMESPACE
         for (auto& vol : vols)
           bbox += vol.boundingBox();
 
-        if(state("draw_bounding_box").value<int>())
+        if(cvcstate("draw_bounding_box").value<int>())
           doDrawBoundingBox(bbox);
 
         //TODO: volume renderer generates geometry
       }
-    else if(state("draw_geometry").value<int>() &&
+    else if(cvcstate("draw_geometry").value<int>() &&
             cvcstate(s).isData<cvcraw_geometry::cvcgeom_t>())
       {
         cvcapp.log(4,
@@ -851,7 +853,7 @@ namespace CVC_NAMESPACE
         doDrawBoundingBox(s);
 
         //draw subvolume selector if flag set
-        if(state("draw_subvolume_selector").value<int>() ||
+        if(cvcstate("draw_subvolume_selector").value<int>() ||
            cvcstate(s)("draw_subvolume_selector").value<int>())
           doDrawSubVolumeSelector(s);
       }
@@ -905,7 +907,7 @@ namespace CVC_NAMESPACE
                        % s));
         
         //draw subvolume selector if flag set
-        if(state("draw_subvolume_selector").value<int>() ||
+        if(cvcstate("draw_subvolume_selector").value<int>() ||
            cvcstate(s)("draw_subvolume_selector").value<int>())
           doDrawSubVolumeSelector(s,true);
       }
@@ -914,13 +916,13 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::calculateGlobalBoundingBox() const
   {
     BoundingBox global_bbox;
-    state("scene").traverse(
+    cvcstate("scene").traverse(
       boost::bind(&VolumeViewer2::combineBoundingBox,
                   boost::ref(global_bbox),
                   _1));
     if(global_bbox.isNull()) //disallow null bboxes
       global_bbox = BoundingBox(-0.5,-0.5,-0.5,0.5,0.5,0.5);
-    state("global_bounding_box").data(global_bbox);
+    cvcstate("global_bounding_box").data(global_bbox);
   }
 
   void VolumeViewer2::combineBoundingBox(BoundingBox& bbox, const std::string& s)
@@ -983,8 +985,8 @@ namespace CVC_NAMESPACE
 
   void VolumeViewer2::postSelection(const QPoint& point)
   {
-    state("selected_point").data(point);
-    state("selected_object").value(int(selectedName()));
+    cvcstate("selected_point").data(point);
+    cvcstate("selected_object").value(int(selectedName()));
   }
 
   void VolumeViewer2::setClipPlanes()
@@ -1026,7 +1028,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::handleThreadsChanged(const std::string& key)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     cvcapp.log(5,
                str(
@@ -1230,7 +1232,7 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::handleStateChanged(const std::string& childState)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     boost::mutex::scoped_lock lock(_handleStateChangedMutex);
 
@@ -1243,17 +1245,17 @@ namespace CVC_NAMESPACE
     bool updateGLNeeded = true;
     if(childState == "colortable")
       {
-        state("colortableUploaded").value(int(false));
+        cvcstate("colortableUploaded").value(int(false));
       }
     else if(childState == "scene")
       {
-        state("vboUpdated").value(int(false));
+        cvcstate("vboUpdated").value(int(false));
         calculateGlobalBoundingBox();
       }
     else if(childState == "shaded_rendering_enabled")
       {
         if(hasBeenInitialized()) makeCurrent();
-        if(state(childState).value<int>())
+        if(cvcstate(childState).value<int>())
           _renderer.enableShadedRendering();
         else
           _renderer.disableShadedRendering();
@@ -1265,18 +1267,18 @@ namespace CVC_NAMESPACE
     else if(childState == "volume_rendering_quality")
       {
         if(hasBeenInitialized()) makeCurrent();
-        _renderer.setQuality(state(childState).value<double>());
+        _renderer.setQuality(cvcstate(childState).value<double>());
       }
     else if(childState == "volume_rendering_near_plane")
       {
         if(hasBeenInitialized()) makeCurrent();
-        _renderer.setNearPlane(state(childState).value<double>());
+        _renderer.setNearPlane(cvcstate(childState).value<double>());
       }
     else if(childState == "projection_mode")
       {
-        if(state("projection_mode").value()=="perspective")
+        if(cvcstate("projection_mode").value()=="perspective")
           camera()->setType(qglviewer::Camera::PERSPECTIVE);
-        else if(state("projection_mode").value()=="orthographic")
+        else if(cvcstate("projection_mode").value()=="orthographic")
           camera()->setType(qglviewer::Camera::ORTHOGRAPHIC);
         else
           cvcapp.log(1,
@@ -1287,27 +1289,27 @@ namespace CVC_NAMESPACE
       }
     else if(childState == "background_color")
       {
-        setBackgroundColor(QColor(state(childState).value().c_str()));
+        setBackgroundColor(QColor(cvcstate(childState).value().c_str()));
       }
     else if(childState == "fov")
       {
-        camera()->setFieldOfView(state(childState).value<double>());
+        camera()->setFieldOfView(cvcstate(childState).value<double>());
       }
     else if(childState == "io_distance")
       {
-        camera()->setIODistance(state(childState).value<double>());
+        camera()->setIODistance(cvcstate(childState).value<double>());
       }
     else if(childState == "physical_distance_to_screen")
       {
-        camera()->setPhysicalDistanceToScreen(state(childState).value<double>());
+        camera()->setPhysicalDistanceToScreen(cvcstate(childState).value<double>());
       }
     else if(childState == "physical_screen_width")
       {
-        camera()->setPhysicalScreenWidth(state(childState).value<double>());
+        camera()->setPhysicalScreenWidth(cvcstate(childState).value<double>());
       }
     else if(childState == "focus_distance")
       {
-        camera()->setFocusDistance(state(childState).value<double>());
+        camera()->setFocusDistance(cvcstate(childState).value<double>());
       }
 
     if(updateGLNeeded) scheduleUpdateGL();
@@ -1316,11 +1318,11 @@ namespace CVC_NAMESPACE
   void VolumeViewer2::uploadColorTable()
   {
     if(hasBeenInitialized()) makeCurrent();
-    if(state("colortableUploaded").value<int>()) return;
+    if(cvcstate("colortableUploaded").value<int>()) return;
     boost::shared_array<unsigned char> table =
-      state("colortable").data<boost::shared_array<unsigned char> >();
+      cvcstate("colortable").data<boost::shared_array<unsigned char> >();
     _renderer.uploadColorMap(table.get());
-    state("colortableUploaded").value(int(true));
+    cvcstate("colortableUploaded").value(int(true));
   }
 
   void VolumeViewer2::uploadVolume(const std::string& s)
@@ -1342,13 +1344,13 @@ namespace CVC_NAMESPACE
       ss<< Q[0] << '\t' << Q[1] << '\t' << Q[2] << '\t' << Q[3];
       //ss << camera()->orientation();
 
-      if(state("orientation").value()!=ss.str())
-        state("orientation").value(ss.str());
+      if(cvcstate("orientation").value()!=ss.str())
+        cvcstate("orientation").value(ss.str());
     }
     
     //set camera position property
     {
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace std;
 
       //ss << camera()->position();
@@ -1364,8 +1366,8 @@ namespace CVC_NAMESPACE
                      % BOOST_CURRENT_FUNCTION
                      % posstr));
 
-      if(state("position").value()!=posstr)
-        state("position").value(posstr);
+      if(cvcstate("position").value()!=posstr)
+        cvcstate("position").value(posstr);
     }
   }
 }

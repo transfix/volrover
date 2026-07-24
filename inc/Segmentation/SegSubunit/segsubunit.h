@@ -10,7 +10,7 @@
 #ifndef SEGSUBUNIT_H
 #define SEGSUBUNIT_H
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 namespace SegSubunit {
 

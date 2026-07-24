@@ -28,7 +28,7 @@
 #include <VolMagick/Types.h>
 #include <VolMagick/Dimension.h>
 
-#include <CVC/HDF5_Utilities.h>
+#include <cvc_compat.h>
 #if defined (WIN32)
 #include <cpp/H5Cpp.h>
 #else 

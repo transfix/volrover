@@ -15,4 +15,5 @@ include_directories(
 add_definitions(-DHUGE=1000000)
 
 add_library(TightCocone STATIC ${SOURCE_FILES} ${INCLUDE_FILES})
+target_link_libraries(TightCocone PUBLIC VolMagick)
 SetupCGAL(TightCocone)

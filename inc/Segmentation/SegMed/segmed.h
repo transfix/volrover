@@ -26,7 +26,7 @@ University of Texas at Austin for a different license.
 #ifndef SEGMED_H
 #define SEGMED_H
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 namespace SegMed {
 

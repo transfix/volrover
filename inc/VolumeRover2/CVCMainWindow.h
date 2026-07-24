@@ -35,11 +35,11 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/any.hpp>
 
-#include <CVC/Namespace.h>
-#include <CVC/App.h>
-#include <CVC/CVCEvent.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
+#include <CVCEvent.h>
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 #include <string>
 #include <map>

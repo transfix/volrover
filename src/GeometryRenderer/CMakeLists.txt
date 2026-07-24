@@ -9,7 +9,7 @@ include_directories(
 
 SetupQt()
 
-set(LIBS CVC cvcraw_geometry QGLViewer GLEW::GLEW) 
+set(LIBS cvc::cvc cvcraw_geometry QGLViewer GLEW::GLEW) 
 
 source_group("Source Files" FILES ${SOURCE_FILES})
 source_group("Header Files" FILES ${INCLUDE_FILES})

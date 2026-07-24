@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
   Copyright 2008-2011 The University of Texas at Austin
 
@@ -327,7 +329,7 @@ void NewVolumeDialog::acquireVolumeInfo(bool doit)
 	return;
 
 #if QT_VERSION < 0x040000      
-      VolMagick::VolumeFileInfo vfi(_ui->_volumeCopyFilename->text());
+      VolMagick::VolumeFileInfo vfi(cvcapp, _ui->_volumeCopyFilename->text());
 #else
       VolMagick::VolumeFileInfo vfi((const char *)_ui->_volumeCopyFilename->text().toUtf8().constData());
 #endif

@@ -21,7 +21,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <VolumeRover2/ContrastEnhancementDialog.h>
 
 #include <VolMagick/VolMagick.h>
@@ -143,7 +143,7 @@ public:
             _output = _output + _fileType;   
           }
 
-          VolMagick::createVolumeFile(_output,
+          VolMagick::createVolumeFile(cvcapp, _output,
                                       vfi.boundingBox(),
                                       vfi.dimension(),
                                       vfi.voxelTypes(),
@@ -158,11 +158,11 @@ public:
           for(unsigned int time=0; time<vfi.numTimesteps(); time++) {
             VolMagick::Volume vol;
 	  
-            readVolumeFile(vol,vfi.filename(),var,time);
+            readVolumeFile(cvcapp, vol,vfi.filename(),var,time);
             vol.contrastEnhancement(_resistor);
 	  
             if (_currentIndex == 0) {
-              writeVolumeFile(vol,_output,var,time);
+              writeVolumeFile(cvcapp, vol,_output,var,time);
             } else if (_currentIndex == 1) {
               // put the dataset in the list
               cvcapp.data(_dataset,vol);		  

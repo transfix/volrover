@@ -586,7 +586,7 @@ namespace CVCColorTable
   ColorTable::color_table_info ColorTable::read_transfer_function(const std::string& filename)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     color_table_info cti;
 
@@ -734,7 +734,7 @@ namespace CVCColorTable
 					   const ColorTable::color_table_info& cti)
   {
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     color_table_info local_cti = cti;
     local_cti.normalize();

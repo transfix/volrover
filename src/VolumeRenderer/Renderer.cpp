@@ -44,9 +44,9 @@
 #include <VolumeRenderer/CGRGBAImpl.h>
 #endif
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <log4cplus/logger.h>
-#include <CVC/log4cplus_compat.h>
+#include <log4cplus_compat.h>
 #include <log4cplus/loggingmacros.h>
 
 #include <boost/format.hpp>

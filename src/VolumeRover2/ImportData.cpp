@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
   Copyright 2008-2011 The University of Texas at Austin
 
@@ -127,9 +129,9 @@ void ImportData::okSlot()
   else if(_ui->_volumeDataButton->isChecked())
     {
 #if QT_VERSION < 0x040000
-      VolMagick::VolumeFileInfo vfi(_ui->_importFile->text().ascii());
+      VolMagick::VolumeFileInfo vfi(cvcapp, _ui->_importFile->text().ascii());
 #else
-      VolMagick::VolumeFileInfo vfi(_ui->_importFile->text().toUtf8().constData());
+      VolMagick::VolumeFileInfo vfi(cvcapp, _ui->_importFile->text().toUtf8().constData());
 #endif
 
       if(_ui->_variable->text().toInt() >= int(vfi.numVariables()))

@@ -198,8 +198,8 @@ set(MOC_HEADERS
   ../../inc/VolumeRover2/VolumeViewer2.h
 )
 
-# the core CVC lib that contains CVC::App
-set(LIBS CVC)
+# the core CVC app functionality is now provided by libcvc (cvc::cvc)
+set(LIBS cvc::cvc)
 
 #
 # arand: need to fix the CGAL dependence so that CGAL is included once
@@ -294,7 +294,7 @@ set(LIBS
     GeometryRenderer
     QGLViewer
     cvcalgo
-    XmlRPC
+    cvc::xmlrpc
 #    Socket
     log4cplus::log4cplus
     $<IF:$<BOOL:${WIN32}>,PThreads4W::PThreads4W,Threads::Threads>

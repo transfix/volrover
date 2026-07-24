@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
   Copyright 2008-2011 The University of Texas at Austin
 
@@ -44,7 +46,7 @@
 #include <cvcraw_geometry/io.h>
 #include <cvcraw_geometry/cvcraw_geometry.h>
 
-#include <CVC/log4cplus_compat.h>
+#include <log4cplus_compat.h>
 
 #include <boost/filesystem.hpp>
 
@@ -117,7 +119,7 @@ void GeometryInterface::setInterfaceInfo(const cvcraw_geometry::cvcgeom_t &geom)
 void GeometryInterface::setViewerState()
 {
   using namespace std;
-  using namespace boost;
+  using namespace boost; using boost::format;
 
   static log4cplus::Logger logger = FUNCTION_LOGGER;
 

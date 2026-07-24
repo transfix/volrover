@@ -30,4 +30,4 @@ else(Boost_FOUND)
           "BOOST_INCLUDEDIR and BOOST_LIBRARYDIR to the appropriate paths")
 endif(Boost_FOUND)
 
-TARGET_LINK_LIBRARIES(GenSeg VolMagick)
+TARGET_LINK_LIBRARIES(GenSeg VolMagick cvc::xmlrpc)

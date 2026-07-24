@@ -23,13 +23,13 @@
 
 /* $Id$ */
 
-#include <CVC/log4cplus_compat.h>
+#include <log4cplus_compat.h>
 
 #include <VolumeRover2/CVCMainWindow.h>
 #include <VolumeRover2/DataWidget.h>
 #include <VolumeRover2/SaveImageInfo.h>
 #include <VolumeRover2/windowbuf.h>
-#include <CVC/App.h>
+#include <cvc_compat.h>
 
 #include <ColorTable2/ColorTable.h>
 
@@ -89,7 +89,7 @@
 #include <cvcraw_geometry/contours.h>
 #endif
 
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 
 #ifdef USING_VOLUMEGRIDROVER
 #include <VolumeGridRover/VolumeGridRover.h>
@@ -844,7 +844,7 @@ namespace CVC_NAMESPACE
 	string outputFile = ui.volOutputFileEdit->displayText().toStdString();
 	
 	std::string fileExtension = ui.volFileTypeComboBox->currentText().toStdString();
-	createVolumeFile(vol,outputFile + "." + fileExtension);
+	createVolumeFile(cvcapp, vol,outputFile + "." + fileExtension);
       }
       if (ui.tabWidget->currentIndex() == 2) {
 	std::string meshSelected = ui.meshList->currentText().toStdString();
@@ -1745,7 +1745,7 @@ void CVCMainWindow::showHistogramDialogSlot() {
     SecondaryStructureUi->ThresholdEdit->insert("125");
 
 
-    DataMap map = App::instance().data();
+    DataMap map = volrover_app_instance().data();
 
     bool Isgeom = 0;
     for (const auto& val : map) { 
@@ -2062,11 +2062,11 @@ void CVCMainWindow::showHistogramDialogSlot() {
 	ss << "Creating volume " << tmpfile.absFilePath().toStdString().c_str() <<std::endl;
 	cvcapp.log(5,ss.str());
 	QString newfilename = QDir::convertSeparators(tmpfile.absFilePath());
-	VolMagick::createVolumeFile(newfilename.toStdString(),
+	VolMagick::createVolumeFile(cvcapp, newfilename.toStdString(),
 				    result_vol.boundingBox(),
 				    result_vol.dimension(),
 				    std::vector<VolMagick::VoxelType>(1, result_vol.voxelType()));
-	VolMagick::writeVolumeFile(result_vol,newfilename.toStd.String());
+	VolMagick::writeVolumeFile(cvcapp, result_vol,newfilename.toStd.String());
 	openFile(newfilename);
 	*/
 	// TODO: update code above...
@@ -2247,7 +2247,7 @@ void CVCMainWindow::showHistogramDialogSlot() {
 #endif
     
 //     VolMagick::Volume vol;
-//     readVolumeFile(vol,vfi.filename());
+//     readVolumeFile(cvcapp, vol,vfi.filename());
 //     LBIE::Mesher mesher(outer_isoval, inner_isoval, ui.m_ErrorTolerance->text().toDouble(), ui.m_InnerErrorTolerance->text().toDouble(), LBIE::Mesher::MeshType(ui.m_MeshType->currentItem()), LBIE::Mesher::GEO_FLOW, LBIE::Mesher::NormalType(ui.m_NormalType->currentItem()), LBIE::Mesher::DUALLIB, false);
 //     mesher.extractMesh(vol);
 //     mesher.qualityImprove(ui.m_Iterations->text().toUInt());
@@ -2667,7 +2667,7 @@ void CVCMainWindow::generateRawVSlot() {
 	QDialog dialog;
 	generateRawVUi->setupUi(&dialog);
 
-	DataMap map = App::instance().data();
+	DataMap map = volrover_app_instance().data();
 
 
     for (const auto& val : map) { 
@@ -2776,7 +2776,7 @@ void CVCMainWindow::MSLevelSetSlot()
 
   string VolFileName;
 
-  DataMap map = App::instance().data();
+  DataMap map = volrover_app_instance().data();
   VolMagick::VolumeFileInfo vif;
 
   for (const auto& val : map) {
@@ -2884,7 +2884,7 @@ void CVCMainWindow::MSLevelSetSlot()
       try
   	 {
 
-	  VolMagick::readVolumeFile(vol, vif.filename());
+	  VolMagick::readVolumeFile(cvcapp, vol, vif.filename());
 	  vol.voxelType(VolMagick::Float); //forces float voxel type
 	  data = reinterpret_cast<float*>(*vol);
 	  if(mslsSolver.runSolver(data, vol.XDim(), vol.YDim(), vol.ZDim(), &MSLSParams))
@@ -2900,7 +2900,7 @@ void CVCMainWindow::MSLevelSetSlot()
 	      qDebug("Writting volume %s to %s (%s)", "MSLevelSet_outputPhi.rawiv", tmpfile.absFilePath().toStdString().c_str(), QString::fromStdString(originalName).toStdString().c_str());
 	      QString newfilename = QDir::convertSeparators(tmpfile.absFilePath());
 	      if(tmpfile.exists()) QFile::remove(newfilename);	    
-	        VolMagick::createVolumeFile(vol,
+	        VolMagick::createVolumeFile(cvcapp, vol,
 					 newfilename.toStdString());
 			cvcapp.readData(newfilename.toStdString());
 	    }
@@ -2973,7 +2973,7 @@ void CVCMainWindow::HOSegmentationSlot()
   	m_DoInitCUDA = true;
   	string VolFileName;
 
-  	DataMap map = App::instance().data();
+  	DataMap map = volrover_app_instance().data();
 	VolMagick::VolumeFileInfo vif;
 
   	for (const auto& val : map) {
@@ -3063,7 +3063,7 @@ void CVCMainWindow::HOSegmentationSlot()
     
  		try
   	 	{
-	  	   VolMagick::readVolumeFile(vol, vif.filename());
+	  	   VolMagick::readVolumeFile(cvcapp, vol, vif.filename());
 		   vol.voxelType(VolMagick::Float); //forces float voxel type
 	 	   data = reinterpret_cast<float*>(*vol);
 		   if(hosegSolver.runSolver(data, vol.XDim(), vol.YDim(), vol.ZDim(), &MSLSParams))
@@ -3079,7 +3079,7 @@ void CVCMainWindow::HOSegmentationSlot()
 		      qDebug("Writting volume %s to %s (%s)", "HOLevelSet_outputPhi.rawiv", tmpfile.absFilePath().toStdString().c_str(), QString::fromStdString(originalName).toStdString().c_str());
 		      QString newfilename = QDir::convertSeparators(tmpfile.absFilePath());
 	    	  if(tmpfile.exists()) QFile::remove(newfilename);	    
-	        	VolMagick::createVolumeFile(vol,
+	        	VolMagick::createVolumeFile(cvcapp, vol,
 					 newfilename.toStdString());
 				cvcapp.readData(newfilename.toStdString());
 	    	}
@@ -3181,7 +3181,7 @@ void CVCMainWindow::MPSegmentationSlot()
 
 	connect((QPushButton*)(MPLevelSetDialogUi->m_UserSegReadButton), SIGNAL(clicked()), this, SLOT(on_UserSegReadButton_clickedSlot()));
 
-  	DataMap map = App::instance().data();
+  	DataMap map = volrover_app_instance().data();
 	VolMagick::VolumeFileInfo vif;
 
   	for (const auto& val : map) {
@@ -3297,7 +3297,7 @@ void CVCMainWindow::MPSegmentationSlot()
 
     try 
     {
-	  VolMagick::readVolumeFile(vol, vif.filename());
+	  VolMagick::readVolumeFile(cvcapp, vol, vif.filename());
 	  vol.voxelType(VolMagick::Float); //forces float voxel type
 	  data = reinterpret_cast<float*>(*vol);
 	  int nvols = MPLSParams->nImplicits;
@@ -3342,7 +3342,7 @@ void CVCMainWindow::MPSegmentationSlot()
 		   	     for(unsigned int i = 0; i < vol.XDim(); i++)
 				    implicit_vols[m](i,j,k, l_PHI[m][i+ vol.XDim()*(j+vol.YDim()*k)]);
 
-	        VolMagick::writeVolumeFile(implicit_vols, newfilename.toStdString());
+	        VolMagick::writeVolumeFile(cvcapp, implicit_vols, newfilename.toStdString());
 
 			implicit_vols.clear();
 			for(int j=0; j<nvols; j++)

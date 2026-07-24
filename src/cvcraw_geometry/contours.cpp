@@ -73,7 +73,7 @@ namespace CVCGEOM_NAMESPACE
 			 int z_first, int z_last, const std::string& name) {
 
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace CONTOURTILER_NAMESPACE;
 
     _components = vector<string>(components.begin(), components.end());
@@ -91,7 +91,7 @@ namespace CVCGEOM_NAMESPACE
     log4cplus::Logger logger = log4cplus::Logger::getInstance("cvcraw_geometry.contours_t.refresh_geom");
 
     using namespace std;
-    using namespace boost;
+    using namespace boost; using boost::format;
     using namespace CONTOURTILER_NAMESPACE;
 
     LOG4CPLUS_TRACE(logger, "1");

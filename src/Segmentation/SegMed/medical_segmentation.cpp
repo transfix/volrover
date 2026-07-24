@@ -27,7 +27,7 @@ University of Texas at Austin for a different license.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
-#include <XmlRPC/XmlRpc.h>
+#include <xmlrpc/XmlRpc.h>
 #include <Segmentation/SegMed/segmed.h>
 
 #define IndexVect(i,j,k) ((k)*xdim*ydim + (j)*xdim + (i))

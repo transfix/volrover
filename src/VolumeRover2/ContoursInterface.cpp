@@ -42,7 +42,7 @@
 #include <log4cplus/logger.h>
 #include <log4cplus/loggingmacros.h>
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <cvcraw_geometry/cvcgeom.h>
 #include <cvcraw_geometry/io.h>
 #include <cvcraw_geometry/cvcraw_geometry.h>

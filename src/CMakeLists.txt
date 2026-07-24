@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.16)
 
 option(ENABLE_STEREO_DISPLAY "Enable stereo display. This option doesn't play nicely with some graphics cards" OFF)
 
-add_subdirectory(CVC)
-
 # 11/3/11 edwardsj - converting to new contour tiler
 option(BUILD_TILING_LIB "Tiling - 3D reconstruction of plane parallel 2D contours" ON)
 if(BUILD_TILING_LIB AND NOT DISABLE_CGAL)
@@ -28,7 +26,7 @@ add_subdirectory(VolumeRenderer)
 add_subdirectory(GeometryRenderer)
 add_subdirectory(libiso)
 add_subdirectory(volren)
-add_subdirectory(XmlRPC)
+# XmlRPC is now provided by libcvc as cvc::xmlrpc
 
 # Optional: Virus Segmentation
 option(BUILD_SEGMENTATION_LIB "Build Virus Segmentation library" ON)
@@ -193,10 +191,8 @@ IF(BUILD_VOLUMEROVER_2)
   ADD_SUBDIRECTORY(VolumeRover2)
 ENDIF(BUILD_VOLUMEROVER_2)
 
-OPTION(BUILD_VOLUTILS "VolUtils - build a set of useful standalone volume processing and information gathering utilities" ON)
-IF(BUILD_VOLUTILS)
-  ADD_SUBDIRECTORY(VolUtils)
-ENDIF(BUILD_VOLUTILS)
+# volutils - unified volume utility CLI (uses libcvc for volume operations)
+add_subdirectory(volutils)
 
 # Add a special target to clean nvcc generated files.
 IF(CUDA_BUILD_ENABLED)

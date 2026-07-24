@@ -15,4 +15,6 @@ include_directories(
 add_definitions(-DHUGE=1000000)
 
 add_library(SuperSecondaryStructures STATIC ${SOURCE_FILES} ${INCLUDE_FILES})
+target_link_libraries(SuperSecondaryStructures PUBLIC VolMagick)
+target_compile_definitions(SuperSecondaryStructures PRIVATE CVCGEOM_NAMESPACE=cvcraw_geometry)
 SetupCGAL(SuperSecondaryStructures)

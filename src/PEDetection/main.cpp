@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 /*
   Copyright 2006 The University of Texas at Austin
 
@@ -168,7 +170,7 @@ void PEDetection(const char *filename)
 	try
 	  {
 	    VolMagick::VolumeFileInfo volinfo;
-	    volinfo.read(filename);
+	    volinfo.read(cvcapp, filename);
 	    x = volinfo.XDim();
 	    y = volinfo.YDim();
 	    z = volinfo.ZDim();

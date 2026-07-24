@@ -27,7 +27,7 @@
 #ifndef __DATAWIDGET_H__
 #define __DATAWIDGET_H__
 
-#include <CVC/App.h>
+#include <cvc_compat.h>
 #include <QFrame>
 #include <boost/any.hpp>
 

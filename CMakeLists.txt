@@ -5,8 +5,17 @@
 cmake_minimum_required(VERSION 3.16)
 project(VolumeRover VERSION 2.1.0 LANGUAGES C CXX)
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+# On Windows, ensure boost::asio's WinSock2.h is included before any
+# transitive inclusion of windows.h.  Without these defines, MSVC errors
+# with "WinSock.h has already been included" once boost::asio is pulled in
+# (e.g. via boost::process or boost::interprocess from libcvc).
+if(WIN32)
+  add_compile_definitions(WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601 NOMINMAX)
+endif()
+
+# Set C++ standard.  libcvc 3.1.0 requires C++20 (uses std::format,
+# concepts, etc.) and is consumed via FetchContent below.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -173,6 +182,11 @@ if(WIN32)
   add_definitions(-DNOMINMAX)
 endif()
 
+# Suppress libcvc's PascalCase compat typedefs (App, ThreadInfo, etc.).
+# volrover provides its own subclasses in inc/cvc_compat.h that auto-supply
+# the volrover-owned cvc::app context to the new (app& ctx, ...) ctors.
+add_definitions(-DCVC_COMPAT_APP_DEFINED)
+
 # ************* CPack configuration for VolumeRover *************
 # Include the packaging system for distributing binaries
 
@@ -253,6 +267,11 @@ install(FILES README.md DESTINATION .)
 # Debian package dependencies
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6widgets6, libqt6opengl6, libboost-filesystem1.74.0, libboost-system1.74.0")
 
+# dpkg-shlibdeps can't find bundled libraries (libcvc, libQGLViewer, gtest,
+# gmock) in the build tree; disable automatic shlib dependency generation
+# and rely on the explicit CPACK_DEBIAN_PACKAGE_DEPENDS list above.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+
 include(CPack)
 include(InstallRequiredSystemLibraries)
 
@@ -264,7 +283,153 @@ else()
   set(ADDED_PREFIX "VolumeRover2")
 endif()
 
+# ************* libcvc dependency *************
+# Resolution order, falling through on failure:
+#   1. find_package(cvc CONFIG) against a pre-installed libcvc on
+#      CMAKE_PREFIX_PATH (fastest, no download or build).
+#   2. Download the prebuilt release tarball matching this platform /
+#      build type from https://github.com/transfix/libcvc/releases and
+#      find_package against the extracted tree.
+#   3. FetchContent_Declare(GIT_REPOSITORY ...) and build from source.
+#      Override with -DLIBCVC_FORCE_SOURCE=ON or
+#      -DFETCHCONTENT_SOURCE_DIR_LIBCVC=/path/to/libcvc for local dev.
+#
+# volrover links cvc::xmlrpc (used by VolumeGridRover, CompServ, all the
+# Segmentation/Seg* modules, SecStruct, GenSeg, VolumeRover2). libcvc
+# release archives <= 3.1.1 do not ship cvc::xmlrpc, so the resolver
+# verifies the target exists before accepting a prebuilt package and
+# falls through to the source build otherwise. Once libcvc starts
+# shipping xmlrpc, the prebuilt path activates automatically.
+set(LIBCVC_TAG     "v3.2.1" CACHE STRING "libcvc release tag to consume")
+set(LIBCVC_VERSION "3.2.1"  CACHE STRING "libcvc package version to look up")
+set(LIBCVC_GIT_SHA "728c22fc64098da4dfdd1a55f4763bbb2ce482af"
+    CACHE STRING "libcvc commit SHA used when falling through to source build")
+option(LIBCVC_FORCE_SOURCE "Skip prebuilt libcvc and always build from source" OFF)
+set(LIBCVC_NEEDS_XMLRPC TRUE)
+
+include(FetchContent)
+
+# Disable libcvc sub-features we don't need during volrover build
+set(CVC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CVC_ENABLE_CUDA OFF CACHE BOOL "" FORCE)
+set(CVC_ENABLE_COVERAGE OFF CACHE BOOL "" FORCE)
+set(CVC_BUILD_VOLROVER3 OFF CACHE BOOL "" FORCE)
+set(CVC_USING_XMLRPC ON CACHE BOOL "" FORCE)
+
+function(_libcvc_check_usable out_var)
+  set(${out_var} FALSE PARENT_SCOPE)
+  if(NOT cvc_FOUND)
+    return()
+  endif()
+  if(LIBCVC_NEEDS_XMLRPC AND NOT TARGET cvc::xmlrpc)
+    message(STATUS "libcvc package found (${cvc_VERSION}) but cvc::xmlrpc is missing")
+    return()
+  endif()
+  set(${out_var} TRUE PARENT_SCOPE)
+endfunction()
+
+set(_libcvc_usable      FALSE)
+set(_libcvc_source_built FALSE)
+
+# 1. Pre-installed package
+if(NOT LIBCVC_FORCE_SOURCE)
+  find_package(cvc ${LIBCVC_VERSION} CONFIG QUIET)
+  _libcvc_check_usable(_libcvc_usable)
+  if(_libcvc_usable)
+    message(STATUS "Using pre-installed libcvc ${cvc_VERSION}")
+  endif()
+endif()
+
+# 2. Prebuilt release tarball
+if(NOT _libcvc_usable AND NOT LIBCVC_FORCE_SOURCE)
+  if(WIN32)
+    set(_libcvc_plat "windows-x86_64")
+    set(_libcvc_ext  "zip")
+  elseif(APPLE)
+    set(_libcvc_plat "macos-arm64")
+    set(_libcvc_ext  "zip")
+  elseif(UNIX)
+    set(_libcvc_plat "linux-x86_64")
+    set(_libcvc_ext  "tar.gz")
+  endif()
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(_libcvc_cfg "debug")
+  else()
+    set(_libcvc_cfg "release")
+  endif()
+  if(DEFINED _libcvc_plat)
+    set(_libcvc_archive "libcvc-${LIBCVC_VERSION}-${_libcvc_plat}-${_libcvc_cfg}.${_libcvc_ext}")
+    set(_libcvc_url     "https://github.com/transfix/libcvc/releases/download/${LIBCVC_TAG}/${_libcvc_archive}")
+    set(_libcvc_stage   "${CMAKE_BINARY_DIR}/libcvc-prebuilt")
+    set(_libcvc_cfgfile "${_libcvc_stage}/lib/cmake/cvc/cvcConfig.cmake")
+    if(NOT EXISTS "${_libcvc_cfgfile}")
+      message(STATUS "Downloading prebuilt libcvc: ${_libcvc_url}")
+      file(MAKE_DIRECTORY "${_libcvc_stage}")
+      file(DOWNLOAD "${_libcvc_url}" "${_libcvc_stage}/${_libcvc_archive}"
+           STATUS _libcvc_dl TLS_VERIFY ON)
+      list(GET _libcvc_dl 0 _libcvc_dl_code)
+      if(_libcvc_dl_code EQUAL 0)
+        execute_process(
+          COMMAND ${CMAKE_COMMAND} -E tar xzf "${_libcvc_archive}"
+          WORKING_DIRECTORY "${_libcvc_stage}"
+          RESULT_VARIABLE _libcvc_extract)
+        if(NOT _libcvc_extract EQUAL 0)
+          message(STATUS "Failed to extract ${_libcvc_archive} (exit ${_libcvc_extract})")
+        endif()
+      else()
+        message(STATUS "Prebuilt libcvc download failed: ${_libcvc_dl}")
+      endif()
+    endif()
+    if(EXISTS "${_libcvc_cfgfile}")
+      list(PREPEND CMAKE_PREFIX_PATH "${_libcvc_stage}")
+      find_package(cvc ${LIBCVC_VERSION} CONFIG QUIET)
+      _libcvc_check_usable(_libcvc_usable)
+      if(_libcvc_usable)
+        message(STATUS "Using prebuilt libcvc ${cvc_VERSION} from ${_libcvc_url}")
+      endif()
+    endif()
+  endif()
+endif()
+
+# 3. Source build (fallback)
+if(NOT _libcvc_usable)
+  message(STATUS "Building libcvc ${LIBCVC_TAG} from source")
+  FetchContent_Declare(
+    libcvc
+    GIT_REPOSITORY https://github.com/transfix/libcvc.git
+    GIT_TAG        ${LIBCVC_GIT_SHA}
+  )
+  FetchContent_MakeAvailable(libcvc)
+  set(_libcvc_source_built TRUE)
+endif()
+
+# On case-insensitive filesystems (macOS, Windows), libcvc's in-tree
+# headers can be shadowed by volrover's own include directories named
+# similarly. Only relevant for the source-build path; the imported
+# cvc::cvc target from find_package carries an absolute include path
+# that does not collide.
+if(_libcvc_source_built)
+  include_directories(BEFORE ${libcvc_SOURCE_DIR}/inc)
+  include_directories(BEFORE ${libcvc_BINARY_DIR}/inc)
+endif()
+
 add_subdirectory(src)
+
+# ************* Unit tests *************
+option(VOLROVER_BUILD_TESTS "Build volrover unit tests" ON)
+if(VOLROVER_BUILD_TESTS)
+  enable_testing()
+
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.14.0
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+
+  add_subdirectory(tests)
+endif()
 
 # ────────────────────────────────────────────────────────────────────
 # VolumeRover3 (next-generation app, under volrover3/)

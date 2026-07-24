@@ -22,8 +22,9 @@
 
 /* $Id: GeometryRenderer.h 5692 2012-06-01 22:39:25Z transfix $ */
 
-#include <CVC/StateObject.h>
-#include <CVC/BoundingBox.h>
+#include <cvc/state_object.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 #include <boost/function.hpp>
 
 #include <cvcraw_geometry/cvcgeom.h>
@@ -35,13 +36,14 @@ namespace qglviewer
 
 namespace CVC_NAMESPACE
 {
-  class GeometryRenderer : public StateObject<GeometryRenderer>
+  class GeometryRenderer : public state_object<GeometryRenderer>
   {
   public:
     typedef boost::function<void ()> Callback;
 
     GeometryRenderer(const qglviewer::Camera* vc = NULL)
-      : _viewerCamera(vc)
+      : state_object<GeometryRenderer>(volrover_app_instance()),
+        _viewerCamera(vc)
     { 
       defaultConstructor(); 
     }

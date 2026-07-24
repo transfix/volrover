@@ -1,15 +1,39 @@
-name: Release
+name: Release (VolumeRover 2.x)
 
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      # Legacy VolumeRover 2.x series only. VolumeRover3 (v3.* tags) is
+      # released by release-volrover3.yml. This split keeps the two
+      # series independent and lets the 2.x series be retired by simply
+      # deleting this workflow once its libs finish migrating to libcvc.
+      - 'v2.[0-9]+.[0-9]+*'
 
 permissions:
   contents: write
 
+# ───────────────────────────────────────────────────────────────────
+# Release artifacts (legacy VolumeRover 2.x, end-user application)
+# Triggered by v2.* tags. VolumeRover3 → release-volrover3.yml.
+#
+#   - Linux:   volrover-<ver>-linux-<arch>.tar.gz             (portable)
+#              volrover-<ver>-linux-<arch>.deb                (Debian/Ubuntu)
+#              VolumeRover-<ver>-<arch>.AppImage              (universal Linux)
+#   - macOS:   VolumeRover-<ver>-<arch>.dmg                   (drag to /Applications)
+#              VolumeRover-<ver>-macos-<arch>.zip             (alt. archive)
+#   - Windows: VolumeRover-<ver>-windows-<arch>.zip           (portable)
+#              VolumeRover-<ver>-windows-<arch>-setup.exe     (NSIS installer)
+#
+# Naming convention mirrors libcvc 3.x release artifacts so consumers
+# can pin matching pairs.
+#
+# Tag-driven release artifacts intentionally do not include the commit
+# SHA in their filenames; CI build artifacts (ci.yml) do include the
+# SHA so they can be uniquely identified per-PR.
+# ───────────────────────────────────────────────────────────────────
+
 jobs:
-  # ── Linux: .deb package ──
+  # ──────────────────────────── Linux ────────────────────────────
   linux:
     runs-on: ubuntu-latest
     steps:
@@ -17,16 +41,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Compute artifact metadata
+        id: meta
+        run: |
+          VERSION=$(awk '/project\(.*VERSION[[:space:]]+[0-9]/ {
+                          for (i=1;i<=NF;i++) if ($i=="VERSION") {
+                            gsub(/[^0-9.]/,"",$(i+1)); print $(i+1); exit }}' CMakeLists.txt)
+          ARCH=$(uname -m)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "arch=$ARCH"       >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake ninja-build \
-            qt6-base-dev libqt6opengl6-dev qt6-base-private-dev \
+            qt6-base-dev qt6-base-dev-tools libqt6opengl6-dev qt6-base-private-dev \
             libgl1-mesa-dev libglu1-mesa-dev libglew-dev \
-            libboost-all-dev libfftw3-dev libgsl-dev \
+            libxt-dev libxrender-dev libxcursor-dev libxinerama-dev libxi-dev \
+            libboost-all-dev libhdf5-dev libfftw3-dev libgsl-dev \
             liblog4cplus-dev libnsl-dev \
             imagemagick libmagick++-dev \
+            libcgal-dev \
+            libfuse2 file desktop-file-utils \
             dpkg-dev
 
       - name: Configure
@@ -35,25 +72,80 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
-            -DDISABLE_CGAL=ON \
             -DCMAKE_INSTALL_PREFIX=/usr
 
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Build .deb package
+      - name: Pack tarball + .deb
+        working-directory: build
         run: |
-          cd build
-          cpack -G DEB
-          cp *.deb ../
+          STEM="volrover-${{ steps.meta.outputs.version }}-linux-${{ steps.meta.outputs.arch }}"
+          cpack -G TGZ -D CPACK_PACKAGE_FILE_NAME="$STEM"
+          cpack -G DEB -D CPACK_PACKAGE_FILE_NAME="$STEM" -D CPACK_DEBIAN_PACKAGE_SHLIBDEPS=OFF
+          cp "$STEM.tar.gz" "$STEM.deb" "$GITHUB_WORKSPACE/"
+
+      - name: Build AppImage
+        run: |
+          set -euo pipefail
+          STEM="VolumeRover-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.arch }}"
+          DESTDIR="$PWD/AppDir" cmake --install build --prefix /usr
+          curl -L -o linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -L -o linuxdeploy-plugin-qt https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy linuxdeploy-plugin-qt
+          # Best-effort: stage a desktop file + icon if shipped, else
+          # synthesize minimal ones so linuxdeploy has something to embed.
+          if [ ! -f AppDir/usr/share/applications/volrover.desktop ]; then
+            mkdir -p AppDir/usr/share/applications
+            cat > AppDir/usr/share/applications/volrover.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=VolumeRover
+          Exec=VolumeRover2
+          Icon=volrover
+          Categories=Science;
+          EOF
+          fi
+          ICON=""
+          for f in AppDir/usr/share/icons/hicolor/256x256/apps/*.png; do
+            [ -f "$f" ] && ICON="$f" && break
+          done
+          if [ -z "$ICON" ]; then
+            mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+            printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa3@\xa6\x9b\x00\x00\x00\x00IEND\xaeB`\x82' \
+              > AppDir/usr/share/icons/hicolor/256x256/apps/volrover.png
+            ICON=AppDir/usr/share/icons/hicolor/256x256/apps/volrover.png
+          fi
+          cp "$ICON" AppDir/volrover.png
+          cp AppDir/usr/share/applications/volrover.desktop AppDir/
+          export OUTPUT="${STEM}.AppImage"
+          export LD_LIBRARY_PATH="$PWD/AppDir/usr/lib:$PWD/AppDir/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+          ./linuxdeploy --appdir AppDir --plugin qt --output appimage \
+                        --desktop-file AppDir/volrover.desktop \
+                        --icon-file    AppDir/volrover.png || \
+          ./linuxdeploy --appdir AppDir --output appimage \
+                        --desktop-file AppDir/volrover.desktop \
+                        --icon-file    AppDir/volrover.png
+          for f in *.AppImage; do
+            case "$f" in
+              linuxdeploy*) ;;
+              "${STEM}.AppImage") ;;
+              *) mv "$f" "${STEM}.AppImage" ;;
+            esac
+          done
+          ls -la *.AppImage
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-packages
-          path: "*.deb"
+          name: linux-volrover
+          path: |
+            *.tar.gz
+            *.deb
+            *.AppImage
+          if-no-files-found: error
 
-  # ── macOS: .dmg ──
+  # ──────────────────────────── macOS ────────────────────────────
   macos:
     runs-on: macos-latest
     steps:
@@ -61,10 +153,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Compute artifact metadata
+        id: meta
+        run: |
+          VERSION=$(awk '/project\(.*VERSION[[:space:]]+[0-9]/ {
+                          for (i=1;i<=NF;i++) if ($i=="VERSION") {
+                            gsub(/[^0-9.]/,"",$(i+1)); print $(i+1); exit }}' CMakeLists.txt)
+          ARCH=$(uname -m)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "arch=$ARCH"       >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: |
-          brew install cmake ninja qt@6 glew boost fftw gsl log4cplus imagemagick
+          brew install cmake ninja qt@6 glew boost fftw gsl log4cplus imagemagick cgal
           echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
+          echo "$(brew --prefix qt@6)/bin" >> $GITHUB_PATH
 
       - name: Configure
         run: |
@@ -72,26 +175,37 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
-            -DDISABLE_CGAL=ON \
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
 
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Create .dmg
+      - name: Pack .dmg + .zip
+        working-directory: build
         run: |
-          cd build
-          cpack -G DragNDrop
-          cp *.dmg ../
+          set -euo pipefail
+          ZIP_STEM="VolumeRover-${{ steps.meta.outputs.version }}-macos-${{ steps.meta.outputs.arch }}"
+          DMG_STEM="VolumeRover-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.arch }}"
+          cpack -G DragNDrop -D CPACK_PACKAGE_FILE_NAME="$DMG_STEM"
+          APP=$(find _CPack_Packages -name "VolumeRover2.app" -type d | head -1)
+          if [ -n "$APP" ]; then
+            ditto -c -k --keepParent "$APP" "$ZIP_STEM.zip"
+          else
+            cpack -G ZIP -D CPACK_PACKAGE_FILE_NAME="$ZIP_STEM"
+          fi
+          cp "$DMG_STEM.dmg" "$ZIP_STEM.zip" "$GITHUB_WORKSPACE/"
 
-      - name: Upload macOS artifact
+      - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macos-package
-          path: "*.dmg"
+          name: macos-volrover
+          path: |
+            *.dmg
+            *.zip
+          if-no-files-found: error
 
-  # ── Windows: NSIS installer + ZIP ──
+  # ──────────────────────────── Windows ────────────────────────────
   windows:
     runs-on: windows-latest
     steps:
@@ -99,20 +213,52 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Qt
+      - name: Compute artifact metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(awk '/project\(.*VERSION[[:space:]]+[0-9]/ {
+                          for (i=1;i<=NF;i++) if ($i=="VERSION") {
+                            gsub(/[^0-9.]/,"",$(i+1)); print $(i+1); exit }}' CMakeLists.txt)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "arch=x86_64"      >> "$GITHUB_OUTPUT"
+
+      - name: Install Qt6
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.*'
           arch: win64_msvc2022_64
           cache: true
 
+      - name: Cache vcpkg installed packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VCPKG_INSTALLATION_ROOT }}\installed
+            ${{ env.VCPKG_INSTALLATION_ROOT }}\packages
+            ~\AppData\Local\vcpkg\archives
+          key: vcpkg-volrover-release-hdf5cpp-v1
+          restore-keys: |
+            vcpkg-volrover-release-
+
       - name: Install dependencies
+        shell: pwsh
         run: |
-          vcpkg install glew fftw3 gsl log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
+          vcpkg install glew fftw3 gsl hdf5[cpp] log4cplus pthreads `
+            boost-thread boost-date-time boost-regex boost-filesystem `
+            boost-system boost-program-options boost-signals2 boost-any `
+            boost-tuple boost-format boost-multi-array boost-foreach `
+            boost-property-tree boost-algorithm boost-asio boost-bind `
+            boost-graph boost-lambda boost-lexical-cast boost-spirit `
+            boost-tokenizer boost-dynamic-bitset boost-numeric-conversion `
+            boost-range boost-smart-ptr boost-functional `
+            cgal `
+            --triplet x64-windows
         env:
           VCPKG_MAX_CONCURRENCY: 4
 
       - name: Configure
+        shell: pwsh
         run: |
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
@@ -120,54 +266,41 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
             -DUSE_QT6=ON `
-            -DDISABLE_CGAL=ON `
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/_install"
 
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Install and verify DLLs
-        shell: pwsh
-        run: |
-          cmake --install build --config Release
-          Write-Host "=== Installed files ==="
-          Get-ChildItem -Recurse "${{ github.workspace }}/_install/bin" | Select-Object Name
-          Write-Host ""
-          Write-Host "=== DLL dependencies (dumpbin) ==="
-          $dumpbin = & vswhere -latest -find '**/dumpbin.exe' | Select-Object -First 1
-          if ($dumpbin) {
-            & $dumpbin /dependents "${{ github.workspace }}/_install/bin/VolumeRover2.exe" | Select-String '\.dll'
-          } else {
-            Write-Host "dumpbin not found, skipping dependency check"
-          }
-
       - name: Install NSIS
-        shell: pwsh
         run: choco install nsis -y
 
-      - name: Create packages
+      - name: Pack zip + NSIS
         shell: pwsh
         working-directory: build
         run: |
+          $stem = "VolumeRover-${{ steps.meta.outputs.version }}-windows-${{ steps.meta.outputs.arch }}"
           $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\NSIS' -ErrorAction SilentlyContinue).'(default)'
           if (-not $nsisPath) {
             $nsisPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\NSIS' -ErrorAction SilentlyContinue).'(default)'
           }
-          if ($nsisPath) {
-            $env:PATH = "$nsisPath;$env:PATH"
-          }
-          cpack -G NSIS -C Release
-          cpack -G ZIP -C Release
+          if ($nsisPath) { $env:PATH = "$nsisPath;$env:PATH" }
+
+          cpack -G ZIP  -C Release -D CPACK_PACKAGE_FILE_NAME="$stem"
+          cpack -G NSIS -C Release -D CPACK_PACKAGE_FILE_NAME="$stem-setup"
+
+          Copy-Item "$stem.zip"       "$env:GITHUB_WORKSPACE/"
+          Copy-Item "$stem-setup.exe" "$env:GITHUB_WORKSPACE/"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-packages
+          name: windows-volrover
           path: |
-            build/*.exe
-            build/*.zip
+            *.zip
+            *.exe
+          if-no-files-found: error
 
-  # ── Create GitHub Release ──
+  # ──────────────────────────── Release ────────────────────────────
   release:
     needs: [linux, macos, windows]
     runs-on: ubuntu-latest
@@ -186,9 +319,14 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          # Preserve any curated release body. With generate_release_notes
+          # false and no body input, softprops will not clobber a hand-
+          # written body when re-running on an existing tag.
+          generate_release_notes: false
           files: |
+            artifacts/*.tar.gz
+            artifacts/*.zip
             artifacts/*.deb
             artifacts/*.dmg
             artifacts/*.exe
-            artifacts/*.zip
+            artifacts/*.AppImage

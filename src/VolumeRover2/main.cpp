@@ -51,15 +51,15 @@
 #include <VolumeRover2/ContoursInterface.h>
 #endif
 
-#include <CVC/App.h>
-#include <CVC/BoundingBox.h>
-#include <CVC/Dimension.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 
 #ifndef CVC_HDF5_DISABLED
-#include <CVC/HDF5_Utilities.h>
+#include <cvc_compat.h>
 #endif
 
-#include <CVC/log4cplus_compat.h>
+#include <log4cplus_compat.h>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
@@ -229,7 +229,7 @@ namespace
     {
 #ifndef CVC_HDF5_DISABLED
       using namespace std;
-      using namespace boost;
+      using namespace boost; using boost::format;
       using namespace CVC::HDF5_Utilities;
 
       CVC::ThreadFeedback feedback(BOOST_CURRENT_FUNCTION);
@@ -295,7 +295,7 @@ namespace
               filename_to_open = cache_filename + "|" + cache_object;
 
               //convert to cache file hdf5 object.  This step will perform the hierarchy build.
-              VolMagick::volconvert(_filepath,filename_to_open);
+              VolMagick::volconvert(cvcapp, _filepath,filename_to_open);
               setAttribute(cache_filename,cache_object,"origin",_filepath);
               CVC::uint64 modtime = 
                 QFileInfo(QString::fromStdString(_filepath)).lastModified().toSecsSinceEpoch();
@@ -332,7 +332,7 @@ namespace
 
     try
       {
-        using namespace boost;
+        using namespace boost; using boost::format;
 
         std::string actualPath;
         std::string objectName;
@@ -424,7 +424,7 @@ namespace
 
   bool load_cvcgeom(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     try
       {
@@ -474,7 +474,7 @@ namespace
 
   bool load_image(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     try
       {
@@ -543,17 +543,17 @@ namespace
               vol(i,j,0, qGray(img.pixel(i,j)));
 
 	// write volume for test
-	VolMagick::createVolumeFile(ofile.c_str(),
+	VolMagick::createVolumeFile(cvcapp, ofile.c_str(),
 				  vol.boundingBox(),
 				  vol.dimension(),
 				  std::vector<VolMagick::VoxelType>(1, vol.voxelType()));
 
-	VolMagick::writeVolumeFile(vol,ofile);
+	VolMagick::writeVolumeFile(cvcapp, vol,ofile);
 
         cvcapp.log(2,str(format("%s :: load done\n") 
                          % BOOST_CURRENT_FUNCTION));
 
-	VolMagick::VolumeFileInfo vfi(ofile);
+	VolMagick::VolumeFileInfo vfi(cvcapp, ofile);
 
         //copy it to the data map
         cvcapp.data(key, vfi);
@@ -571,7 +571,7 @@ namespace
 
   bool load_2DMRC(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
 
     try
       {
@@ -615,7 +615,7 @@ namespace
                          % BOOST_CURRENT_FUNCTION));
         // load image
 	VolMagick::Volume img;
-        VolMagick::readVolumeFile(img,filepath.c_str());
+        VolMagick::readVolumeFile(cvcapp, img,filepath.c_str());
 	img.map(0.0,255.0);
 	img.voxelType(VolMagick::UChar);
 	if(img.ZDim() > 1) {
@@ -626,17 +626,17 @@ namespace
 
 	// write volume for re-read : this must be updated by copying data without file I/O
 	// currently, if we set volume into data map, it doesn't initialize bounding box correctly.
-	VolMagick::createVolumeFile(ofile.c_str(),
+	VolMagick::createVolumeFile(cvcapp, ofile.c_str(),
 				  VolMagick::BoundingBox(0.0,0.0,0.0,img.XDim()-1.0, img.YDim()-1.0, 1.0),
 				  img.dimension(),
 				  std::vector<VolMagick::VoxelType>(1, img.voxelType()));
 
-	VolMagick::writeVolumeFile(img,ofile);
+	VolMagick::writeVolumeFile(cvcapp, img,ofile);
 
         cvcapp.log(2,str(format("%s :: load done\n") 
                          % BOOST_CURRENT_FUNCTION));
 
-	VolMagick::VolumeFileInfo vfi(ofile);
+	VolMagick::VolumeFileInfo vfi(cvcapp, ofile);
 
         //copy it to the data map
         cvcapp.data(key, vfi);
@@ -671,7 +671,7 @@ namespace
 
   bool load_ser(const std::string& filepath)
   {
-    using namespace boost;
+    using namespace boost; using boost::format;
     static log4cplus::Logger logger = FUNCTION_LOGGER;
 
     try

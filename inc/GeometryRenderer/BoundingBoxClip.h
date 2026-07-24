@@ -22,8 +22,8 @@
 
 /* $Id: BoundingBoxClip.h 5692 2012-06-01 22:39:25Z transfix $ */
 
-#include <CVC/Namespace.h>
-#include <CVC/BoundingBox.h>
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 
 namespace CVC_NAMESPACE
 {

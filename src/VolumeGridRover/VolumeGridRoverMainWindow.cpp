@@ -31,7 +31,7 @@
 
 #include <VolumeGridRover/VolumeGridRover.h>
 #include <VolumeGridRover/VolumeGridRoverMainWindow.h>
-#include <CVC/App.h>
+#include <cvc_compat.h>
 
 static inline unsigned char mapToChar(double val)
 {
@@ -115,7 +115,7 @@ void VolumeGridRoverMainWindow::fileOpen()
     setCaption("Volume Grid Rover");
 #endif
 
-  VolMagick::VolumeFileInfo vfi(filename.ascii());
+  VolMagick::VolumeFileInfo vfi(cvcapp, filename.ascii());
   m_VolumeFileInfo = vfi;
   m_VolumeGridRover->setVolume(vfi);
   setCaption(filename + " - Volume Grid Rover");

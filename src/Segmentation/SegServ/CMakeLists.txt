@@ -18,7 +18,7 @@ TARGET_LINK_LIBRARIES(SegServ
   SegMonomer
   SegSubunit
   SecStruct
-  XmlRPC
+  cvc::xmlrpc
   VolMagick
   m
 )

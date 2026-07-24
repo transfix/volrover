@@ -1,3 +1,5 @@
+#include <cvc_compat.h>
+#include <cvc_compat.h>
 #include <SweetLBIE/meshGeneration.h>
 
 void sweetLBIE::orientCorner(std::list<sweetMesh::hexahedron>::iterator& hexItr, std::list<sweetMesh::hexVertex>::iterator& v0, std::list<sweetMesh::hexVertex>::iterator& v1, std::list<sweetMesh::hexVertex>::iterator& v2, std::list<sweetMesh::hexVertex>::iterator& v3, std::list<sweetMesh::hexVertex>::iterator& v4, std::list<sweetMesh::hexVertex>::iterator& v5, std::list<sweetMesh::hexVertex>::iterator& v6, std::list<sweetMesh::hexVertex>::iterator& v7){
@@ -293,7 +295,7 @@ void sweetLBIE::test_LBIE(std::string& cur) {
     std::cin >> isoval;
     meshLessThanIsoval = true;
     VolMagick::Volume vol;
-    readVolumeFile(vol, cur);
+    readVolumeFile(cvcapp, vol, cur);
     LBIE_main(vol, isoval, meshLessThanIsoval);
     std::cout << "Ending SWEETLBIE\n";
 }
