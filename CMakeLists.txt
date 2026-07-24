@@ -430,3 +430,21 @@ if(VOLROVER_BUILD_TESTS)
 
   add_subdirectory(tests)
 endif()
+
+# ────────────────────────────────────────────────────────────────────
+# VolumeRover3 (next-generation app, under volrover3/)
+#
+# Strictly additive: the legacy VolumeRover 2.0 targets above are
+# untouched and remain the default build. volrover3 consumes libcvc as
+# an EXTERNAL SDK (find_package(cvc CONFIG) → cvc::cvc) and additionally
+# needs Qt6 (or Qt5) and VTK. Because those dependencies are not
+# guaranteed to be present, the option defaults to OFF; enable with
+#   cmake -DBUILD_VOLROVER3=ON \
+#         -DCMAKE_PREFIX_PATH="<libcvc-sdk>;<deps-prefix-with-qt6-vtk>"
+# ────────────────────────────────────────────────────────────────────
+option(BUILD_VOLROVER3 "Build the VolumeRover3 application (requires an installed libcvc SDK, Qt6/Qt5, and VTK)" OFF)
+if(BUILD_VOLROVER3)
+  add_subdirectory(volrover3)
+else()
+  message(STATUS "VolumeRover3 disabled (BUILD_VOLROVER3=OFF); building VolumeRover 2.0 only")
+endif()

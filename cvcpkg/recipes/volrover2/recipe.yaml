@@ -1,0 +1,84 @@
+schema_version: 1
+recipe:
+  name: volrover2
+  upstream_version: "2.1.0"
+  cvc_revision: 1
+  maintainer: "cvcpkg group"
+  maintainer_email: "info@cvcpkg.org"
+  maintainer_url: "https://cvcpkg.org"
+  description: "VolumeRover 2.0 — interactive volumetric image visualization and processing application (Qt6 GUI plus the VolUtils command-line volume tools)."
+  homepage: https://github.com/transfix/volrover
+  license: GPL-2.0-or-later
+  tags: [scientific, volumetric, visualization, application]
+
+source:
+  # The recipe is co-located with the VolumeRover source tree. The
+  # publish workflow uses `cvcpkg pack --from-prefix`, which does not
+  # consume this field, but the schema requires it; `../../..` points
+  # at the volrover repo root for tools that walk the source tree.
+  type: vendored
+  path: ../../..
+
+patches: []
+
+depends:
+  build: []
+  runtime:
+    - name: qt6
+    - name: boost
+    - name: fftw3
+    - name: gsl
+    - name: log4cplus
+    # glew recipe: libcvc-deps#272 (linux/x86_64 bundle published;
+    # other platforms source-fallback until fleet builds exist).
+    - name: glew
+    # Magick++ is optional (VolUtils image import); the catalog covers
+    # it on linux/macos/windows so it is enabled everywhere. Keep in
+    # sync with cvc-requirements.yaml.
+    - name: imagemagick
+    - name: pthreads4w
+      platforms: [windows]
+  host_tools:
+    - cmake
+    - ninja
+
+build:
+  # The BSD entries do not run in GitHub Actions; they let the cvcpkg
+  # remote-builder fleet build them later (`cvcpkg builds submit --org
+  # cvc`) — the qt6 and other dependency recipes already cover the BSDs.
+  # A wasm entry is a long-shot aspiration (Qt for WebAssembly) and is
+  # intentionally not listed until the dependency story exists.
+  matrix:
+    - platform: linux
+      script: build.sh
+    - platform: macos
+      script: build.sh
+      env:
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+    - platform: windows
+      script: build.ps1
+    - platform: freebsd
+      script: build.sh
+    - platform: openbsd
+      script: build.sh
+    - platform: netbsd
+      script: build.sh
+
+package:
+  # `cvcpkg pack --from-prefix` ships the whole staged prefix; these
+  # globs document the installed app tree.
+  files:
+    # VolumeRover2 GUI binary + VolUtils CLI tools (and, on Windows,
+    # the bundled runtime DLLs / Qt plugins that make it self-contained)
+    - bin/
+    # Shared libraries some configurations install alongside the app
+    - lib/
+    # Top-level README installed at the prefix root
+    - README.md
+    # macOS layout: the top-level CMakeLists appends
+    # `VolumeRover-<ver>.app/Contents` to the install prefix, so the
+    # whole tree lands inside the .app bundle.
+    - VolumeRover-*.app/
+
+abi:
+  cxx_std: 17
