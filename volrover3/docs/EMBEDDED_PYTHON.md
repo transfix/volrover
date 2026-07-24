@@ -87,15 +87,32 @@ second singleton, **45 sites**. Both violate the no-singleton rule and force the
   constructed with the app), the SceneNodes (already thread the app as `SceneNode::_ctx`, `SceneNode.h:16,21` —
   good), and the new `EmbeddedInterpreter`.
 
-**Converge onto cvcGL (companion to Phase 0).** volrover3 today carries a **private fork** of the scene graph —
-its own global-namespace `SceneGraph` plus `GraphicsNode` / `VolumeNode` / `GeometryNode` / `SceneNode`
-(`inc/volrover3/SceneGraph.h`, links only `cvc::cvc`). It should instead use **cvcGL** (`cvc::cvcGL`, the
-`cvcgl` package) — the *same* global-namespace `SceneGraph` that `pycvc_gl` wraps and that carries the
-injected-app ctor. Dropping the fork and linking cvcGL means: the C++ app, `pycvc_gl` scripts, and the state
-tree all share **one** scene-graph type over **one** app — so a script's `pycvc_gl.Scene(app)` and the running
-UI's scene are literally the same objects. Using cvcGL's injected-app ctor also fixes today's coupling gap,
-where the default `SceneGraph()` at `MainWindow.cpp:71` runs under `cvc::gl::context()` (a *separate* app) rather
-than the one the widgets watch.
+**Extract ALL 3D/VTK into cvcGL — volrover3 becomes a thin Qt + Python shell (companion to Phase 0).**
+The directive: *all 3D-graphics and VTK code used by volrover3 lives in cvcGL and is wrapped by pycvc_gl;
+remove the redundant copies from volrover3.* Concretely, volrover3 today carries a **private fork** of the
+entire scene graph — 9 classes (`SceneGraph`, `GraphicsNode`, `GeometryNode`, `VolumeNode`, `SceneNode`,
+`GridNode`, `AxisNode`, `BBoxNode`, `NullGraphicNode`, under `inc/volrover3/`) — and links only `cvc::cvc`.
+
+**cvcGL already has all 9** (`inc/cvc/gl/*.h`), and is the **superset**: byte-diffs are 0–2 lines for most
+(only an include path differs), and cvcGL's `SceneGraph` (+21 lines) already carries the #136 injected-app ctor
++ extras; `SceneNode` similar. So this is overwhelmingly **delete-the-fork-and-repoint**, not a reconciliation:
+
+1. **Delete** volrover3's 9 forked node headers/impls.
+2. **Repoint** includes `<volrover3/XNode.h>` → `<cvc/gl/XNode.h>` and link **`cvc::cvcGL`** (the `cvcgl`
+   package) alongside `cvc::cvc`.
+3. **Reconcile** the few real deltas (adopt cvcGL's injected-app `SceneGraph` ctor; port any volrover3-only
+   node tweaks *up into cvcGL* first if any survive the diff — the `SceneGraph`/`SceneNode` +lines are the only
+   candidates).
+4. **`VTKRenderWidget`** stays in volrover3 (it is a Qt widget) but becomes a **thin host**: it hands its
+   `vtkRenderer` to cvcGL's `SceneGraph::setRenderer` and drives `processEvents()`/render — no scene logic of
+   its own. Same for the camera/transfer-function *rendering* logic (the 3D parts move to cvcGL; the Qt dialogs
+   stay).
+
+**Result:** the C++ app, `pycvc_gl` scripts, and the state tree share **one** scene-graph engine over **one**
+app. A script's `pycvc_gl.Scene(app)` and the running UI's scene are literally the same objects — so §7's
+"Python manipulates/replaces the UI" is matched by "Python manipulates/replaces the **3D scene**" through the
+same cvcGL that C++ uses. volrover3 C++ shrinks to: `QApplication` + the Qt widget/dialog shell + `AppState` +
+the embedded interpreter + the app bootstrap. Everything 3D is cvcGL (reusable, wasm/bake-able, Python-wrapped).
 - `volrover3::app()` and `AppState::instance()` are **deleted**; call sites take the app/appstate from their
   owner (widgets from `MainWindow`, nodes from the SceneGraph, dialogs constructed with a reference).
 
@@ -261,12 +278,16 @@ Two binding families in **one** interpreter, sharing SWIG's runtime type table:
 
 ## 10. Phased plan
 
-- **Phase 0 — no-singleton app ownership + cvcGL convergence + build scaffolding.** Own `shared_ptr<cvc::app>`
-  in `main()`/`MainWindow`; thread it; delete `volrover3::app()` (155 sites) + de-singleton `AppState` (45
-  sites); **drop the private SceneGraph fork and link cvcGL (`cvc::cvcGL`)**, constructing it with the
-  injected-app ctor. Add Python3/SWIG to CMake, `-Wl,--export-dynamic`. Proves volrover3 still builds/links with
-  embedded libpython. (Largest mechanical change; ~200 call sites + the cvcGL swap — may be split into 0a
-  no-singleton / 0b cvcGL / 0c scaffolding.)
+- **Phase 0a — cvcGL extraction.** Delete volrover3's 9 forked node classes; repoint includes to `<cvc/gl/…>`
+  and link `cvc::cvcGL`; reconcile the small `SceneGraph`/`SceneNode` deltas (port any volrover3-only tweaks up
+  into cvcGL first); make `VTKRenderWidget` a thin host over cvcGL's `SceneGraph::setRenderer`. Verify the app
+  renders identically. This shrinks volrover3 to the Qt+state shell and makes the 3D engine one shared,
+  Python-wrapped (`pycvc_gl`) library.
+- **Phase 0b — no-singleton app ownership.** Own one `shared_ptr<cvc::app>` in `main()`/`MainWindow`; thread it;
+  delete `volrover3::app()` (155 sites) + de-singleton `AppState` (45 sites); construct the (now cvcGL)
+  `SceneGraph` with the injected-app ctor.
+- **Phase 0c — build scaffolding.** Add Python3/SWIG to CMake, `-Wl,--export-dynamic`; prove volrover3 still
+  builds/links with embedded libpython.
 - **Phase 1 — smallest end-to-end slice.** `EmbeddedInterpreter` boots once + parks the GIL; `PyHost::app()`
   returns the owned handle; `vrhost.i` compiled in + `vrhost.host` injected; pycvc importable; `run_string()`.
   **Acceptance gtest (in `volrover3_lib`):** run `import vrhost, pycvc; pycvc.state_set(vrhost.host.app(),
