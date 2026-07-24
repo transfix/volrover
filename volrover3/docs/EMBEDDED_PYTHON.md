@@ -242,10 +242,31 @@ Once a script holds the `QMainWindow`, it can do **anything Qt exposes** — on 
   widget (Qt semantics), invalidating any wrapper of it.
 - **Reverse handoff:** `shiboken6.getCppPointer(pyWidget)[0]` (returns a tuple — take element 0).
 
-**Gating dependency (the heavy lift):** hermetic **`shiboken6` + `pyside6` cvcpkg recipes** built against the
-existing `qt6` recipe (Shiboken needs libclang). Already roadmapped as the "linchpin." Optionally a
+**Gating dependency — DONE.** Hermetic **`shiboken6` + `pyside6` 6.8.2 cvcpkg recipes** (libcvc-deps #373),
+built via direct CMake against the cvcpkg `qt6` 6.8.2 (non-standalone → single `libQt6Core` in-process) and a
+hermetic **`llvm18`** recipe for libclang (no system `libclang-18-dev`). One `std::uintptr_t`→64-bit SWIG fix
+in `vrhost.i` was load-bearing (SWIG defaulted it to 32-bit, truncating the `QWidget*`). Optionally a
 `volrover3.qt` Shiboken module wrapping volrover3's *own* widgets (`VTKRenderWidget`, dialogs) for typed
 handles — additive; the generic `QMainWindow` handle already unlocks full control via Qt's own API.
+
+### 7.1 Canonical example — add a menu item that pops a message box
+
+Full runnable script: [`scripts/examples/menu_messagebox.py`](../scripts/examples/menu_messagebox.py). From the
+Python Console dock's REPL: `exec(open("scripts/examples/menu_messagebox.py").read())`. The essence:
+
+```python
+import vrhost
+from PySide6 import QtWidgets
+
+window = vrhost.main_window()                      # the live C++ QMainWindow, adopted by shiboken
+action = window.menuBar().addMenu("&Demo").addAction("Say &Hello")
+action.triggered.connect(lambda: QtWidgets.QMessageBox.information(
+    window, "volrover3", "Hello from embedded Python!"))
+vrhost._demo_action = action                       # keep the slot's Python objects alive
+```
+
+`window.menuBar().addMenu(...)` mutates the **real** menu bar; the `QMessageBox` is a genuine modal parented to
+the app window. Verified headless by `tests/VrHostQtBridgeTest.cpp`.
 
 ## 8. SWIG plan
 
