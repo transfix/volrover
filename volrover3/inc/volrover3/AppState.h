@@ -2,6 +2,7 @@
 #define APPSTATE_H
 
 #include <boost/signals2/connection.hpp>
+#include <cvc/core/app.h>
 #include <cvc/core/state.h>
 #include <cvc/geometry/geometry.h>
 #include <cvc/volume/bounding_box.h>
@@ -11,11 +12,10 @@
 // Application state manager using cvc::state for reactive updates
 class AppState {
 public:
-  // Get default singleton instance (uses "volrover3" prefix)
-  static AppState &instance();
-
-  // Create instance with custom state prefix (for multiple viewers or testing)
-  explicit AppState(const std::string &statePrefix = "volrover3");
+  // Create an instance bound to an explicitly-owned cvc::app. The state prefix
+  // roots this viewer's state under app's state tree (custom prefixes allow
+  // multiple viewers or testing).
+  explicit AppState(cvc::app &app, const std::string &statePrefix = "volrover3");
 
   // Get the state prefix for this instance
   std::string getStatePrefix() const { return m_statePrefix; }
@@ -93,6 +93,7 @@ private:
   cvc::state &getState(const std::string &path);
   void initializeDefaults();
 
+  cvc::app &m_app;
   std::string m_statePrefix;
 };
 

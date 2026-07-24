@@ -6,14 +6,9 @@
 #include <cvc/volume/volume_file_io.h>
 #include <sstream>
 #include <volrover3/AppState.h>
-#include <volrover3/volrover3_app.h>
 
-AppState &AppState::instance() {
-  static AppState instance; // Uses default parameter "volrover3"
-  return instance;
-}
-
-AppState::AppState(const std::string &statePrefix) : m_statePrefix(statePrefix) {
+AppState::AppState(cvc::app &app, const std::string &statePrefix)
+    : m_app(app), m_statePrefix(statePrefix) {
   initializeDefaults();
 }
 
@@ -69,11 +64,11 @@ void AppState::initializeDefaults() {
 }
 
 cvc::state &AppState::getState(const std::string &path) {
-  return cvc::state::instance(volrover3::app())(m_statePrefix)(path);
+  return cvc::state::instance(m_app)(m_statePrefix)(path);
 }
 
 cvc::state &AppState::getRootState() {
-  return cvc::state::instance(volrover3::app())(m_statePrefix);
+  return cvc::state::instance(m_app)(m_statePrefix);
 }
 
 cvc::bounding_box AppState::worldBounds() {

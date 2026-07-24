@@ -13,7 +13,6 @@
 #include <cvc/core/state_exec/process.h>
 #include <sstream>
 #include <volrover3/StateDashboardWidget.h>
-#include <volrover3/volrover3_app.h>
 
 using namespace cvc;
 using namespace cvc::state_exec;

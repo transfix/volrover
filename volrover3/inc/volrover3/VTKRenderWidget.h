@@ -15,6 +15,10 @@
 #define QVTK_WIDGET_BASE QVTKOpenGLWidget
 #endif
 
+namespace cvc {
+class app;
+}
+class AppState;
 class vtkRenderer;
 class vtkRenderWindow;
 class vtkGenericOpenGLRenderWindow;
@@ -26,7 +30,7 @@ class VTKRenderWidget : public QVTK_WIDGET_BASE {
   Q_OBJECT
 
 public:
-  explicit VTKRenderWidget(QWidget *parent = nullptr);
+  explicit VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *parent = nullptr);
   ~VTKRenderWidget();
 
   void setSceneGraph(std::shared_ptr<SceneGraph> sceneGraph);
@@ -55,6 +59,8 @@ private:
   void initializeVTK();
   void updateCamera();
 
+  cvc::app &m_app;
+  AppState &m_appState;
   vtkSmartPointer<vtkGenericOpenGLRenderWindow> m_renderWindow;
   vtkSmartPointer<vtkRenderer> m_renderer;
   std::shared_ptr<SceneGraph> m_sceneGraph;

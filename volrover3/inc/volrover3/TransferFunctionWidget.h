@@ -7,6 +7,9 @@
 #include <memory>
 #include <vector>
 
+namespace cvc {
+class app;
+}
 class QCustomPlot;
 class QCPGraph;
 class QCPColorMap;
@@ -30,7 +33,7 @@ public:
     double opacity;
   };
 
-  explicit TransferFunctionWidget(QWidget *parent = nullptr);
+  explicit TransferFunctionWidget(cvc::app &app, QWidget *parent = nullptr);
   ~TransferFunctionWidget();
 
   void setDataRange(double min, double max);
@@ -76,6 +79,7 @@ private:
   std::vector<ColorPoint> m_colorPoints;
   std::vector<OpacityPoint> m_opacityPoints;
 
+  cvc::app &m_app;
   SceneGraph *m_sceneGraph;
   std::vector<std::shared_ptr<VolumeNode>> m_volumes;
 

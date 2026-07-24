@@ -8,11 +8,10 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <volrover3/ThreadMonitorWidget.h>
-#include <volrover3/volrover3_app.h>
 
-ThreadMonitorWidget::ThreadMonitorWidget(QWidget *parent)
-    : QWidget(parent), m_threadTable(nullptr), m_updateTimer(nullptr), m_cleanupTimer(nullptr),
-      m_updatePending(false) {
+ThreadMonitorWidget::ThreadMonitorWidget(cvc::app &app, QWidget *parent)
+    : QWidget(parent), m_app(app), m_threadTable(nullptr), m_updateTimer(nullptr),
+      m_cleanupTimer(nullptr), m_updatePending(false) {
   setupUI();
 
   // Set up rate-limiting timer (minimum 50ms between updates)
@@ -95,7 +94,7 @@ void ThreadMonitorWidget::registerCallbacks() {
   // Connect to the app's thread map changes signal
   // This fires whenever a thread is added, removed, or its state changes
   // Use QMetaObject::invokeMethod to ensure UI updates happen on the main thread
-  auto connection = volrover3::app().threadsChanged.connect([this](const std::string &) {
+  auto connection = m_app.threadsChanged.connect([this](const std::string &) {
     QMetaObject::invokeMethod(this, "requestUpdate", Qt::QueuedConnection);
   });
   m_connections.push_back(connection);
@@ -137,7 +136,7 @@ void ThreadMonitorWidget::performUpdate() {
 
 void ThreadMonitorWidget::updateThreadTable() {
   // Get current threads from cvc::app
-  cvc::thread_map threads = volrover3::app().threads();
+  cvc::thread_map threads = m_app.threads();
 
   // Track which threads are completed (100% progress)
   // Note: We avoid calling thread->joinable() frequently as it can be expensive
@@ -149,7 +148,7 @@ void ThreadMonitorWidget::updateThreadTable() {
     if (!thread)
       continue;
 
-    double progress = volrover3::app().threadProgress(threadKey);
+    double progress = m_app.threadProgress(threadKey);
     bool isComplete = (progress >= 1.0);
 
     if (isComplete) {
@@ -158,7 +157,7 @@ void ThreadMonitorWidget::updateThreadTable() {
         m_completedThreads[threadKey] = currentTime;
 
         // Emit signal for status bar update
-        std::string info = volrover3::app().threadInfo(threadKey);
+        std::string info = m_app.threadInfo(threadKey);
         emit threadCompleted(QString::fromStdString(threadKey),
                              QString::fromStdString(info.empty() ? "completed" : info));
       }
@@ -188,8 +187,8 @@ void ThreadMonitorWidget::updateThreadTable() {
     m_threadTable->setItem(row, COL_NAME, nameItem);
 
     // Column 1: Status (thread info)
-    std::string statusInfo = volrover3::app().threadInfo(threadKey);
-    double progress = volrover3::app().threadProgress(threadKey);
+    std::string statusInfo = m_app.threadInfo(threadKey);
+    double progress = m_app.threadProgress(threadKey);
     bool isComplete = (progress >= 1.0);
 
     if (isComplete) {
@@ -268,7 +267,7 @@ void ThreadMonitorWidget::cancelThread(const std::string &threadKey) {
   }
 
   // Get the thread and interrupt it
-  cvc::thread_ptr thread = volrover3::app().threads(threadKey);
+  cvc::thread_ptr thread = m_app.threads(threadKey);
   if (thread) {
     thread->interrupt();
 
@@ -306,7 +305,7 @@ void ThreadMonitorWidget::cleanupCompletedThreads() {
     m_completedThreads.erase(threadKey);
 
     // Remove from the app's thread map
-    volrover3::app().removeThread(threadKey);
+    m_app.removeThread(threadKey);
   }
 
   // Request UI update if we removed any threads

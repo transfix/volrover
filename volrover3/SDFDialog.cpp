@@ -21,10 +21,9 @@
 #include <volrover3/SDFDialog.h>
 #include <cvc/gl/SceneGraph.h>
 #include <cvc/gl/VolumeNode.h>
-#include <volrover3/volrover3_app.h>
 
-SDFDialog::SDFDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
-    : QDialog(parent), m_sceneGraph(sceneGraph), m_geometryComboBox(nullptr),
+SDFDialog::SDFDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
+    : QDialog(parent), m_app(app), m_sceneGraph(sceneGraph), m_geometryComboBox(nullptr),
       m_dimXSpinBox(nullptr), m_dimYSpinBox(nullptr), m_dimZSpinBox(nullptr),
       m_algorithmComboBox(nullptr), m_flipNormalsCheckBox(nullptr), m_useBoundsCheckBox(nullptr),
       m_minXSpinBox(nullptr), m_minYSpinBox(nullptr), m_minZSpinBox(nullptr),
@@ -44,7 +43,7 @@ SDFDialog::SDFDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
     std::string graphicsRootPath = statePrefix + ".graphics.root.children";
 
     m_graphicsChildrenConnection =
-        cvc::state::instance(volrover3::app())(graphicsRootPath)
+        cvc::state::instance(m_app)(graphicsRootPath)
             .childChanged.connect([this](const std::string &) {
               // Post to Qt event loop to ensure thread safety
               QMetaObject::invokeMethod(this, "onGraphicsChildrenChanged", Qt::QueuedConnection);
@@ -305,12 +304,12 @@ void SDFDialog::onGeometrySelected(int index) {
 }
 
 void SDFDialog::onComputeClicked() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(m_app, BOOST_CURRENT_FUNCTION);
 
   if (m_computing) {
     // Cancel ongoing computation
     if (!m_activeThreadKey.empty()) {
-      volrover3::app().threads(m_activeThreadKey)->interrupt();
+      m_app.threads(m_activeThreadKey)->interrupt();
     }
     setControlsEnabled(true);
     m_statusLabel->setText(tr("Cancelled"));
@@ -375,23 +374,23 @@ void SDFDialog::onComputeClicked() {
   m_activeThreadKey = "sdf_computation_" + geomName;
 
   // Start computation in background thread
-  volrover3::app().startThread(
+  m_app.startThread(
       m_activeThreadKey,
       [this, geom, dim, bbox, algorithm, flipNormals, geomName, activeKey = m_activeThreadKey]() {
         // Use thread_feedback for proper progress tracking (must be at thread entry point)
-        cvc::app::thread_feedback feedback(volrover3::app(), activeKey);
+        cvc::app::thread_feedback feedback(m_app, activeKey);
 
         try {
           // Update progress to indicate we've started
-          volrover3::app().threadProgress(activeKey, 0.1);
-          volrover3::app().threadInfo(activeKey, "Computing SDF...");
+          m_app.threadProgress(activeKey, 0.1);
+          m_app.threadInfo(activeKey, "Computing SDF...");
 
           // Compute SDF (this is safe to do in background thread)
-          cvc::volume sdfVol = cvc::sdf(volrover3::app(), geom, dim, bbox, algorithm, flipNormals);
+          cvc::volume sdfVol = cvc::sdf(m_app, geom, dim, bbox, algorithm, flipNormals);
 
           // Update progress
-          volrover3::app().threadProgress(activeKey, 0.9);
-          volrover3::app().threadInfo(activeKey, "Adding volume to scene...");
+          m_app.threadProgress(activeKey, 0.9);
+          m_app.threadInfo(activeKey, "Adding volume to scene...");
 
           // SDF computation complete, now adding to scene
           QMetaObject::invokeMethod(
@@ -427,7 +426,7 @@ void SDFDialog::onComputeClicked() {
               }
 
               // Mark thread as finished
-              volrover3::app().finishThreadProgress(activeKey);
+              m_app.finishThreadProgress(activeKey);
 
               // Update UI on Qt thread
               QMetaObject::invokeMethod(
@@ -435,7 +434,7 @@ void SDFDialog::onComputeClicked() {
                   Qt::QueuedConnection);
             } catch (const std::exception &e) {
               std::string errorMsg = std::string("Failed to create volume node: ") + e.what();
-              volrover3::app().finishThreadProgress(activeKey);
+              m_app.finishThreadProgress(activeKey);
               QMetaObject::invokeMethod(
                   this, [this, errorMsg]() { onComputeFinished(false, errorMsg); },
                   Qt::QueuedConnection);

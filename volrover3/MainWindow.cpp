@@ -39,10 +39,10 @@
 #include <volrover3/ViewerOptionsDialog.h>
 #include <volrover3/VolumeDialog.h>
 #include <cvc/gl/VolumeNode.h>
-#include <volrover3/volrover3_app.h>
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), m_renderWidget(nullptr), m_transferFunctionWidget(nullptr),
+MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
+    : QMainWindow(parent), m_app(std::move(app)), m_renderWidget(nullptr),
+      m_transferFunctionWidget(nullptr),
       m_sceneGraph(nullptr) // Will be created after callback is set
       ,
       m_threadMonitor(nullptr), m_stateTreeWidget(nullptr), m_stateDashboardWidget(nullptr),
@@ -54,18 +54,23 @@ MainWindow::MainWindow(QWidget *parent)
   setWindowTitle("VolRover3 - Volume Rover Version 3");
   resize(1280, 720);
 
+  // Build the application state on the owned app before any widget/scene that
+  // needs it. AppState roots this viewer's state under app's "volrover3"
+  // subtree.
+  m_appState = std::make_unique<AppState>(*m_app, "volrover3");
+
   // Create the scene graph on the UI thread. cvcGL's SceneGraph adopts the
   // constructing thread as its owner thread: node work initiated here runs
   // inline, work from cvc worker threads is marshalled through the scene's
   // event queue (drained by VTKRenderWidget's pump) and weak-guarded per node
   // (the race-free model from cvcGL PR #112) — so the old
   // SceneNode::setMainThreadCallback marshaling is no longer needed. The
-  // "volrover3" prefix roots the scene state under the app's volrover3 subtree
-  // (Phase 0b switches this to the injected-app ctor).
-  m_sceneGraph = std::make_shared<SceneGraph>("volrover3");
+  // injected-app ctor roots the scene state under the same owned app's
+  // "volrover3" subtree, unifying the state tree with AppState.
+  m_sceneGraph = std::make_shared<SceneGraph>(*m_app, "volrover3");
 
   // Create central render widget
-  m_renderWidget = new VTKRenderWidget(this);
+  m_renderWidget = new VTKRenderWidget(*m_app, *m_appState, this);
   m_renderWidget->setSceneGraph(m_sceneGraph);
   setCentralWidget(m_renderWidget);
 
@@ -81,11 +86,11 @@ MainWindow::MainWindow(QWidget *parent)
   m_axisVisible = true; // AxisNode default
 
   // Initialize grid with default world bounds
-  m_sceneGraph->updateGrid(AppState::instance().worldBounds());
+  m_sceneGraph->updateGrid(m_appState->worldBounds());
 
   // Connect to state changes
-  AppState::instance().onWorldBoundsChanged([this]() {
-    cvc::bounding_box bounds = AppState::instance().worldBounds();
+  m_appState->onWorldBoundsChanged([this]() {
+    cvc::bounding_box bounds = m_appState->worldBounds();
 
     std::cout << "[DEBUG] MainWindow - World bounds changed: [" << bounds[0] << "," << bounds[1]
               << "," << bounds[2] << "] to [" << bounds[3] << "," << bounds[4] << "," << bounds[5]
@@ -97,7 +102,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Update camera orbit center to match new bounds center
     CameraController *camCtrl = m_renderWidget->getCameraController();
     if (camCtrl) {
-      cvc::bounding_box bounds = AppState::instance().worldBounds();
+      cvc::bounding_box bounds = m_appState->worldBounds();
       camCtrl->updateOrbitCenterFromBounds(bounds.minx, bounds.miny, bounds.minz, bounds.maxx,
                                            bounds.maxy, bounds.maxz);
     }
@@ -313,7 +318,7 @@ void MainWindow::createDockWidgets() {
   QDockWidget *tfDock = new QDockWidget(tr("Transfer Function"), this);
   tfDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
-  m_transferFunctionWidget = new TransferFunctionWidget(tfDock);
+  m_transferFunctionWidget = new TransferFunctionWidget(*m_app, tfDock);
   m_transferFunctionWidget->setSceneGraph(m_sceneGraph.get());
   tfDock->setWidget(m_transferFunctionWidget);
 
@@ -334,7 +339,7 @@ void MainWindow::setupConnections() {
 }
 
 void MainWindow::openFile() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   // First, show parent selection dialog
   GraphicsParentDialog parentDialog(m_sceneGraph, this);
@@ -423,7 +428,7 @@ void MainWindow::openFile() {
 
       try {
         // Try loading as volume
-        cvc::volume vol(volrover3::app(), fileName.toStdString());
+        cvc::volume vol(*m_app, fileName.toStdString());
         auto volumeNode = m_sceneGraph->addGraphics(graphicsName, vol);
         volumeNode->setMetadata("type", std::string("volume"));
         volumeNode->setMetadata("filename", fileName.toStdString());
@@ -573,14 +578,14 @@ void MainWindow::toggleAxis() {
 }
 
 void MainWindow::editBoundingBox() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   BoundingBoxDialog dialog(m_sceneGraph, this);
   dialog.exec();
 }
 
 void MainWindow::editCameraSettings() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   CameraController *camCtrl = m_renderWidget->getCameraController();
   if (!camCtrl)
@@ -589,16 +594,16 @@ void MainWindow::editCameraSettings() {
   if (!m_cameraDialog) {
     // Get current settings from AppState for initial setup
     CameraSettingsDialog::CameraSettings settings;
-    settings.mode = AppState::instance().cameraMode();
-    settings.flySpeed = AppState::instance().cameraSpeed();
-    settings.mouseSensitivity = AppState::instance().cameraSensitivity();
-    settings.invertMouse = AppState::instance().cameraInvertMouse();
-    settings.keyForward = AppState::instance().cameraKeyForward();
-    settings.keyBackward = AppState::instance().cameraKeyBackward();
-    settings.keyStrafeLeft = AppState::instance().cameraKeyLeft();
-    settings.keyStrafeRight = AppState::instance().cameraKeyRight();
-    settings.keyUp = AppState::instance().cameraKeyUp();
-    settings.keyDown = AppState::instance().cameraKeyDown();
+    settings.mode = m_appState->cameraMode();
+    settings.flySpeed = m_appState->cameraSpeed();
+    settings.mouseSensitivity = m_appState->cameraSensitivity();
+    settings.invertMouse = m_appState->cameraInvertMouse();
+    settings.keyForward = m_appState->cameraKeyForward();
+    settings.keyBackward = m_appState->cameraKeyBackward();
+    settings.keyStrafeLeft = m_appState->cameraKeyLeft();
+    settings.keyStrafeRight = m_appState->cameraKeyRight();
+    settings.keyUp = m_appState->cameraKeyUp();
+    settings.keyDown = m_appState->cameraKeyDown();
 
     // Pass camera state tree for live state display (subscribes to childChanged signal)
     cvc::state &cameraState = camCtrl->getState();
@@ -611,7 +616,7 @@ void MainWindow::editCameraSettings() {
 
     // Connect reset view signal
     connect(m_cameraDialog, &CameraSettingsDialog::resetViewRequested, [this, camCtrl]() {
-      cvc::bounding_box bounds = AppState::instance().worldBounds();
+      cvc::bounding_box bounds = m_appState->worldBounds();
       camCtrl->resetView(bounds.minx, bounds.miny, bounds.minz, bounds.maxx, bounds.maxy,
                          bounds.maxz);
       m_renderWidget->render();
@@ -621,16 +626,16 @@ void MainWindow::editCameraSettings() {
     connect(m_cameraDialog, &CameraSettingsDialog::settingsChanged,
             [this, camCtrl](const CameraSettingsDialog::CameraSettings &newSettings) {
               // Save settings to AppState
-              AppState::instance().setCameraMode(newSettings.mode);
-              AppState::instance().setCameraSpeed(newSettings.flySpeed);
-              AppState::instance().setCameraSensitivity(newSettings.mouseSensitivity);
-              AppState::instance().setCameraInvertMouse(newSettings.invertMouse);
-              AppState::instance().setCameraKeyForward(newSettings.keyForward);
-              AppState::instance().setCameraKeyBackward(newSettings.keyBackward);
-              AppState::instance().setCameraKeyLeft(newSettings.keyStrafeLeft);
-              AppState::instance().setCameraKeyRight(newSettings.keyStrafeRight);
-              AppState::instance().setCameraKeyUp(newSettings.keyUp);
-              AppState::instance().setCameraKeyDown(newSettings.keyDown);
+              m_appState->setCameraMode(newSettings.mode);
+              m_appState->setCameraSpeed(newSettings.flySpeed);
+              m_appState->setCameraSensitivity(newSettings.mouseSensitivity);
+              m_appState->setCameraInvertMouse(newSettings.invertMouse);
+              m_appState->setCameraKeyForward(newSettings.keyForward);
+              m_appState->setCameraKeyBackward(newSettings.keyBackward);
+              m_appState->setCameraKeyLeft(newSettings.keyStrafeLeft);
+              m_appState->setCameraKeyRight(newSettings.keyStrafeRight);
+              m_appState->setCameraKeyUp(newSettings.keyUp);
+              m_appState->setCameraKeyDown(newSettings.keyDown);
 
               // Apply settings to controller
               camCtrl->setMode(static_cast<CameraMode>(newSettings.mode));
@@ -643,7 +648,7 @@ void MainWindow::editCameraSettings() {
 
               // Update orbit center to world bounds center when switching to orbit mode
               if (newSettings.mode == 0) {
-                cvc::bounding_box bounds = AppState::instance().worldBounds();
+                cvc::bounding_box bounds = m_appState->worldBounds();
                 double cx = (bounds[0] + bounds[3]) * 0.5;
                 double cy = (bounds[1] + bounds[4]) * 0.5;
                 double cz = (bounds[2] + bounds[5]) * 0.5;
@@ -660,7 +665,7 @@ void MainWindow::editCameraSettings() {
 }
 
 void MainWindow::showGridOptions() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   if (!m_gridOptionsDialog) {
     m_gridOptionsDialog = new GridOptionsDialog(m_sceneGraph->getGridNode());
@@ -678,10 +683,10 @@ void MainWindow::showGridOptions() {
 }
 
 void MainWindow::showViewerOptions() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   if (!m_viewerOptionsDialog) {
-    m_viewerOptionsDialog = new ViewerOptionsDialog(m_renderWidget, m_sceneGraph);
+    m_viewerOptionsDialog = new ViewerOptionsDialog(*m_appState, m_renderWidget, m_sceneGraph);
     m_viewerOptionsDialog->setWindowTitle(tr("Viewer Options - VolRover3"));
     m_viewerOptionsDialog->setAttribute(Qt::WA_DeleteOnClose);
 
@@ -698,7 +703,7 @@ void MainWindow::showViewerOptions() {
 void MainWindow::showThreadMonitor() {
   // Create thread monitor widget as a separate window if not already created
   if (!m_threadMonitor) {
-    m_threadMonitor = new ThreadMonitorWidget();
+    m_threadMonitor = new ThreadMonitorWidget(*m_app);
     m_threadMonitor->setWindowTitle(tr("Thread Monitor - VolRover3"));
     m_threadMonitor->setAttribute(Qt::WA_DeleteOnClose);
 
@@ -723,13 +728,13 @@ void MainWindow::showThreadMonitor() {
 void MainWindow::showStateTree() {
   // Create state tree widget as a separate window if not already created
   if (!m_stateTreeWidget) {
-    m_stateTreeWidget = new StateTreeWidget();
+    m_stateTreeWidget = new StateTreeWidget(*m_app);
     m_stateTreeWidget->setWindowTitle(tr("State Tree - VolRover3"));
     m_stateTreeWidget->setAttribute(Qt::WA_DeleteOnClose);
     m_stateTreeWidget->resize(600, 500);
 
     // Set root state to the global state singleton
-    m_stateTreeWidget->setRootState(&cvc::state::instance(volrover3::app()));
+    m_stateTreeWidget->setRootState(&cvc::state::instance(*m_app));
 
     // Clean up pointer when window is closed
     connect(m_stateTreeWidget, &QObject::destroyed, [this]() { m_stateTreeWidget = nullptr; });
@@ -758,7 +763,7 @@ void MainWindow::showStateDashboard() {
     m_stateDashboardWidget->setWindowTitle(tr("State Dashboard - VolRover3"));
     m_stateDashboardWidget->setAttribute(Qt::WA_DeleteOnClose);
     m_stateDashboardWidget->resize(900, 650);
-    m_stateDashboardWidget->setRootState(&cvc::state::instance(volrover3::app()));
+    m_stateDashboardWidget->setRootState(&cvc::state::instance(*m_app));
 
     connect(m_stateDashboardWidget, &QObject::destroyed,
             [this]() { m_stateDashboardWidget = nullptr; });
@@ -775,11 +780,11 @@ void MainWindow::showStateDashboard() {
 }
 
 void MainWindow::showSDF() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   // Create SDF dialog as a separate window if not already created
   if (!m_sdfDialog) {
-    m_sdfDialog = new SDFDialog(m_sceneGraph);
+    m_sdfDialog = new SDFDialog(*m_app, m_sceneGraph);
     m_sdfDialog->setWindowTitle(tr("Signed Distance Function - VolRover3"));
     m_sdfDialog->setAttribute(Qt::WA_DeleteOnClose);
 
@@ -794,11 +799,11 @@ void MainWindow::showSDF() {
 }
 
 void MainWindow::showIsosurface() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   // Create Isosurface dialog as a separate window if not already created
   if (!m_isosurfaceDialog) {
-    m_isosurfaceDialog = new IsosurfaceDialog(m_sceneGraph);
+    m_isosurfaceDialog = new IsosurfaceDialog(*m_app, m_sceneGraph);
     m_isosurfaceDialog->setWindowTitle(tr("Isosurface Extraction - VolRover3"));
     m_isosurfaceDialog->setAttribute(Qt::WA_DeleteOnClose);
 
@@ -813,11 +818,11 @@ void MainWindow::showIsosurface() {
 }
 
 void MainWindow::showGeometry() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   // Create Geometry dialog as a separate window if not already created
   if (!m_geometryDialog) {
-    m_geometryDialog = new GeometryDialog(m_sceneGraph, this);
+    m_geometryDialog = new GeometryDialog(*m_app, m_sceneGraph, this);
     m_geometryDialog->setWindowTitle(tr("Geometry Properties - VolRover3"));
     m_geometryDialog->setAttribute(Qt::WA_DeleteOnClose);
 
@@ -832,7 +837,7 @@ void MainWindow::showGeometry() {
 }
 
 void MainWindow::showVolume() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   // Create Volume dialog as a separate window if not already created
   if (!m_volumeDialog) {
@@ -869,7 +874,7 @@ void MainWindow::resetCamera() {
   CameraController *camCtrl = m_renderWidget->getCameraController();
   if (camCtrl) {
     // Use CameraController's resetView to properly update state tree
-    cvc::bounding_box bounds = AppState::instance().worldBounds();
+    cvc::bounding_box bounds = m_appState->worldBounds();
     camCtrl->resetView(bounds.minx, bounds.miny, bounds.minz, bounds.maxx, bounds.maxy,
                        bounds.maxz);
     m_renderWidget->render();
@@ -877,7 +882,7 @@ void MainWindow::resetCamera() {
 }
 
 void MainWindow::generateStanfordBunny() {
-  cvc::thread_info ti(volrover3::app(), BOOST_CURRENT_FUNCTION);
+  cvc::thread_info ti(*m_app, BOOST_CURRENT_FUNCTION);
 
   try {
     // Load the built-in Stanford Bunny using the .bunny extension
@@ -906,7 +911,7 @@ void MainWindow::generateStanfordBunny() {
     graphicsNode->setMetadata("source", std::string("built-in"));
 
     // Update world bounds and reset camera to show new geometry
-    AppState::instance().setWorldBounds(geom.extents());
+    m_appState->setWorldBounds(geom.extents());
     resetCamera();
 
     statusBar()->showMessage(tr("Generated Stanford Bunny: %1 vertices, %2 triangles")
@@ -921,7 +926,7 @@ void MainWindow::generateStanfordBunny() {
 }
 
 void MainWindow::generateSphere() {
-  ProceduralGeometryDialog dialog(ProceduralGeometryType::Sphere, m_sceneGraph, this);
+  ProceduralGeometryDialog dialog(*m_appState, ProceduralGeometryType::Sphere, m_sceneGraph, this);
   if (dialog.exec() == QDialog::Accepted) {
     resetCamera();
     statusBar()->showMessage(tr("Generated Sphere"), 3000);
@@ -929,7 +934,7 @@ void MainWindow::generateSphere() {
 }
 
 void MainWindow::generateCube() {
-  ProceduralGeometryDialog dialog(ProceduralGeometryType::Cube, m_sceneGraph, this);
+  ProceduralGeometryDialog dialog(*m_appState, ProceduralGeometryType::Cube, m_sceneGraph, this);
   if (dialog.exec() == QDialog::Accepted) {
     resetCamera();
     statusBar()->showMessage(tr("Generated Cube"), 3000);
@@ -937,7 +942,7 @@ void MainWindow::generateCube() {
 }
 
 void MainWindow::generateTorus() {
-  ProceduralGeometryDialog dialog(ProceduralGeometryType::Torus, m_sceneGraph, this);
+  ProceduralGeometryDialog dialog(*m_appState, ProceduralGeometryType::Torus, m_sceneGraph, this);
   if (dialog.exec() == QDialog::Accepted) {
     resetCamera();
     statusBar()->showMessage(tr("Generated Torus"), 3000);
@@ -945,7 +950,7 @@ void MainWindow::generateTorus() {
 }
 
 void MainWindow::generateCone() {
-  ProceduralGeometryDialog dialog(ProceduralGeometryType::Cone, m_sceneGraph, this);
+  ProceduralGeometryDialog dialog(*m_appState, ProceduralGeometryType::Cone, m_sceneGraph, this);
   if (dialog.exec() == QDialog::Accepted) {
     resetCamera();
     statusBar()->showMessage(tr("Generated Cone"), 3000);
@@ -981,7 +986,7 @@ void MainWindow::setupStatusBar() {
 
   // Register callback for thread changes
   // Use QMetaObject::invokeMethod to ensure UI updates happen on the main thread
-  m_connections.push_back(volrover3::app().threadsChanged.connect([this](const std::string &) {
+  m_connections.push_back(m_app->threadsChanged.connect([this](const std::string &) {
     QMetaObject::invokeMethod(this, "updateThreadStatus", Qt::QueuedConnection);
   }));
 
@@ -991,7 +996,7 @@ void MainWindow::setupStatusBar() {
 
 void MainWindow::updateThreadStatus() {
   // Get all threads
-  auto threads = volrover3::app().threads();
+  auto threads = m_app->threads();
 
   if (threads.empty()) {
     // No threads active - hide widgets
@@ -1014,7 +1019,7 @@ void MainWindow::updateThreadStatus() {
       if (!threadPtr)
         continue;
 
-      double progress = volrover3::app().threadProgress(threadKey);
+      double progress = m_app->threadProgress(threadKey);
       bool isComplete = (progress >= 1.0);
 
       if (!isComplete) {
@@ -1034,11 +1039,11 @@ void MainWindow::updateThreadStatus() {
     if (displayThreadKey.empty()) {
       // Fallback to first thread
       displayThreadKey = threads.begin()->first;
-      displayProgress = volrover3::app().threadProgress(displayThreadKey);
+      displayProgress = m_app->threadProgress(displayThreadKey);
     }
 
     // Get thread info
-    std::string info = volrover3::app().threadInfo(displayThreadKey);
+    std::string info = m_app->threadInfo(displayThreadKey);
 
     // Add status indicator
     bool isComplete = (displayProgress >= 1.0);
@@ -1076,20 +1081,20 @@ void MainWindow::initializeCameraFromState() {
     return;
 
   // Load all camera settings from AppState
-  camCtrl->setMode(static_cast<CameraMode>(AppState::instance().cameraMode()));
-  camCtrl->setMovementSpeed(AppState::instance().cameraSpeed());
-  camCtrl->setMouseSensitivity(AppState::instance().cameraSensitivity());
-  camCtrl->setInvertMouse(AppState::instance().cameraInvertMouse());
+  camCtrl->setMode(static_cast<CameraMode>(m_appState->cameraMode()));
+  camCtrl->setMovementSpeed(m_appState->cameraSpeed());
+  camCtrl->setMouseSensitivity(m_appState->cameraSensitivity());
+  camCtrl->setInvertMouse(m_appState->cameraInvertMouse());
   camCtrl->setKeyBindings(
-      AppState::instance().cameraKeyForward(), AppState::instance().cameraKeyBackward(),
-      AppState::instance().cameraKeyLeft(), AppState::instance().cameraKeyRight(),
-      AppState::instance().cameraKeyUp(), AppState::instance().cameraKeyDown());
+      m_appState->cameraKeyForward(), m_appState->cameraKeyBackward(),
+      m_appState->cameraKeyLeft(), m_appState->cameraKeyRight(),
+      m_appState->cameraKeyUp(), m_appState->cameraKeyDown());
 
   // Camera state is now managed entirely through CameraController's state tree
   // No need to load from AppState
 
   // Set orbit center to world bounds center
-  cvc::bounding_box bounds = AppState::instance().worldBounds();
+  cvc::bounding_box bounds = m_appState->worldBounds();
   double cx = (bounds[0] + bounds[3]) / 2.0;
   double cy = (bounds[1] + bounds[4]) / 2.0;
   double cz = (bounds[2] + bounds[5]) / 2.0;

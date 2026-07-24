@@ -7,9 +7,11 @@
 #include <QProgressBar>
 #include <QToolBar>
 #include <boost/signals2.hpp>
+#include <cvc/core/app.h>
 #include <memory>
 #include <vector>
 
+class AppState;
 class VTKRenderWidget;
 class TransferFunctionWidget;
 class SceneGraph;
@@ -28,8 +30,11 @@ class MainWindow : public QMainWindow {
   Q_OBJECT
 
 public:
-  explicit MainWindow(QWidget *parent = nullptr);
+  explicit MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent = nullptr);
   ~MainWindow();
+
+  cvc::app &app() const { return *m_app; }
+  AppState &appState() const { return *m_appState; }
 
 private slots:
   void openFile();
@@ -65,6 +70,11 @@ private:
   void setupConnections();
   void initializeCameraFromState();
   void setupStatusBar();
+
+  // Owned app/state, declared first so they outlive the Qt child-widget
+  // members below (which hold cvc::app&/AppState& references into them).
+  std::shared_ptr<cvc::app> m_app;
+  std::unique_ptr<AppState> m_appState;
 
   VTKRenderWidget *m_renderWidget;
   TransferFunctionWidget *m_transferFunctionWidget;

@@ -11,10 +11,9 @@
 #include <set>
 #include <typeinfo>
 #include <volrover3/StateTreeWidget.h>
-#include <volrover3/volrover3_app.h>
 
-StateTreeWidget::StateTreeWidget(QWidget *parent)
-    : QWidget(parent), m_rootState(nullptr), m_currentState(nullptr) {
+StateTreeWidget::StateTreeWidget(cvc::app &app, QWidget *parent)
+    : QWidget(parent), m_app(app), m_rootState(nullptr), m_currentState(nullptr) {
   QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
   // Create splitter for tree and table
@@ -480,14 +479,14 @@ std::string StateTreeWidget::getStateDataType(cvc::state *state) {
     return "unknown";
 
   try {
-    // Get the boost::any data and use volrover3::app() to get the registered type name
+    // Get the boost::any data and use m_app to get the registered type name
     boost::any anyData = state->data();
     if (anyData.empty()) {
       return "<no data>";
     }
 
-    // Use volrover3::app()'s registered type names
-    std::string typeName = volrover3::app().dataTypeName(anyData);
+    // Use m_app's registered type names
+    std::string typeName = m_app.dataTypeName(anyData);
     return typeName;
   } catch (const std::exception &e) {
     return "<no data>";
@@ -684,7 +683,7 @@ void StateTreeWidget::onAddStateClicked() {
 
   try {
     // Access the state using the full path from the global state singleton
-    cvc::state &newState = cvc::state::instance(volrover3::app())(path.toStdString());
+    cvc::state &newState = cvc::state::instance(m_app)(path.toStdString());
     newState.value(value.toStdString());
 
     // Refresh the tree to show the new state
