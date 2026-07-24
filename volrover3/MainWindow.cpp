@@ -18,7 +18,10 @@
 #include <volrover3/EmbeddedInterpreter.h>
 #include <volrover3/JobScheduler.h>
 #include <volrover3/PyConsoleDock.h>
+#include <volrover3/PyHost.h> // set_main_window_ptr — the Qt-from-Python bridge
 #include <volrover3/Settings.h>
+
+#include <cstdint>
 #include <volrover3/BoundingBoxDialog.h>
 #include <volrover3/CameraController.h>
 #include <volrover3/CameraSettingsDialog.h>
@@ -88,6 +91,13 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   m_interp = std::make_unique<volrover3::EmbeddedInterpreter>(m_app, m_sceneGraph, icfg);
   if (!m_interp->ok())
     qWarning("volrover3: embedded Python interpreter unavailable (scripting disabled)");
+
+  // Hand our live QMainWindow* to the host so `vrhost.main_window()` can adopt it
+  // via shiboken6.wrapInstance(addr, QtWidgets.QMainWindow) — the Qt-from-Python
+  // bridge (docs/EMBEDDED_PYTHON.md §7). A raw address crosses the SWIG<->Shiboken
+  // boundary; same-process, same cvcpkg-Qt, so no ownership/ABI issue.
+  if (auto host = m_interp->host())
+    host->set_main_window_ptr(reinterpret_cast<std::uintptr_t>(this));
 
   // Job scheduler (cooperative tick over the job registry) + the console dock
   // that drives it and the REPL (docs/EMBEDDED_PYTHON.md §12).

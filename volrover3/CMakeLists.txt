@@ -580,6 +580,26 @@ if(VOLROVER3_BUILD_TESTS)
     set_tests_properties(VrHostBindingTest PROPERTIES
       ENVIRONMENT
       "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
+
+    # Qt-from-Python bridge (Phase 6) — Python reads the live QMainWindow's
+    # widgets and adds a menu item that fires a QMessageBox, via pyside6/shiboken6
+    # wrapping the real C++ window. Runs only when the hermetic pyside6 module is
+    # present in the prefix (built by the cvcpkg pyside6 recipe); skipped otherwise.
+    if(EXISTS "${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/PySide6")
+      add_executable(volrover3_qtbridge_test tests/VrHostQtBridgeTest.cpp)
+      add_dependencies(volrover3_qtbridge_test vrhost)
+      target_link_libraries(volrover3_qtbridge_test
+        volrover3_lib
+        Qt${QT_VERSION_MAJOR}::Widgets
+        GTest::gtest) # custom main() creates the QApplication
+      add_test(NAME VrHostQtBridgeTest COMMAND volrover3_qtbridge_test)
+      set_tests_properties(VrHostQtBridgeTest PROPERTIES
+        ENVIRONMENT
+        "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;VOLROVER3_SCRIPTS_DIR=${PROJECT_SOURCE_DIR}/scripts;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
+    else()
+      message(STATUS "volrover3: PySide6 not in the prefix; VrHostQtBridgeTest skipped "
+        "(build the cvcpkg pyside6 recipe into the prefix to enable it)")
+    endif()
   endif()
 
   # TransferFunction tests

@@ -79,6 +79,12 @@ using volrover3::PyHost;
 %nodefaultctor volrover3::PyHost;
 %nodefaultdtor volrover3::PyHost;
 
+// CRITICAL: SWIG defaults std::uintptr_t to a 32-bit `unsigned int`, which
+// TRUNCATES the 64-bit QWidget* that main_window_ptr() carries -> shiboken6's
+// wrapInstance(addr, ...) then dereferences a garbage pointer and segfaults. Map
+// it to a 64-bit unsigned so the window address survives the C++<->Python trip.
+%apply unsigned long long { std::uintptr_t, uintptr_t };
+
 %include <volrover3/PyHost.h>
 
 %inline %{
