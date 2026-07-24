@@ -13,7 +13,12 @@ namespace volrover3 {
 
 EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
                                          std::shared_ptr<SceneGraph> scene)
-    : m_host(std::make_shared<PyHost>(std::move(app), std::move(scene))) {
+    : EmbeddedInterpreter(std::move(app), std::move(scene), Config{}) {}
+
+EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
+                                         std::shared_ptr<SceneGraph> scene, Config config)
+    : m_config(std::move(config)),
+      m_host(std::make_shared<PyHost>(std::move(app), std::move(scene))) {
   if (Py_IsInitialized()) {
     // Single-interpreter model: CPython is already up (another
     // EmbeddedInterpreter, or an embedding host). Reuse it; do not finalize it.
@@ -22,18 +27,23 @@ EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
     return;
   }
 
-  PyConfig config;
-  PyConfig_InitPythonConfig(&config);
+  PyConfig pyconfig;
+  PyConfig_InitPythonConfig(&pyconfig);
 
-  // Point the interpreter at the hermetic cvcpkg Python home if provided, so it
-  // finds its stdlib regardless of a possibly-non-relocatable compiled-in
-  // prefix. VOLROVER3_PYTHON_HOME overrides; otherwise CPython's own defaults.
-  if (const char *home = std::getenv("VOLROVER3_PYTHON_HOME")) {
-    PyConfig_SetBytesString(&config, &config.home, home);
+  // Point the interpreter at the hermetic cvcpkg Python home so it finds its
+  // stdlib regardless of a possibly-non-relocatable compiled-in prefix. Prefer
+  // the configured home (from Settings), else $VOLROVER3_PYTHON_HOME, else
+  // CPython's own defaults.
+  std::string home = m_config.python_home;
+  if (home.empty()) {
+    if (const char *env = std::getenv("VOLROVER3_PYTHON_HOME"))
+      home = env;
   }
+  if (!home.empty())
+    PyConfig_SetBytesString(&pyconfig, &pyconfig.home, home.c_str());
 
-  PyStatus status = Py_InitializeFromConfig(&config);
-  PyConfig_Clear(&config);
+  PyStatus status = Py_InitializeFromConfig(&pyconfig);
+  PyConfig_Clear(&pyconfig);
   if (PyStatus_Exception(status)) {
     std::cerr << "volrover3: embedded CPython init failed"
               << (status.err_msg ? std::string(": ") + status.err_msg : "") << std::endl;

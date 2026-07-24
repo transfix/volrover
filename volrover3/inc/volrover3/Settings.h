@@ -20,6 +20,7 @@
 // --------------------------------------------------------------------
 
 #include <cvc/core/app.h>
+#include <volrover3/EmbeddedInterpreter.h> // volrover3::InterpreterMode
 
 #include <QSqlDatabase>
 #include <memory>
@@ -30,8 +31,6 @@ class state;
 }
 
 namespace volrover3 {
-
-enum class InterpreterMode { Single, Multi };
 
 class Settings {
 public:

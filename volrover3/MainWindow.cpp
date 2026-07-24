@@ -62,11 +62,9 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   m_appState = std::make_unique<AppState>(*m_app, "volrover3");
 
   // Load per-instance settings from ~/.volrover into this instance's cvc::state
-  // section BEFORE the interpreter, so its python home / mode are available.
+  // section BEFORE the interpreter, so its python home / mode feed its Config.
   m_settings = std::make_unique<volrover3::Settings>(m_app, "volrover3");
   m_settings->load();
-  if (const std::string &home = m_settings->pythonHome(); !home.empty())
-    qputenv("VOLROVER3_PYTHON_HOME", QByteArray::fromStdString(home));
 
   // Create the scene graph on the UI thread. cvcGL's SceneGraph adopts the
   // constructing thread as its owner thread: node work initiated here runs
@@ -82,7 +80,10 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   // captures the live app (delivered to scripts via vrhost.host.app()) and the
   // scene. Graceful: if CPython can't initialize (e.g. no python home), the app
   // still runs without scripting — see EmbeddedInterpreter.
-  m_interp = std::make_unique<volrover3::EmbeddedInterpreter>(m_app, m_sceneGraph);
+  volrover3::EmbeddedInterpreter::Config icfg;
+  icfg.mode = m_settings->mode();          // single | multi, from ~/.volrover (restart-applied)
+  icfg.python_home = m_settings->pythonHome();
+  m_interp = std::make_unique<volrover3::EmbeddedInterpreter>(m_app, m_sceneGraph, icfg);
   if (!m_interp->ok())
     qWarning("volrover3: embedded Python interpreter unavailable (scripting disabled)");
 

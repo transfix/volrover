@@ -16,6 +16,9 @@ TEST(EmbeddedInterpreterTest, BootsAndRunsAScript) {
   volrover3::EmbeddedInterpreter interp(app, /*scene=*/nullptr);
   ASSERT_TRUE(interp.ok()) << "CPython failed to initialize (VOLROVER3_PYTHON_HOME?)";
 
+  // Config default mode is Single (the full-capability mode).
+  EXPECT_EQ(interp.mode(), volrover3::InterpreterMode::Single);
+
   // A well-formed script runs and returns true.
   EXPECT_TRUE(interp.run_string("x = 1 + 1\nassert x == 2\n"));
 
