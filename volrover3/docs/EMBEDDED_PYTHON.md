@@ -381,10 +381,25 @@ once-per-process boot is identical in both modes; only the **job launcher** bran
   (pycvc/vrhost) is disabled in multi-interpreter mode." `EmbeddedInterpreter` gains a `Config { InterpreterMode
   mode; std::string python_home; bool gate_multi_imports; }`, fed from `Settings` at the `MainWindow` boot site.
 
-### 12.3 Settings — `~/.volrover/settings.yaml` + `~/.volrover/data.db`
-Greenfield (no `QSettings`, no `~/.volrover`, no yaml/sqlite in use today). A `volrover3::Settings` object
-(plain, not a singleton), **loaded before `EmbeddedInterpreter`** so `pythonHome()` feeds `PyConfig.home` and
-`mode()` selects the launcher.
+### 12.3 Settings — state-tree backed, persisted to `~/.volrover/settings.yaml` + `data.db`
+**Settings are backed by the `cvc::state` tree, not a bare file.** Each volrover3 instance owns a dedicated
+**section of the global state root** — the same `"volrover3"` prefix the SceneGraph + AppState already run under
+(`SceneGraph(*m_app,"volrover3")`, `AppState(*m_app,"volrover3")`) — so **one instance section holds it all**:
+`volrover3.settings.*` (interpreter mode, python home, tick, …), `volrover3.camera.*` (AppState),
+`volrover3.graphics.*` (the scene graph), etc. Multiple instances get distinct sections
+(`volrover3`, `volrover3.1`, … — the prefix is the instance id), so their settings + scene state never collide
+in `cvc::state::instance(app)`. `volrover3::Settings` is a **typed facade over
+`cvc::state::instance(app)("volrover3")("settings")`** (reads/writes state keys there via `state.value(...)`),
+NOT a private field bag — so a Python script (`pycvc.state_set(app,"volrover3.settings.scheduler.tick_ms",…)`)
+and the C++ settings UI see the same live values, and the reactive `childChanged` signals already drive updates.
+
+**Persistence** = load/save the instance's state section to disk. `~/.volrover/settings.yaml` (yaml-cpp) mirrors
+the `volrover3.settings.*` subtree (human-editable metadata: mode, python home, tick, scripts dir, history);
+`~/.volrover/data.db` (Qt6Sql/WAL) holds bulkier/arbitrary persisted state (console history, job audit, KV, and
+optionally scene snapshots). On startup `Settings::load()` reads yaml → `state_set` into
+`volrover3.settings.*`; `save()` emits that subtree → yaml. A plain object (not a singleton),
+**constructed before `EmbeddedInterpreter`** so `pythonHome()` feeds `PyConfig.home` and `mode()` selects the
+launcher. (The prior "field bag" framing is superseded: the fields live in `cvc::state`.)
 - **`settings.yaml`** (human-editable metadata): `interpreter: {mode: single, python_home: "",
   gate_multi_imports: true, scripts_dir: ~/.volrover/scripts}` · `console: {history_size: 500}` ·
   `scheduler: {tick_ms: 100}`. **YAML lib:** deps-vr3 has only libyaml (C); no yaml-cpp. → add a small

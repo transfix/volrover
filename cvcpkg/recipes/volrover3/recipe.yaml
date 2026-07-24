@@ -33,6 +33,8 @@ depends:
     # pycvc supplies pycvc.i, which the vrhost SWIG module %imports so its
     # shared_ptr<cvc::app> is the same proxy type pycvc consumes.
     - name: pycvc
+    # yaml-cpp: ~/.volrover/settings.yaml round-trip for volrover3::Settings.
+    - name: yaml-cpp
   runtime:
     # volrover3 consumes libcvc as an EXTERNAL SDK:
     # find_package(cvc CONFIG) -> cvc::cvc, published as @cvc/libcvc on

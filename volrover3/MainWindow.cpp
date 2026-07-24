@@ -16,6 +16,7 @@
 #include <cvc/volume/volume_file_io.h>
 #include <volrover3/AppState.h>
 #include <volrover3/EmbeddedInterpreter.h>
+#include <volrover3/Settings.h>
 #include <volrover3/BoundingBoxDialog.h>
 #include <volrover3/CameraController.h>
 #include <volrover3/CameraSettingsDialog.h>
@@ -59,6 +60,13 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   // needs it. AppState roots this viewer's state under app's "volrover3"
   // subtree.
   m_appState = std::make_unique<AppState>(*m_app, "volrover3");
+
+  // Load per-instance settings from ~/.volrover into this instance's cvc::state
+  // section BEFORE the interpreter, so its python home / mode are available.
+  m_settings = std::make_unique<volrover3::Settings>(m_app, "volrover3");
+  m_settings->load();
+  if (const std::string &home = m_settings->pythonHome(); !home.empty())
+    qputenv("VOLROVER3_PYTHON_HOME", QByteArray::fromStdString(home));
 
   // Create the scene graph on the UI thread. cvcGL's SceneGraph adopts the
   // constructing thread as its owner thread: node work initiated here runs

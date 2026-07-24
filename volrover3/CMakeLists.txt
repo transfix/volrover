@@ -38,13 +38,16 @@ find_package(cvcGL CONFIG REQUIRED)
 
 # Find required packages
 # Try Qt6 first, fall back to Qt5 if VTK requires it
-find_package(Qt6 QUIET COMPONENTS Core Widgets OpenGL OpenGLWidgets Test)
+find_package(Qt6 QUIET COMPONENTS Core Widgets OpenGL OpenGLWidgets Sql Test)
 if(NOT Qt6_FOUND)
-  find_package(Qt5 REQUIRED COMPONENTS Core Widgets OpenGL Test)
+  find_package(Qt5 REQUIRED COMPONENTS Core Widgets OpenGL Sql Test)
   set(QT_VERSION_MAJOR 5)
 else()
   set(QT_VERSION_MAJOR 6)
 endif()
+
+# yaml-cpp — round-trips ~/.volrover/settings.yaml for volrover3::Settings.
+find_package(yaml-cpp CONFIG REQUIRED)
 
 find_package(VTK REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -68,6 +71,7 @@ set(VOLROVER3_SOURCES
   # Embedded Python interpreter subsystem (docs/EMBEDDED_PYTHON.md).
   PyHost.cpp
   EmbeddedInterpreter.cpp
+  Settings.cpp
   TransferFunctionWidget.cpp
   ThreadMonitorWidget.cpp
   StateTreeWidget.cpp
@@ -93,6 +97,7 @@ set(VOLROVER3_HEADERS
   ${PROJECT_SOURCE_DIR}/inc/volrover3/CameraController.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/PyHost.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/EmbeddedInterpreter.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/Settings.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/TransferFunctionWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/ThreadMonitorWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/StateTreeWidget.h
@@ -177,10 +182,12 @@ if(QT_VERSION_MAJOR EQUAL 6)
     cvc::cvc
     cvc::cvcGL
     Python3::Python
+    yaml-cpp::yaml-cpp
     Qt6::Core
     Qt6::Widgets
     Qt6::OpenGL
     Qt6::OpenGLWidgets
+    Qt6::Sql
     ${VTK_LIBRARIES}
     ${OPENGL_LIBRARIES}
   )
@@ -189,8 +196,10 @@ else()
     cvc::cvc
     cvc::cvcGL
     Python3::Python
+    yaml-cpp::yaml-cpp
     Qt5::Core
     Qt5::Widgets
+    Qt5::Sql
     Qt5::OpenGL
     ${VTK_LIBRARIES}
     ${OPENGL_LIBRARIES}
@@ -433,10 +442,12 @@ if(VOLROVER3_BUILD_TESTS)
       cvc::cvc
       cvc::cvcGL
       Python3::Python
+      yaml-cpp::yaml-cpp
       Qt6::Core
       Qt6::Widgets
       Qt6::OpenGL
       Qt6::OpenGLWidgets
+      Qt6::Sql
       ${VTK_LIBRARIES}
       ${OPENGL_LIBRARIES}
     )
@@ -445,8 +456,10 @@ if(VOLROVER3_BUILD_TESTS)
       cvc::cvc
       cvc::cvcGL
       Python3::Python
+      yaml-cpp::yaml-cpp
       Qt5::Core
       Qt5::Widgets
+      Qt5::Sql
       Qt5::OpenGL
       ${VTK_LIBRARIES}
       ${OPENGL_LIBRARIES}
@@ -480,6 +493,16 @@ if(VOLROVER3_BUILD_TESTS)
   add_test(NAME EmbeddedInterpreterTest COMMAND volrover3_interpreter_test)
   set_tests_properties(EmbeddedInterpreterTest PROPERTIES
     ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib")
+
+  # Settings (state-backed + yaml/data.db). HOME redirected to a temp dir so the
+  # test writes an isolated ~/.volrover; QT_PLUGIN_PATH for the QSQLITE driver.
+  add_executable(volrover3_settings_test tests/SettingsTest.cpp)
+  target_link_libraries(volrover3_settings_test
+    volrover3_lib
+    GTest::gtest) # custom main() creates the QCoreApplication QSqlDatabase needs
+  add_test(NAME SettingsTest COMMAND volrover3_settings_test)
+  set_tests_properties(SettingsTest PROPERTIES
+    ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/settings-test-home;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
 
   # TransferFunction tests
   add_executable(volrover3_transferfunction_test

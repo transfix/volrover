@@ -27,6 +27,7 @@ class ViewerOptionsDialog;
 class CameraSettingsDialog;
 namespace volrover3 {
 class EmbeddedInterpreter;
+class Settings;
 }
 
 class MainWindow : public QMainWindow {
@@ -78,6 +79,9 @@ private:
   // members below (which hold cvc::app&/AppState& references into them).
   std::shared_ptr<cvc::app> m_app;
   std::unique_ptr<AppState> m_appState;
+  // Per-instance settings, backed by this instance's cvc::state section and
+  // loaded from ~/.volrover before the interpreter (feeds its python home/mode).
+  std::unique_ptr<volrover3::Settings> m_settings;
 
   VTKRenderWidget *m_renderWidget;
   TransferFunctionWidget *m_transferFunctionWidget;
