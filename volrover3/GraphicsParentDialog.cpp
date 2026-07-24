@@ -3,10 +3,10 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
-#include <volrover3/GraphicsNode.h>
+#include <cvc/gl/GraphicsNode.h>
 #include <volrover3/GraphicsParentDialog.h>
-#include <volrover3/SceneGraph.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/SceneGraph.h>
+#include <cvc/gl/VolumeNode.h>
 
 GraphicsParentDialog::GraphicsParentDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
     : QDialog(parent), m_sceneGraph(sceneGraph), m_parentComboBox(new QComboBox(this)),

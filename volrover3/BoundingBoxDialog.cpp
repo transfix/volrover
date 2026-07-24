@@ -12,8 +12,8 @@
 #include <QVBoxLayout>
 #include <volrover3/AppState.h>
 #include <volrover3/BoundingBoxDialog.h>
-#include <volrover3/GraphicsNode.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/GraphicsNode.h>
+#include <cvc/gl/SceneGraph.h>
 
 BoundingBoxDialog::BoundingBoxDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
     : QDialog(parent), m_sceneGraph(sceneGraph), m_currentGraphics(nullptr) {

@@ -16,11 +16,11 @@
 #include <cvc/geometry/geometry.h>
 #include <cvc/utility/algorithm.h>
 #include <cvc/volume/volmagick.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/GraphicsNode.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/GraphicsNode.h>
 #include <volrover3/SDFDialog.h>
-#include <volrover3/SceneGraph.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/SceneGraph.h>
+#include <cvc/gl/VolumeNode.h>
 #include <volrover3/volrover3_app.h>
 
 SDFDialog::SDFDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)

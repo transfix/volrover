@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <volrover3/AppState.h>
 #include <volrover3/TransferFunctionWidget.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/VolumeNode.h>
 #include <volrover3/volrover3_app.h>
 
 // Need QApplication for Qt widgets

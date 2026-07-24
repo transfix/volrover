@@ -6,9 +6,9 @@
 #include <cvc/volume/volume.h>
 #include <gtest/gtest.h>
 #include <thread>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/SceneGraph.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/SceneGraph.h>
+#include <cvc/gl/VolumeNode.h>
 #include <vtkMatrix4x4.h>
 #include <vtkPlane.h>
 #include <vtkPlaneCollection.h>

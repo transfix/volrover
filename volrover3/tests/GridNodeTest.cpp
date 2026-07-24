@@ -3,7 +3,7 @@
 #include <cvc/volume/bounding_box.h>
 #include <gtest/gtest.h>
 #include <volrover3/AppState.h>
-#include <volrover3/GridNode.h>
+#include <cvc/gl/GridNode.h>
 #include <vtkActor.h>
 #include <vtkActor2D.h>
 #include <vtkNew.h>

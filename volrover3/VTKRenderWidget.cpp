@@ -3,7 +3,7 @@
 #include <QWheelEvent>
 #include <volrover3/AppState.h>
 #include <volrover3/CameraController.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/VTKRenderWidget.h>
 #include <volrover3/volrover3_app.h>
 #include <vtkCamera.h>

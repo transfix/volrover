@@ -1,6 +1,6 @@
 #include <cvc/volume/bounding_box.h>
 #include <gtest/gtest.h>
-#include <volrover3/BBoxNode.h>
+#include <cvc/gl/BBoxNode.h>
 #include <vtkMatrix4x4.h>
 #include <vtkSmartPointer.h>
 

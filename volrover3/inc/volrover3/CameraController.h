@@ -2,7 +2,7 @@
 #define CAMERACONTROLLER_H
 
 #include <set>
-#include <volrover3/SceneNode.h>
+#include <cvc/gl/SceneNode.h>
 #include <vtkCamera.h>
 #include <vtkSmartPointer.h>
 

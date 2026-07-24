@@ -12,7 +12,7 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <cvc/core/state.h>
-#include <volrover3/GridNode.h>
+#include <cvc/gl/GridNode.h>
 #include <volrover3/GridOptionsDialog.h>
 
 GridOptionsDialog::GridOptionsDialog(std::shared_ptr<GridNode> gridNode, QWidget *parent)

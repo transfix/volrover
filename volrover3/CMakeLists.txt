@@ -31,6 +31,10 @@ set(CMAKE_AUTORCC ON)
 # lookups (Boost, CGAL, OpenMP, ImageMagick, FFTW3, HDF5, libiimod)
 # from its cvcConfig.cmake.
 find_package(cvc CONFIG REQUIRED)
+# cvcGL — the shared 3D scene-graph + VTK engine (SceneGraph, GraphicsNode,
+# VolumeNode, …) that volrover3 now consumes instead of forking, and that
+# pycvc_gl wraps. One engine, C++ and Python side by side.
+find_package(cvcGL CONFIG REQUIRED)
 
 # Find required packages
 # Try Qt6 first, fall back to Qt5 if VTK requires it
@@ -51,15 +55,8 @@ set(VOLROVER3_SOURCES
   volrover3_app.cpp
   MainWindow.cpp
   VTKRenderWidget.cpp
-  SceneGraph.cpp
-  SceneNode.cpp
-  GeometryNode.cpp
-  GraphicsNode.cpp
-  VolumeNode.cpp
-  NullGraphicNode.cpp
-  GridNode.cpp
-  AxisNode.cpp
-  BBoxNode.cpp
+  # Scene-graph nodes (SceneGraph/SceneNode/Geometry/Graphics/Volume/Null/Grid/
+  # Axis/BBox) now come from cvcGL (cvc::cvcGL); volrover3 no longer forks them.
   CameraController.cpp
   TransferFunctionWidget.cpp
   ThreadMonitorWidget.cpp
@@ -82,14 +79,7 @@ set(VOLROVER3_SOURCES
 set(VOLROVER3_HEADERS
   ${PROJECT_SOURCE_DIR}/inc/volrover3/MainWindow.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/VTKRenderWidget.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/SceneGraph.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/SceneNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/GeometryNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/GraphicsNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/VolumeNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/GridNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/AxisNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/BBoxNode.h
+  # Scene-graph node headers now come from cvcGL (<cvc/gl/*.h>).
   ${PROJECT_SOURCE_DIR}/inc/volrover3/CameraController.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/TransferFunctionWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/ThreadMonitorWidget.h
@@ -173,6 +163,7 @@ target_include_directories(volrover3 PRIVATE ${PROJECT_SOURCE_DIR}/inc)
 if(QT_VERSION_MAJOR EQUAL 6)
   target_link_libraries(volrover3
     cvc::cvc
+    cvc::cvcGL
     Qt6::Core
     Qt6::Widgets
     Qt6::OpenGL
@@ -183,6 +174,7 @@ if(QT_VERSION_MAJOR EQUAL 6)
 else()
   target_link_libraries(volrover3
     cvc::cvc
+    cvc::cvcGL
     Qt5::Core
     Qt5::Widgets
     Qt5::OpenGL
@@ -418,6 +410,7 @@ if(VOLROVER3_BUILD_TESTS)
   if(QT_VERSION_MAJOR EQUAL 6)
     target_link_libraries(volrover3_lib
       cvc::cvc
+      cvc::cvcGL
       Qt6::Core
       Qt6::Widgets
       Qt6::OpenGL
@@ -428,6 +421,7 @@ if(VOLROVER3_BUILD_TESTS)
   else()
     target_link_libraries(volrover3_lib
       cvc::cvc
+      cvc::cvcGL
       Qt5::Core
       Qt5::Widgets
       Qt5::OpenGL

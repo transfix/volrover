@@ -7,8 +7,8 @@
 #include <cvc/geometry/geometry.h>
 #include <gtest/gtest.h>
 #include <volrover3/GeometryDialog.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/volrover3_app.h>
 
 class GeometryDialogTest : public ::testing::Test {

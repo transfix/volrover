@@ -20,9 +20,9 @@
 #include <cvc/geometry/geometry.h>
 #include <cvc/utility/algorithm.h>
 #include <volrover3/GeometryDialog.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/GraphicsNode.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/GraphicsNode.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/volrover3_app.h>
 
 GeometryDialog::GeometryDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)

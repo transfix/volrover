@@ -10,10 +10,10 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <cvc/core/state.h>
-#include <volrover3/GraphicsNode.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/GraphicsNode.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/VolumeDialog.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/VolumeNode.h>
 
 VolumeDialog::VolumeDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
     : QDialog(parent), m_sceneGraph(sceneGraph), m_volumeComboBox(nullptr),

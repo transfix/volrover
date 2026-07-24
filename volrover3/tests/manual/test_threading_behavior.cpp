@@ -4,8 +4,8 @@
 #include <cvc/geometry/geometry.h>
 #include <iostream>
 #include <thread>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/SceneGraph.h>
 
 int main() {
   // Test 1: Nodes should have threading disabled during construction

@@ -7,9 +7,9 @@
 #include <cvc/core/state.h>
 #include <cvc/volume/volume.h>
 #include <gtest/gtest.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/VolumeDialog.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/VolumeNode.h>
 #include <volrover3/volrover3_app.h>
 
 class VolumeDialogTest : public ::testing::Test {

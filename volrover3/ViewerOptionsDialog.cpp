@@ -9,7 +9,7 @@
 #include <QShowEvent>
 #include <QVBoxLayout>
 #include <volrover3/AppState.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/VTKRenderWidget.h>
 #include <volrover3/ViewerOptionsDialog.h>
 

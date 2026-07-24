@@ -19,18 +19,18 @@
 #include <volrover3/CameraController.h>
 #include <volrover3/CameraSettingsDialog.h>
 #include <volrover3/GeometryDialog.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/GraphicsNode.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/GraphicsNode.h>
 #include <volrover3/GraphicsParentDialog.h>
-#include <volrover3/GridNode.h>
+#include <cvc/gl/GridNode.h>
 #include <volrover3/GridOptionsDialog.h>
 #include <volrover3/IsosurfaceDialog.h>
 #include <volrover3/MainWindow.h>
-#include <volrover3/NullGraphicNode.h>
+#include <cvc/gl/NullGraphicNode.h>
 #include <volrover3/ProceduralGeometryDialog.h>
 #include <volrover3/SDFDialog.h>
-#include <volrover3/SceneGraph.h>
-#include <volrover3/SceneNode.h>
+#include <cvc/gl/SceneGraph.h>
+#include <cvc/gl/SceneNode.h>
 #include <volrover3/StateDashboardWidget.h>
 #include <volrover3/StateTreeWidget.h>
 #include <volrover3/ThreadMonitorWidget.h>
@@ -38,7 +38,7 @@
 #include <volrover3/VTKRenderWidget.h>
 #include <volrover3/ViewerOptionsDialog.h>
 #include <volrover3/VolumeDialog.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/VolumeNode.h>
 #include <volrover3/volrover3_app.h>
 
 MainWindow::MainWindow(QWidget *parent)
@@ -54,21 +54,15 @@ MainWindow::MainWindow(QWidget *parent)
   setWindowTitle("VolRover3 - Volume Rover Version 3");
   resize(1280, 720);
 
-  // Set up thread-safe state change callback for SceneNode hierarchy FIRST
-  // This MUST be done before creating SceneGraph to avoid VTK calls on background threads
-  SceneNode::setMainThreadCallback([this](std::function<void()> func) {
-    // Check if we're already on the main thread
-    if (QThread::currentThread() == this->thread()) {
-      // We're on the main thread, execute immediately
-      func();
-    } else {
-      // We're on a worker thread, marshal to main thread
-      QMetaObject::invokeMethod(this, [func]() { func(); }, Qt::QueuedConnection);
-    }
-  });
-
-  // NOW create the scene graph - state changes will be properly marshaled
-  m_sceneGraph = std::make_shared<SceneGraph>();
+  // Create the scene graph on the UI thread. cvcGL's SceneGraph adopts the
+  // constructing thread as its owner thread: node work initiated here runs
+  // inline, work from cvc worker threads is marshalled through the scene's
+  // event queue (drained by VTKRenderWidget's pump) and weak-guarded per node
+  // (the race-free model from cvcGL PR #112) — so the old
+  // SceneNode::setMainThreadCallback marshaling is no longer needed. The
+  // "volrover3" prefix roots the scene state under the app's volrover3 subtree
+  // (Phase 0b switches this to the injected-app ctor).
+  m_sceneGraph = std::make_shared<SceneGraph>("volrover3");
 
   // Create central render widget
   m_renderWidget = new VTKRenderWidget(this);

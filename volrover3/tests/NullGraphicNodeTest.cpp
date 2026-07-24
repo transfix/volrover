@@ -3,9 +3,9 @@
 #include <cvc/core/state_object.h>
 #include <cvc/geometry/geometry.h>
 #include <gtest/gtest.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/NullGraphicNode.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/NullGraphicNode.h>
+#include <cvc/gl/SceneGraph.h>
 
 class NullGraphicNodeTest : public ::testing::Test {
 protected:

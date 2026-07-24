@@ -10,9 +10,9 @@
 #include <cmath>
 #include <cvc/core/app.h>
 #include <cvc/core/state.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/TransferFunctionWidget.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/VolumeNode.h>
 #include <volrover3/volrover3_app.h>
 
 // Simple color bar widget

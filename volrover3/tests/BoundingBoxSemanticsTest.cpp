@@ -3,8 +3,8 @@
 #include <cvc/geometry/geometry.h>
 #include <cvc/volume/volume.h>
 #include <gtest/gtest.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/VolumeNode.h>
 
 class BoundingBoxSemanticsTest : public ::testing::Test {
 protected:

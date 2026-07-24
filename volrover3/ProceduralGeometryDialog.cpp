@@ -13,9 +13,9 @@
 #include <cvc/geometry/geometry.h>
 #include <cvc/utility/algorithm.h>
 #include <volrover3/AppState.h>
-#include <volrover3/GeometryNode.h>
+#include <cvc/gl/GeometryNode.h>
 #include <volrover3/ProceduralGeometryDialog.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

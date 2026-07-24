@@ -7,12 +7,12 @@
 #include <gtest/gtest.h>
 #include <thread>
 #include <volrover3/AppState.h>
-#include <volrover3/AxisNode.h>
-#include <volrover3/BBoxNode.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/GridNode.h>
-#include <volrover3/SceneGraph.h>
-#include <volrover3/VolumeNode.h>
+#include <cvc/gl/AxisNode.h>
+#include <cvc/gl/BBoxNode.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/GridNode.h>
+#include <cvc/gl/SceneGraph.h>
+#include <cvc/gl/VolumeNode.h>
 #include <volrover3/volrover3_app.h>
 
 class SceneGraphTest : public ::testing::Test {
