@@ -21,7 +21,18 @@ source:
 patches: []
 
 depends:
-  build: []
+  build:
+    # cvcGL is a STATIC lib (libcvcGL.a) linked into volrover3 — the shared 3D
+    # scene-graph + VTK engine volrover3 consumes instead of forking, and that
+    # pycvc_gl wraps. find_package(cvcGL CONFIG) -> cvc::cvcGL. Build-only
+    # (baked in); its transitive shared deps (libcvc, vtk) are runtime below.
+    - name: cvcgl
+    # Embedded CPython: find_package(Python3 Development.Embed) links libpython
+    # so volrover3 hosts a first-class interpreter (see docs/EMBEDDED_PYTHON.md).
+    - name: python311
+    # pycvc supplies pycvc.i, which the vrhost SWIG module %imports so its
+    # shared_ptr<cvc::app> is the same proxy type pycvc consumes.
+    - name: pycvc
   runtime:
     # volrover3 consumes libcvc as an EXTERNAL SDK:
     # find_package(cvc CONFIG) -> cvc::cvc, published as @cvc/libcvc on
@@ -30,9 +41,15 @@ depends:
     - name: libcvc
     - name: qt6
     - name: vtk
+    # the embedded interpreter (libpython3.11.so) + the bindings scripts import.
+    - name: python311
+    - name: pycvc
+    - name: pycvc-gl
   host_tools:
     - cmake
     - ninja
+    # generates the vrhost host-control wrapper from bindings/vrhost.i.
+    - swig
 
 build:
   # The BSD entries do not run in GitHub Actions; they let the cvcpkg
