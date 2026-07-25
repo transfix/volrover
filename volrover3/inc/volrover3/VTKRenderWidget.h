@@ -37,6 +37,11 @@ public:
   void resetCamera();
   void render(); // Force an immediate render
 
+  // Render the current scene and write it to a PNG (for --screenshot / headless
+  // demo capture). Pumps queued scene events + frames the camera first. Returns
+  // false if there is no render window.
+  bool saveScreenshot(const QString &path);
+
   // FPS display control
   void setShowFPS(bool show);
   bool showFPS() const { return m_showFPS; }

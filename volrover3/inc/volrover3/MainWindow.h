@@ -42,6 +42,11 @@ public:
   cvc::app &app() const { return *m_app; }
   AppState &appState() const { return *m_appState; }
 
+  // Startup automation (--exec-script / --screenshot; see main.cpp). Run a Python
+  // file in the embedded interpreter, and render the current scene to a PNG.
+  void execStartupScript(const QString &path);
+  bool saveScreenshot(const QString &path);
+
 private slots:
   void openFile();
   void toggleGrid();

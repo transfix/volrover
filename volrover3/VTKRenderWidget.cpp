@@ -8,9 +8,12 @@
 #include <vtkCamera.h>
 #include <vtkCornerAnnotation.h>
 #include <vtkGenericOpenGLRenderWindow.h>
+#include <vtkNew.h>
+#include <vtkPNGWriter.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
 #include <vtkTextProperty.h>
+#include <vtkWindowToImageFilter.h>
 
 VTKRenderWidget::VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *parent)
     : QVTK_WIDGET_BASE(parent), m_app(app), m_appState(appState),
@@ -152,6 +155,48 @@ void VTKRenderWidget::render() {
   if (m_renderWindow) {
     m_renderWindow->Render();
   }
+}
+
+bool VTKRenderWidget::saveScreenshot(const QString &path) {
+  if (!m_sceneGraph) {
+    return false;
+  }
+  // Render the live scene to a dedicated OFFSCREEN window (reliable even under
+  // QT_QPA_PLATFORM=offscreen, where the QVTK widget's own window is 0x0). We
+  // temporarily hand the scene graph this renderer, capture, then restore the
+  // widget's renderer so interactive rendering keeps working.
+  vtkNew<vtkRenderer> renderer;
+  vtkNew<vtkRenderWindow> window;
+  window->SetOffScreenRendering(1);
+  window->AddRenderer(renderer);
+  window->SetSize(1024, 768);
+  m_sceneGraph->setRenderer(renderer); // attach node actors to the offscreen renderer
+  m_sceneGraph->processEvents();
+  renderer->ResetCamera();
+  // Tilt from the default top-down view to an oblique aerial angle so 3D
+  // structure (terrain relief, draped tracks, markers) reads in the capture.
+  if (vtkCamera *cam = renderer->GetActiveCamera()) {
+    cam->Elevation(-60.0);
+    cam->Azimuth(30.0);
+    cam->OrthogonalizeViewUp();
+    renderer->ResetCamera(); // refit at the oblique angle
+  }
+  window->Render();
+
+  vtkNew<vtkWindowToImageFilter> w2i;
+  w2i->SetInput(window);
+  w2i->Update();
+  vtkNew<vtkPNGWriter> writer;
+  writer->SetFileName(path.toUtf8().constData());
+  writer->SetInputConnection(w2i->GetOutputPort());
+  writer->Write();
+
+  // Restore the live view's renderer.
+  if (m_renderer) {
+    m_sceneGraph->setRenderer(m_renderer);
+    m_sceneGraph->processEvents();
+  }
+  return true;
 }
 
 void VTKRenderWidget::processSceneGraphEvents() {

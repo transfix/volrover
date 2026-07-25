@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDockWidget>
+#include <QFile>
 #include <QFileInfo>
 #include <QFileDialog>
 #include <QLabel>
@@ -185,6 +186,27 @@ MainWindow::~MainWindow() {
     conn.disconnect();
   }
   m_connections.clear();
+}
+
+void MainWindow::execStartupScript(const QString &path) {
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    qWarning("volrover3: --exec-script: cannot open %s (%s)", qUtf8Printable(path),
+             qUtf8Printable(f.errorString()));
+    return;
+  }
+  const QString src = QString::fromUtf8(f.readAll());
+  if (m_interp && m_interp->ok()) {
+    // Run in the embedded interpreter (Py_file_input); a raising script prints its
+    // traceback but never brings down the app.
+    m_interp->run_string(src.toStdString());
+  } else {
+    qWarning("volrover3: --exec-script: embedded interpreter unavailable");
+  }
+}
+
+bool MainWindow::saveScreenshot(const QString &path) {
+  return m_renderWidget && m_renderWidget->saveScreenshot(path);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
