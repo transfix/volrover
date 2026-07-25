@@ -552,6 +552,22 @@ if(VOLROVER3_BUILD_TESTS)
     ENVIRONMENT
     "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
 
+  # Live-scene bridge — a script adds geometry via vrhost.scene() and the SAME
+  # live C++ SceneGraph gains the node (adopt-existing, not a parallel scene).
+  # Needs pycvc_gl in the prefix (single-interpreter mode); skipped otherwise.
+  if(EXISTS "${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/pycvc_gl.py")
+    add_executable(volrover3_scenebridge_test tests/VrHostSceneBridgeTest.cpp)
+    target_link_libraries(volrover3_scenebridge_test
+      volrover3_lib
+      GTest::gtest) # custom main()
+    add_test(NAME VrHostSceneBridgeTest COMMAND volrover3_scenebridge_test)
+    set_tests_properties(VrHostSceneBridgeTest PROPERTIES
+      ENVIRONMENT
+      "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
+  else()
+    message(STATUS "volrover3: pycvc_gl not in the prefix; VrHostSceneBridgeTest skipped")
+  endif()
+
   # Qt-from-Python bridge (Phase 6) — Python reads the live QMainWindow's widgets
   # and adds a menu item that fires a QMessageBox, via pyside6/shiboken6 wrapping
   # the real C++ window. Runs only when the hermetic pyside6 module is present in
