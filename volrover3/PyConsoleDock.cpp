@@ -3,10 +3,16 @@
 #include <volrover3/EmbeddedInterpreter.h>
 #include <volrover3/JobScheduler.h>
 
+#include <QCheckBox>
+#include <QDir>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabWidget>
@@ -64,13 +70,20 @@ PyConsoleDock::PyConsoleDock(EmbeddedInterpreter *interp, JobScheduler *sched, Q
   m_jobs->setSelectionBehavior(QAbstractItemView::SelectRows);
   m_jobs->setEditTriggers(QAbstractItemView::NoEditTriggers);
   auto *btnRow = new QHBoxLayout;
+  auto *loadBtn = new QPushButton(tr("Load Script…"), jobsTab);
+  loadBtn->setToolTip(tr("Load a .py file that defines step(dt) and run it as a scheduler job"));
+  m_workerCheck = new QCheckBox(tr("on worker thread"), jobsTab);
+  m_workerCheck->setToolTip(tr("Run the job on a sacrificial thread so Stop can hard-kill a runaway loop"));
   auto *interruptBtn = new QPushButton(tr("Interrupt"), jobsTab);
   auto *stopBtn = new QPushButton(tr("Stop"), jobsTab);
+  btnRow->addWidget(loadBtn);
+  btnRow->addWidget(m_workerCheck);
+  btnRow->addStretch(1);
   btnRow->addWidget(interruptBtn);
   btnRow->addWidget(stopBtn);
-  btnRow->addStretch(1);
   jobsLayout->addWidget(m_jobs, 1);
   jobsLayout->addLayout(btnRow);
+  connect(loadBtn, &QPushButton::clicked, this, &PyConsoleDock::onLoadScriptClicked);
   connect(interruptBtn, &QPushButton::clicked, this, &PyConsoleDock::onInterruptClicked);
   connect(stopBtn, &QPushButton::clicked, this, &PyConsoleDock::onStopClicked);
   tabs->addTab(jobsTab, tr("Jobs"));
@@ -168,6 +181,52 @@ void PyConsoleDock::onStopClicked() {
     m_sched->kill(id);
     refreshJobs();
   }
+}
+
+void PyConsoleDock::setScriptsDir(const QString &dir) { m_scriptsDir = dir; }
+
+int PyConsoleDock::runScriptFile(const QString &path, bool onWorker) {
+  if (!m_sched) {
+    m_output->appendPlainText(tr("[no scheduler — cannot run jobs]"));
+    return -1;
+  }
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    m_output->appendPlainText(tr("[load failed: %1: %2]").arg(path, f.errorString()));
+    return -1;
+  }
+  const QString source = QString::fromUtf8(f.readAll());
+  const QString name = QFileInfo(path).fileName();
+  const int id = m_sched->submit(name.toStdString(), source.toStdString(), onWorker);
+  if (id < 0) {
+    m_output->appendPlainText(
+        tr("[job load failed: %1 — the script must define a top-level step(dt) "
+           "callable, and importing it must not raise]")
+            .arg(name));
+  } else {
+    m_output->appendPlainText(tr("[submitted job #%1: %2%3]")
+                                  .arg(id)
+                                  .arg(name, onWorker ? tr(" (worker thread)") : QString()));
+    refreshJobs();
+  }
+  return id;
+}
+
+void PyConsoleDock::onLoadScriptClicked() {
+  QString dir = m_scriptsDir;
+  if (dir.isEmpty() || !QDir(dir).exists())
+    dir = QDir::homePath();
+  const QString path =
+      QFileDialog::getOpenFileName(this, tr("Run Python Script as Job"), dir,
+                                   tr("Python scripts (*.py);;All files (*)"));
+  if (path.isEmpty())
+    return; // cancelled
+  const int id = runScriptFile(path, m_workerCheck && m_workerCheck->isChecked());
+  if (id < 0)
+    QMessageBox::warning(this, tr("Run as Job"),
+                         tr("Could not start a job from:\n%1\n\nSee the REPL pane for details. "
+                            "A job script must define a top-level step(dt) function.")
+                             .arg(path));
 }
 
 // Up/Down input history on the REPL line edit.

@@ -443,9 +443,17 @@ process table with Pause/Resume/Kill + a refresh `QTimer`). Installed in `MainWi
   thread via a **new** `EmbeddedInterpreter::run_string_capture(src, out, err)` (swap `sys.stdout/stderr` to
   `io.StringIO` under the GIL, `PyRun_String(..., Py_single_input, ...)` for REPL echo, restore in a
   finally/RAII) — `run_string` is left unchanged.
-- **Jobs tab**: a `QTableWidget` (Id/Name/Status/Mode/Steps/Elapsed) polled 1 Hz from `JobScheduler::listJobs()`;
+- **Jobs tab**: a `QTableWidget` (Id/Name/Status/Steps/Elapsed) polled 1 Hz from `JobScheduler::listJobs()`;
   Interrupt → `interrupt(id)`, Stop → `kill(id)`. Python jobs + (optional) DSL jobs unify in one table; the live
   `state_exec` DSL scheduler keeps its own StateDashboard tab.
+  - **Load Script… → Run as Job** (`PyConsoleDock::runScriptFile`): a button that opens a `QFileDialog` rooted at
+    `Settings::scriptsDir()` (`MainWindow` calls `setScriptsDir`; falls back to `$HOME`), reads the chosen `.py`,
+    and `JobScheduler::submit(basename, source, onWorker)`s it — populating the table. This is how the REPL (which
+    only *evaluates* one expression) reaches the scheduler: a job is a script that defines a top-level `step(dt)`,
+    so it needs a file, not a REPL line. The **on worker thread** checkbox routes the job onto a sacrificial
+    thread so Stop can hard-kill a runaway loop. Load failure (no `step`, import raises, unreadable file) is
+    reported in the REPL pane + a warning box; nothing is added. See `scripts/examples/heartbeat_job.py` for the
+    canonical `step(dt)` job (vs `scripts/examples/menu_messagebox.py`, an immediate-exec REPL script).
 
 ### 12.5 Phased plan
 1. **Settings infra** (Settings class, `~/.volrover`, yaml + Qt6Sql data.db) — unblocked. · 2. **Mode plumbing**

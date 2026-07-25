@@ -9,8 +9,23 @@
 #include <volrover3/PyConsoleDock.h>
 
 #include <QApplication>
+#include <QFile>
+#include <QTemporaryDir>
 
 #include <memory>
+
+namespace {
+// Write `body` to <dir>/<name> and return the path (test scripts for the
+// "Load Script → Run as Job" path).
+QString writeScript(const QTemporaryDir &dir, const char *name, const char *body) {
+  const QString path = dir.filePath(name);
+  QFile f(path);
+  f.open(QIODevice::WriteOnly | QIODevice::Text);
+  f.write(body);
+  f.close();
+  return path;
+}
+} // namespace
 
 class PyConsoleDockTest : public ::testing::Test {
 protected:
@@ -50,6 +65,30 @@ TEST_F(PyConsoleDockTest, JobsTabReflectsScheduler) {
   ASSERT_GE(id, 0);
   dock.refreshJobs();
   EXPECT_EQ(dock.jobRowCount(), 1);
+}
+
+TEST_F(PyConsoleDockTest, RunScriptFileSubmitsJob) {
+  volrover3::JobScheduler sched(interp.get(), 50);
+  volrover3::PyConsoleDock dock(interp.get(), &sched);
+
+  QTemporaryDir dir;
+  ASSERT_TRUE(dir.isValid());
+
+  // A well-formed job script (defines step(dt)) is submitted and shows up in the
+  // jobs table — the path a user hits via "Load Script…".
+  const QString ok = writeScript(dir, "tick.py", "def step(dt):\n pass\n");
+  const int id = dock.runScriptFile(ok);
+  EXPECT_GE(id, 0);
+  EXPECT_EQ(dock.jobRowCount(), 1);
+  EXPECT_NE(dock.outputText().indexOf("tick.py"), -1);
+
+  // A script with no step(dt) is rejected (-1) and reported, not silently added.
+  const QString bad = writeScript(dir, "nostep.py", "x = 1\n");
+  EXPECT_LT(dock.runScriptFile(bad), 0);
+  EXPECT_EQ(dock.jobRowCount(), 1); // unchanged
+
+  // A path that doesn't exist fails cleanly.
+  EXPECT_LT(dock.runScriptFile(dir.filePath("missing.py")), 0);
 }
 
 int main(int argc, char **argv) {

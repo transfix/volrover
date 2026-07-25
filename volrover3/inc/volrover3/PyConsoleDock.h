@@ -15,12 +15,14 @@
 // --------------------------------------------------------------------
 
 #include <QDockWidget>
+#include <QString>
 #include <QStringList>
 
 class QPlainTextEdit;
 class QLineEdit;
 class QTableWidget;
 class QTimer;
+class QCheckBox;
 
 namespace volrover3 {
 
@@ -40,6 +42,16 @@ public:
   QString outputText() const; // REPL output pane contents (tests)
   int jobRowCount() const;    // rows currently shown in the jobs table (tests)
 
+  // Where "Load Script…" starts browsing (Settings::scriptsDir). MainWindow sets
+  // this; falls back to $HOME when empty.
+  void setScriptsDir(const QString &dir);
+
+  // Load `path`, submit it to the scheduler as a job named after the file, and
+  // report the outcome in the REPL pane. `onWorker` runs it on a hard-killable
+  // sacrificial thread. Returns the new job id, or -1 on read/load failure.
+  // Public so tests can drive it without a file dialog.
+  int runScriptFile(const QString &path, bool onWorker = false);
+
 public slots:
   void refreshJobs(); // repopulate the jobs table from the scheduler
 
@@ -50,6 +62,7 @@ private slots:
   void onReplReturn();
   void onInterruptClicked();
   void onStopClicked();
+  void onLoadScriptClicked(); // pick a .py and submit it as a job
 
 private:
   int selectedJobId() const;
@@ -59,9 +72,11 @@ private:
   QPlainTextEdit *m_output = nullptr;
   QLineEdit *m_input = nullptr;
   QTableWidget *m_jobs = nullptr;
+  QCheckBox *m_workerCheck = nullptr;
   QTimer *m_refresh = nullptr;
   QStringList m_history;
   int m_historyPos = 0;
+  QString m_scriptsDir;
 };
 
 } // namespace volrover3

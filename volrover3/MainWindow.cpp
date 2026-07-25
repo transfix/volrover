@@ -127,6 +127,7 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
       std::make_unique<volrover3::JobScheduler>(m_interp.get(), m_settings->tickMs(), m_interp->mode());
   m_scheduler->start();
   m_consoleDock = new volrover3::PyConsoleDock(m_interp.get(), m_scheduler.get(), this);
+  m_consoleDock->setScriptsDir(QString::fromStdString(m_settings->scriptsDir()));
   addDockWidget(Qt::BottomDockWidgetArea, m_consoleDock);
 
   // Create central render widget
