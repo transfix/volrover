@@ -1,5 +1,7 @@
 #include <QApplication>
 #include <QSurfaceFormat>
+#include <cvc/core/app.h>
+#include <memory>
 #include <volrover3/MainWindow.h>
 #include <vtkAutoInit.h>
 
@@ -23,7 +25,13 @@ int main(int argc, char *argv[]) {
   app.setApplicationVersion("3.0.0");
   app.setOrganizationName("CVC");
 
-  MainWindow mainWindow;
+  // Own the process-wide cvc::app explicitly (no singleton). This shared_ptr
+  // is created before MainWindow and destroyed after it, so every reference
+  // threaded down into MainWindow/AppState/widgets/SceneGraph stays valid for
+  // the whole run.
+  auto cvcApp = std::make_shared<cvc::app>();
+
+  MainWindow mainWindow(cvcApp);
   mainWindow.show();
 
   return app.exec();

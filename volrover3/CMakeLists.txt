@@ -31,36 +31,49 @@ set(CMAKE_AUTORCC ON)
 # lookups (Boost, CGAL, OpenMP, ImageMagick, FFTW3, HDF5, libiimod)
 # from its cvcConfig.cmake.
 find_package(cvc CONFIG REQUIRED)
+# cvcGL — the shared 3D scene-graph + VTK engine (SceneGraph, GraphicsNode,
+# VolumeNode, …) that volrover3 now consumes instead of forking, and that
+# pycvc_gl wraps. One engine, C++ and Python side by side.
+find_package(cvcGL CONFIG REQUIRED)
 
 # Find required packages
 # Try Qt6 first, fall back to Qt5 if VTK requires it
-find_package(Qt6 QUIET COMPONENTS Core Widgets OpenGL OpenGLWidgets Test)
+find_package(Qt6 QUIET COMPONENTS Core Widgets OpenGL OpenGLWidgets Sql Test)
 if(NOT Qt6_FOUND)
-  find_package(Qt5 REQUIRED COMPONENTS Core Widgets OpenGL Test)
+  find_package(Qt5 REQUIRED COMPONENTS Core Widgets OpenGL Sql Test)
   set(QT_VERSION_MAJOR 5)
 else()
   set(QT_VERSION_MAJOR 6)
 endif()
 
+# yaml-cpp — round-trips ~/.volrover/settings.yaml for volrover3::Settings.
+find_package(yaml-cpp CONFIG REQUIRED)
+
 find_package(VTK REQUIRED)
 find_package(OpenGL REQUIRED)
+
+# ── Embedded Python interpreter (docs/EMBEDDED_PYTHON.md) ──
+# volrover3 hosts a first-class CPython interpreter: Development.Embed links
+# libpython so the app IS the interpreter; SWIG generates the `vrhost`
+# host-control module. See EmbeddedInterpreter + PyHost.
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Embed)
+# NOTE: volrover3 no longer builds any SWIG module — vrhost is a pure-Python shim
+# that delivers the app via pycvc.app_from_capsule (no SWIG, no pycvc.i).
 
 # Source files
 set(VOLROVER3_SOURCES
   main.cpp
-  volrover3_app.cpp
   MainWindow.cpp
   VTKRenderWidget.cpp
-  SceneGraph.cpp
-  SceneNode.cpp
-  GeometryNode.cpp
-  GraphicsNode.cpp
-  VolumeNode.cpp
-  NullGraphicNode.cpp
-  GridNode.cpp
-  AxisNode.cpp
-  BBoxNode.cpp
+  # Scene-graph nodes (SceneGraph/SceneNode/Geometry/Graphics/Volume/Null/Grid/
+  # Axis/BBox) now come from cvcGL (cvc::cvcGL); volrover3 no longer forks them.
   CameraController.cpp
+  # Embedded Python interpreter subsystem (docs/EMBEDDED_PYTHON.md).
+  PyHost.cpp
+  EmbeddedInterpreter.cpp
+  JobScheduler.cpp
+  PyConsoleDock.cpp
+  Settings.cpp
   TransferFunctionWidget.cpp
   ThreadMonitorWidget.cpp
   StateTreeWidget.cpp
@@ -82,15 +95,13 @@ set(VOLROVER3_SOURCES
 set(VOLROVER3_HEADERS
   ${PROJECT_SOURCE_DIR}/inc/volrover3/MainWindow.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/VTKRenderWidget.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/SceneGraph.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/SceneNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/GeometryNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/GraphicsNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/VolumeNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/GridNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/AxisNode.h
-  ${PROJECT_SOURCE_DIR}/inc/volrover3/BBoxNode.h
+  # Scene-graph node headers now come from cvcGL (<cvc/gl/*.h>).
   ${PROJECT_SOURCE_DIR}/inc/volrover3/CameraController.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/PyHost.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/EmbeddedInterpreter.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/JobScheduler.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/PyConsoleDock.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/Settings.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/TransferFunctionWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/ThreadMonitorWidget.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/StateTreeWidget.h
@@ -173,22 +184,37 @@ target_include_directories(volrover3 PRIVATE ${PROJECT_SOURCE_DIR}/inc)
 if(QT_VERSION_MAJOR EQUAL 6)
   target_link_libraries(volrover3
     cvc::cvc
+    cvc::cvcGL
+    Python3::Python
+    yaml-cpp::yaml-cpp
     Qt6::Core
     Qt6::Widgets
     Qt6::OpenGL
     Qt6::OpenGLWidgets
+    Qt6::Sql
     ${VTK_LIBRARIES}
     ${OPENGL_LIBRARIES}
   )
 else()
   target_link_libraries(volrover3
     cvc::cvc
+    cvc::cvcGL
+    Python3::Python
+    yaml-cpp::yaml-cpp
     Qt5::Core
     Qt5::Widgets
+    Qt5::Sql
     Qt5::OpenGL
     ${VTK_LIBRARIES}
     ${OPENGL_LIBRARIES}
   )
+endif()
+
+# Make libpython symbols visible to dynamically-imported C-extension modules
+# (numpy, vtk, pycvc's _pycvc.so): the executable-world equivalent of the
+# RTLD_GLOBAL trick verlihub's python plugin uses. See docs/EMBEDDED_PYTHON.md.
+if(UNIX AND NOT APPLE)
+  target_link_options(volrover3 PRIVATE "LINKER:--export-dynamic")
 endif()
 
 # Auto-initialize VTK modules
@@ -386,6 +412,18 @@ if(COMMAND cpack_add_component)
     DESCRIPTION  "VolumeRover3 desktop visualization application")
 endif()
 
+# ── vrhost: the host-control shim delivering the live cvc::app to scripts ──
+# A PURE-PYTHON module (bindings/vrhost.py) — NO SWIG, NO pycvc.i. EmbeddedInterpreter
+# hands it the live app as a PyCapsule("cvc.app") + the QMainWindow address;
+# vrhost.app() feeds the capsule to pycvc.app_from_capsule (pycvc wraps it into its
+# OWN type, so no cross-module SWIG type sharing and no pycvc.i build dependency).
+# Copy it into <build>/pymod (the dir EmbeddedInterpreter/tests add to sys.path)
+# and install it to share/volrover3/pymod for the shipped app.
+configure_file(${PROJECT_SOURCE_DIR}/bindings/vrhost.py
+               ${CMAKE_BINARY_DIR}/pymod/vrhost.py COPYONLY)
+install(FILES ${PROJECT_SOURCE_DIR}/bindings/vrhost.py
+        DESTINATION share/volrover3/pymod COMPONENT volrover3)
+
 # Tests
 option(VOLROVER3_BUILD_TESTS "Build volrover3 unit tests with Google Test" ON)
 if(VOLROVER3_BUILD_TESTS)
@@ -418,18 +456,26 @@ if(VOLROVER3_BUILD_TESTS)
   if(QT_VERSION_MAJOR EQUAL 6)
     target_link_libraries(volrover3_lib
       cvc::cvc
+      cvc::cvcGL
+      Python3::Python
+      yaml-cpp::yaml-cpp
       Qt6::Core
       Qt6::Widgets
       Qt6::OpenGL
       Qt6::OpenGLWidgets
+      Qt6::Sql
       ${VTK_LIBRARIES}
       ${OPENGL_LIBRARIES}
     )
   else()
     target_link_libraries(volrover3_lib
       cvc::cvc
+      cvc::cvcGL
+      Python3::Python
+      yaml-cpp::yaml-cpp
       Qt5::Core
       Qt5::Widgets
+      Qt5::Sql
       Qt5::OpenGL
       ${VTK_LIBRARIES}
       ${OPENGL_LIBRARIES}
@@ -450,14 +496,80 @@ if(VOLROVER3_BUILD_TESTS)
     GTest::gtest_main)
   add_test(NAME AppStateTest COMMAND volrover3_appstate_test)
 
-  # SceneGraph tests
-  add_executable(volrover3_scenegraph_test
-    tests/SceneGraphTest.cpp)
-  target_link_libraries(volrover3_scenegraph_test
+  # Embedded Python interpreter smoke test (Phase 0c). Derive CPython's home
+  # from the interpreter we linked so it finds its stdlib at runtime.
+  get_filename_component(_VR3_PYBIN "${Python3_EXECUTABLE}" DIRECTORY)
+  get_filename_component(_VR3_PYHOME "${_VR3_PYBIN}" DIRECTORY)
+  add_executable(volrover3_interpreter_test
+    tests/EmbeddedInterpreterTest.cpp)
+  target_link_libraries(volrover3_interpreter_test
     volrover3_lib
     GTest::gtest
     GTest::gtest_main)
-  add_test(NAME SceneGraphTest COMMAND volrover3_scenegraph_test)
+  add_test(NAME EmbeddedInterpreterTest COMMAND volrover3_interpreter_test)
+  set_tests_properties(EmbeddedInterpreterTest PROPERTIES
+    ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib")
+
+  # Settings (state-backed + yaml/data.db). HOME redirected to a temp dir so the
+  # test writes an isolated ~/.volrover; QT_PLUGIN_PATH for the QSQLITE driver.
+  add_executable(volrover3_settings_test tests/SettingsTest.cpp)
+  target_link_libraries(volrover3_settings_test
+    volrover3_lib
+    GTest::gtest) # custom main() creates the QCoreApplication QSqlDatabase needs
+  add_test(NAME SettingsTest COMMAND volrover3_settings_test)
+  set_tests_properties(SettingsTest PROPERTIES
+    ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/settings-test-home;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
+
+  # JobScheduler (cooperative tick over the job registry). Custom main() makes
+  # the QCoreApplication the QTimer/QObject need; needs CPython's home.
+  add_executable(volrover3_jobscheduler_test tests/JobSchedulerTest.cpp)
+  target_link_libraries(volrover3_jobscheduler_test
+    volrover3_lib
+    GTest::gtest)
+  add_test(NAME JobSchedulerTest COMMAND volrover3_jobscheduler_test)
+  set_tests_properties(JobSchedulerTest PROPERTIES
+    ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib;QT_QPA_PLATFORM=offscreen")
+
+  # PyConsoleDock (REPL + Jobs tabs). Widgets need a QApplication; run offscreen.
+  add_executable(volrover3_pyconsole_test tests/PyConsoleDockTest.cpp)
+  target_link_libraries(volrover3_pyconsole_test
+    volrover3_lib
+    GTest::gtest)
+  add_test(NAME PyConsoleDockTest COMMAND volrover3_pyconsole_test)
+  set_tests_properties(PyConsoleDockTest PROPERTIES
+    ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
+
+  # vrhost host-control binding — proves `vrhost.app()` delivers the LIVE cvc::app
+  # to pycvc scripts (via the PyCapsule -> pycvc.app_from_capsule path). Needs the
+  # pure-Python vrhost.py (in ${CMAKE_BINARY_DIR}/pymod) + numpy's private libs on
+  # the loader path (numpy is pulled in transitively by pycvc).
+  add_executable(volrover3_vrhost_test tests/VrHostBindingTest.cpp)
+  target_link_libraries(volrover3_vrhost_test
+    volrover3_lib
+    GTest::gtest) # custom main()
+  add_test(NAME VrHostBindingTest COMMAND volrover3_vrhost_test)
+  set_tests_properties(VrHostBindingTest PROPERTIES
+    ENVIRONMENT
+    "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
+
+  # Qt-from-Python bridge (Phase 6) — Python reads the live QMainWindow's widgets
+  # and adds a menu item that fires a QMessageBox, via pyside6/shiboken6 wrapping
+  # the real C++ window. Runs only when the hermetic pyside6 module is present in
+  # the prefix (built by the cvcpkg pyside6 recipe); skipped otherwise.
+  if(EXISTS "${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/PySide6")
+      add_executable(volrover3_qtbridge_test tests/VrHostQtBridgeTest.cpp)
+      target_link_libraries(volrover3_qtbridge_test
+        volrover3_lib
+        Qt${QT_VERSION_MAJOR}::Widgets
+        GTest::gtest) # custom main() creates the QApplication
+      add_test(NAME VrHostQtBridgeTest COMMAND volrover3_qtbridge_test)
+      set_tests_properties(VrHostQtBridgeTest PROPERTIES
+        ENVIRONMENT
+        "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;VOLROVER3_SCRIPTS_DIR=${PROJECT_SOURCE_DIR}/scripts;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
+    else()
+      message(STATUS "volrover3: PySide6 not in the prefix; VrHostQtBridgeTest skipped "
+        "(build the cvcpkg pyside6 recipe into the prefix to enable it)")
+    endif()
 
   # TransferFunction tests
   add_executable(volrover3_transferfunction_test
@@ -477,15 +589,6 @@ if(VOLROVER3_BUILD_TESTS)
     GTest::gtest_main)
   add_test(NAME CameraControllerTest COMMAND volrover3_camera_test)
 
-  # GridNode tests
-  add_executable(volrover3_gridnode_test
-    tests/GridNodeTest.cpp)
-  target_link_libraries(volrover3_gridnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME GridNodeTest COMMAND volrover3_gridnode_test)
-
   # StateTreeWidget tests
   add_executable(volrover3_statetree_test
     tests/StateTreeWidgetTest.cpp)
@@ -501,51 +604,6 @@ if(VOLROVER3_BUILD_TESTS)
     volrover3_lib
     GTest::gtest)
   add_test(NAME StateDashboardWidgetTest COMMAND volrover3_statedashboard_test)
-
-  # GraphicsNode tests
-  add_executable(volrover3_graphicsnode_test
-    tests/GraphicsNodeTest.cpp)
-  target_link_libraries(volrover3_graphicsnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME GraphicsNodeTest COMMAND volrover3_graphicsnode_test)
-
-  # VolumeNode tests
-  add_executable(volrover3_volumenode_test
-    tests/VolumeNodeTest.cpp)
-  target_link_libraries(volrover3_volumenode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME VolumeNodeTest COMMAND volrover3_volumenode_test)
-
-  # BBoxNode tests
-  add_executable(volrover3_bboxnode_test
-    tests/BBoxNodeTest.cpp)
-  target_link_libraries(volrover3_bboxnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME BBoxNodeTest COMMAND volrover3_bboxnode_test)
-
-  # NullGraphicNode tests
-  add_executable(volrover3_nullgraphicnode_test
-    tests/NullGraphicNodeTest.cpp)
-  target_link_libraries(volrover3_nullgraphicnode_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME NullGraphicNodeTest COMMAND volrover3_nullgraphicnode_test)
-
-  # BoundingBox Semantics tests
-  add_executable(volrover3_bbox_semantics_test
-    tests/BoundingBoxSemanticsTest.cpp)
-  target_link_libraries(volrover3_bbox_semantics_test
-    volrover3_lib
-    GTest::gtest
-    GTest::gtest_main)
-  add_test(NAME BoundingBoxSemanticsTest COMMAND volrover3_bbox_semantics_test)
 
   # GeometryDialog tests
   add_executable(volrover3_geometrydialog_test
@@ -571,17 +629,10 @@ if(VOLROVER3_BUILD_TESTS)
   # display is available (headless CI, SSH, etc.).
   set_tests_properties(
     AppStateTest
-    SceneGraphTest
     TransferFunctionTest
     CameraControllerTest
-    GridNodeTest
     StateTreeWidgetTest
     StateDashboardWidgetTest
-    GraphicsNodeTest
-    VolumeNodeTest
-    BBoxNodeTest
-    NullGraphicNodeTest
-    BoundingBoxSemanticsTest
     GeometryDialogTest
     VolumeDialogTest
     PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"

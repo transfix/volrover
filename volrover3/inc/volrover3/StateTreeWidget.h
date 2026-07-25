@@ -12,11 +12,15 @@
 #include <string>
 #include <vector>
 
+namespace cvc {
+class app;
+}
+
 class StateTreeWidget : public QWidget {
   Q_OBJECT
 
 public:
-  explicit StateTreeWidget(QWidget *parent = nullptr);
+  explicit StateTreeWidget(cvc::app &app, QWidget *parent = nullptr);
   ~StateTreeWidget() override;
 
   void setRootState(cvc::state *root);
@@ -46,6 +50,8 @@ private:
   QTableWidget *m_tableWidget;
   QPushButton *m_addButton;
   QPushButton *m_deleteButton;
+
+  cvc::app &m_app;
 
   // Non-owning pointers to states (owned by the cvc::state singleton tree)
   // We use the destroyed signal to track when states are deleted

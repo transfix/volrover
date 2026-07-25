@@ -3,7 +3,6 @@
 #include <cvc/core/app.h>
 #include <cvc/core/state.h>
 #include <gtest/gtest.h>
-#include <volrover3/AppState.h>
 #include <volrover3/CameraController.h>
 #include <vtkCamera.h>
 #include <vtkRenderWindow.h>
@@ -31,9 +30,6 @@ protected:
     ss << "volrover3.camera.test" << testCounter++;
     controller = new CameraController(ctx, ss.str());
     controller->setCamera(camera);
-
-    // Get AppState singleton
-    appState = &AppState::instance();
   }
 
   void TearDown() override { delete controller; }
@@ -43,7 +39,6 @@ protected:
   vtkSmartPointer<vtkRenderer> renderer;
   vtkSmartPointer<vtkCamera> camera;
   CameraController *controller;
-  AppState *appState;
 };
 
 QApplication *CameraControllerTest::app = nullptr;

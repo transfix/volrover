@@ -13,18 +13,19 @@
 #include <cvc/geometry/geometry.h>
 #include <cvc/utility/algorithm.h>
 #include <volrover3/AppState.h>
-#include <volrover3/GeometryNode.h>
+#include <cvc/gl/GeometryNode.h>
 #include <volrover3/ProceduralGeometryDialog.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-ProceduralGeometryDialog::ProceduralGeometryDialog(ProceduralGeometryType type,
+ProceduralGeometryDialog::ProceduralGeometryDialog(AppState &appState, ProceduralGeometryType type,
                                                    std::shared_ptr<SceneGraph> sceneGraph,
                                                    QWidget *parent)
-    : QDialog(parent), m_type(type), m_sceneGraph(sceneGraph), m_centerXSpinBox(nullptr),
+    : QDialog(parent), m_appState(appState), m_type(type), m_sceneGraph(sceneGraph),
+      m_centerXSpinBox(nullptr),
       m_centerYSpinBox(nullptr), m_centerZSpinBox(nullptr), m_radiusSpinBox(nullptr),
       m_thetaResSpinBox(nullptr), m_phiResSpinBox(nullptr), m_sizeXSpinBox(nullptr),
       m_sizeYSpinBox(nullptr), m_sizeZSpinBox(nullptr), m_majorRadiusSpinBox(nullptr),
@@ -264,7 +265,7 @@ void ProceduralGeometryDialog::generateSphere() {
   node->setMetadata("num_vertices", static_cast<int>(geom.num_points()));
   node->setMetadata("num_triangles", static_cast<int>(geom.num_tris()));
 
-  AppState::instance().setWorldBounds(geom.extents());
+  m_appState.setWorldBounds(geom.extents());
 }
 
 void ProceduralGeometryDialog::generateCube() {
@@ -290,7 +291,7 @@ void ProceduralGeometryDialog::generateCube() {
   node->setMetadata("num_vertices", static_cast<int>(geom.num_points()));
   node->setMetadata("num_triangles", static_cast<int>(geom.num_tris()));
 
-  AppState::instance().setWorldBounds(geom.extents());
+  m_appState.setWorldBounds(geom.extents());
 }
 
 void ProceduralGeometryDialog::generateTorus() {
@@ -318,7 +319,7 @@ void ProceduralGeometryDialog::generateTorus() {
   node->setMetadata("num_vertices", static_cast<int>(geom.num_points()));
   node->setMetadata("num_triangles", static_cast<int>(geom.num_tris()));
 
-  AppState::instance().setWorldBounds(geom.extents());
+  m_appState.setWorldBounds(geom.extents());
 }
 
 void ProceduralGeometryDialog::generateCone() {
@@ -345,5 +346,5 @@ void ProceduralGeometryDialog::generateCone() {
   node->setMetadata("num_vertices", static_cast<int>(geom.num_points()));
   node->setMetadata("num_triangles", static_cast<int>(geom.num_tris()));
 
-  AppState::instance().setWorldBounds(geom.extents());
+  m_appState.setWorldBounds(geom.extents());
 }

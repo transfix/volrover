@@ -21,7 +21,20 @@ source:
 patches: []
 
 depends:
-  build: []
+  build:
+    # cvcGL is a STATIC lib (libcvcGL.a) linked into volrover3 — the shared 3D
+    # scene-graph + VTK engine volrover3 consumes instead of forking, and that
+    # pycvc_gl wraps. find_package(cvcGL CONFIG) -> cvc::cvcGL. Build-only
+    # (baked in); its transitive shared deps (libcvc, vtk) are runtime below.
+    - name: cvcgl
+    # Embedded CPython: find_package(Python3 Development.Embed) links libpython
+    # so volrover3 hosts a first-class interpreter (see docs/EMBEDDED_PYTHON.md).
+    # NOTE: pycvc is NOT a build dep — volrover3 builds no SWIG module. The vrhost
+    # shim is pure Python and delivers the app via pycvc.app_from_capsule at
+    # RUNTIME, so pycvc appears only under runtime: below.
+    - name: python311
+    # yaml-cpp: ~/.volrover/settings.yaml round-trip for volrover3::Settings.
+    - name: yaml-cpp
   runtime:
     # volrover3 consumes libcvc as an EXTERNAL SDK:
     # find_package(cvc CONFIG) -> cvc::cvc, published as @cvc/libcvc on
@@ -30,6 +43,17 @@ depends:
     - name: libcvc
     - name: qt6
     - name: vtk
+    # the embedded interpreter (libpython3.11.so) + the bindings scripts import.
+    - name: python311
+    # pycvc delivers the live cvc::app to scripts (vrhost.app() ->
+    # pycvc.app_from_capsule); pycvc-gl wraps the 3D scene.
+    - name: pycvc
+    - name: pycvc-gl
+    # Qt-from-Python bridge (docs §7): vrhost.main_window() uses
+    # shiboken6.wrapInstance; both must link the SAME cvcpkg qt6 as the app (no
+    # bundled Qt) so there is one libQt6Core in-process.
+    - name: pyside6
+    - name: shiboken6
   host_tools:
     - cmake
     - ninja

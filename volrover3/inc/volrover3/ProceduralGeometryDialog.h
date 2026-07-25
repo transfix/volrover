@@ -12,6 +12,7 @@ class QDialogButtonBox;
 class QVBoxLayout;
 class QFormLayout;
 class SceneGraph;
+class AppState;
 
 // Enum for procedural geometry types
 enum class ProceduralGeometryType { Sphere, Cube, Torus, Cone };
@@ -20,7 +21,7 @@ class ProceduralGeometryDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit ProceduralGeometryDialog(ProceduralGeometryType type,
+  explicit ProceduralGeometryDialog(AppState &appState, ProceduralGeometryType type,
                                     std::shared_ptr<SceneGraph> sceneGraph,
                                     QWidget *parent = nullptr);
   ~ProceduralGeometryDialog() override = default;
@@ -42,6 +43,7 @@ private:
 
   std::string getUniqueName(const std::string &baseName);
 
+  AppState &m_appState;
   ProceduralGeometryType m_type;
   std::shared_ptr<SceneGraph> m_sceneGraph;
 

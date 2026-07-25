@@ -10,10 +10,9 @@
 #include <cmath>
 #include <cvc/core/app.h>
 #include <cvc/core/state.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/TransferFunctionWidget.h>
-#include <volrover3/VolumeNode.h>
-#include <volrover3/volrover3_app.h>
+#include <cvc/gl/VolumeNode.h>
 
 // Simple color bar widget
 class ColorBarWidget : public QWidget {
@@ -256,9 +255,9 @@ private:
   bool m_dragging;
 };
 
-TransferFunctionWidget::TransferFunctionWidget(QWidget *parent)
+TransferFunctionWidget::TransferFunctionWidget(cvc::app &app, QWidget *parent)
     : QWidget(parent), m_presetCombo(nullptr), m_colorBarWidget(nullptr), m_opacityWidget(nullptr),
-      m_volumeCombo(nullptr), m_sceneGraph(nullptr), m_dataMin(0.0), m_dataMax(1.0),
+      m_volumeCombo(nullptr), m_app(app), m_sceneGraph(nullptr), m_dataMin(0.0), m_dataMax(1.0),
       m_updatingFromState(false) {
   setupUI();
   createDefaultTransferFunction();
@@ -337,7 +336,7 @@ void TransferFunctionWidget::setSceneGraph(SceneGraph *sceneGraph) {
     std::string graphicsRootPath = statePrefix + ".graphics.root.children";
 
     m_graphicsChildrenConnection =
-        cvc::state::instance(volrover3::app())(graphicsRootPath)
+        cvc::state::instance(m_app)(graphicsRootPath)
             .childChanged.connect([this](const std::string &) {
               // Post to Qt event loop to ensure thread safety
               QMetaObject::invokeMethod(this, "onGraphicsChildrenChanged", Qt::QueuedConnection);
@@ -434,7 +433,7 @@ void TransferFunctionWidget::onVolumeSelected(int index) {
 
 void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<VolumeNode> volume) {
   if (!volume || !volume->hasVolume()) {
-    volrover3::app().log(
+    m_app.log(
         0,
         "TransferFunctionWidget::loadTransferFunctionFromVolume: No volume or volume not loaded");
     return;
@@ -444,7 +443,7 @@ void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<Volu
   auto minVal = volume->getMetadata("data_min");
   auto maxVal = volume->getMetadata("data_max");
 
-  volrover3::app().log(0, "\nTransferFunctionWidget::loadTransferFunctionFromVolume[" +
+  m_app.log(0, "\nTransferFunctionWidget::loadTransferFunctionFromVolume[" +
                               volume->getName() + "]: Getting metadata");
 
   if (minVal.has_value() && maxVal.has_value()) {
@@ -459,17 +458,17 @@ void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<Volu
         m_dataMin = std::stod(minStr);
         m_dataMax = std::stod(maxStr);
       }
-      volrover3::app().log(0, "  Set data range to: [" + std::to_string(m_dataMin) + ", " +
+      m_app.log(0, "  Set data range to: [" + std::to_string(m_dataMin) + ", " +
                                   std::to_string(m_dataMax) + "]\n");
     } catch (const std::exception &e) {
-      volrover3::app().log(0, "TransferFunctionWidget::loadTransferFunctionFromVolume[" +
+      m_app.log(0, "TransferFunctionWidget::loadTransferFunctionFromVolume[" +
                                   volume->getName() + "]: Failed to convert metadata (" +
                                   std::string(e.what()) + "), using defaults [0.0, 1.0]");
       m_dataMin = 0.0;
       m_dataMax = 1.0;
     }
   } else {
-    volrover3::app().log(0, "TransferFunctionWidget::loadTransferFunctionFromVolume[" +
+    m_app.log(0, "TransferFunctionWidget::loadTransferFunctionFromVolume[" +
                                 volume->getName() +
                                 "]: No metadata found, using defaults [0.0, 1.0]");
     m_dataMin = 0.0;
@@ -480,7 +479,7 @@ void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<Volu
   std::vector<double> colorTable = volume->getTransferFunctionColorTable();
   std::vector<double> opacityTable = volume->getTransferFunctionOpacityTable();
 
-  volrover3::app().log(0, "  Raw from state: " + std::to_string(colorTable.size()) +
+  m_app.log(0, "  Raw from state: " + std::to_string(colorTable.size()) +
                               " color values, " + std::to_string(opacityTable.size()) +
                               " opacity values");
 
@@ -488,7 +487,7 @@ void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<Volu
     // Parse color table into color points (format: scalar, r, g, b, ...)
     m_colorPoints.clear();
 
-    volrover3::app().log(0, "  Parsing color table: " + std::to_string(colorTable.size()) +
+    m_app.log(0, "  Parsing color table: " + std::to_string(colorTable.size()) +
                                 " values = " + std::to_string(colorTable.size() / 4) + " points");
 
     for (size_t i = 0; i + 3 < colorTable.size(); i += 4) {
@@ -524,16 +523,16 @@ void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<Volu
       opacityWidget->setOpacityPoints(m_opacityPoints);
     }
 
-    volrover3::app().log(0, "  Loaded TF: " + std::to_string(m_colorPoints.size()) +
+    m_app.log(0, "  Loaded TF: " + std::to_string(m_colorPoints.size()) +
                                 " color pts, " + std::to_string(m_opacityPoints.size()) +
                                 " opacity pts");
   } else {
-    volrover3::app().log(0, "  No transfer function in state, keeping current widget TF");
+    m_app.log(0, "  No transfer function in state, keeping current widget TF");
   }
 }
 
 void TransferFunctionWidget::applyPreset(const QString &presetName) {
-  cvc::thread_info ti(volrover3::app(), "Applying transfer function preset");
+  cvc::thread_info ti(m_app, "Applying transfer function preset");
 
   m_colorPoints.clear();
   // Don't clear opacity points - keep them independent!
@@ -616,7 +615,7 @@ void TransferFunctionWidget::updateColorBar() {
 std::vector<double> TransferFunctionWidget::getColorTable() const {
   std::vector<double> table;
 
-  volrover3::app().log(0, "TransferFunctionWidget::getColorTable() - m_colorPoints.size() = " +
+  m_app.log(0, "TransferFunctionWidget::getColorTable() - m_colorPoints.size() = " +
                               std::to_string(m_colorPoints.size()));
 
   for (const auto &pt : m_colorPoints) {
@@ -627,7 +626,7 @@ std::vector<double> TransferFunctionWidget::getColorTable() const {
     table.push_back(pt.color.blueF());
   }
 
-  volrover3::app().log(0, "  Returning color table with " + std::to_string(table.size()) +
+  m_app.log(0, "  Returning color table with " + std::to_string(table.size()) +
                               " values (" + std::to_string(table.size() / 4) + " points)");
 
   return table;
@@ -665,7 +664,7 @@ void TransferFunctionWidget::connectToVolumeState(std::shared_ptr<VolumeNode> vo
   // Use DirectConnection instead of QueuedConnection to ensure m_updatingFromState flag works
   // correctly
   m_colorTFConnection =
-      cvc::state::instance(volrover3::app())(colorTFPath).valueChanged.connect([this]() {
+      cvc::state::instance(m_app)(colorTFPath).valueChanged.connect([this]() {
         // Only reload if we're not currently updating state from widget
         if (m_updatingFromState == 0) {
           onVolumeTransferFunctionChanged();
@@ -673,7 +672,7 @@ void TransferFunctionWidget::connectToVolumeState(std::shared_ptr<VolumeNode> vo
       });
 
   m_opacityTFConnection =
-      cvc::state::instance(volrover3::app())(opacityTFPath).valueChanged.connect([this]() {
+      cvc::state::instance(m_app)(opacityTFPath).valueChanged.connect([this]() {
         // Only reload if we're not currently updating state from widget
         if (m_updatingFromState == 0) {
           onVolumeTransferFunctionChanged();

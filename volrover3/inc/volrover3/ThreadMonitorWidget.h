@@ -15,7 +15,7 @@ class ThreadMonitorWidget : public QWidget {
   Q_OBJECT
 
 public:
-  explicit ThreadMonitorWidget(QWidget *parent = nullptr);
+  explicit ThreadMonitorWidget(cvc::app &app, QWidget *parent = nullptr);
   ~ThreadMonitorWidget();
 
 signals:
@@ -35,6 +35,7 @@ private:
   void disconnectCallbacks();
   QString formatProgress(double progress);
 
+  cvc::app &m_app;
   QTableWidget *m_threadTable;
   QTimer *m_updateTimer;
   QTimer *m_cleanupTimer; // Timer to remove completed threads after delay

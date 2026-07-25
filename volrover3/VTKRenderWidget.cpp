@@ -3,9 +3,8 @@
 #include <QWheelEvent>
 #include <volrover3/AppState.h>
 #include <volrover3/CameraController.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/VTKRenderWidget.h>
-#include <volrover3/volrover3_app.h>
 #include <vtkCamera.h>
 #include <vtkCornerAnnotation.h>
 #include <vtkGenericOpenGLRenderWindow.h>
@@ -13,11 +12,11 @@
 #include <vtkRenderer.h>
 #include <vtkTextProperty.h>
 
-VTKRenderWidget::VTKRenderWidget(QWidget *parent)
-    : QVTK_WIDGET_BASE(parent),
+VTKRenderWidget::VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *parent)
+    : QVTK_WIDGET_BASE(parent), m_app(app), m_appState(appState),
       m_renderWindow(vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New()),
       m_renderer(vtkSmartPointer<vtkRenderer>::New()),
-      m_cameraController(std::make_unique<CameraController>(volrover3::app())),
+      m_cameraController(std::make_unique<CameraController>(app)),
       m_fpsAnnotation(vtkSmartPointer<vtkCornerAnnotation>::New()), m_showFPS(false) {
   initializeVTK();
 
@@ -29,7 +28,7 @@ VTKRenderWidget::VTKRenderWidget(QWidget *parent)
   connect(&m_fpsTimer, &QTimer::timeout, this, &VTKRenderWidget::updateFPSDisplay);
 
   // Load FPS display setting from state
-  m_showFPS = AppState::instance().showFPS();
+  m_showFPS = m_appState.showFPS();
   if (m_showFPS) {
     m_fpsAnnotation->SetVisibility(true);
     m_fpsTimer.start(500);

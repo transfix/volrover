@@ -20,13 +20,13 @@
 #include <cvc/geometry/geometry.h>
 #include <cvc/utility/algorithm.h>
 #include <volrover3/GeometryDialog.h>
-#include <volrover3/GeometryNode.h>
-#include <volrover3/GraphicsNode.h>
-#include <volrover3/SceneGraph.h>
-#include <volrover3/volrover3_app.h>
+#include <cvc/gl/GeometryNode.h>
+#include <cvc/gl/GraphicsNode.h>
+#include <cvc/gl/SceneGraph.h>
 
-GeometryDialog::GeometryDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
-    : QDialog(parent), m_sceneGraph(sceneGraph), m_geometryComboBox(nullptr),
+GeometryDialog::GeometryDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph,
+                               QWidget *parent)
+    : QDialog(parent), m_app(app), m_sceneGraph(sceneGraph), m_geometryComboBox(nullptr),
       m_renderModeComboBox(nullptr), m_singleColorCheckBox(nullptr), m_colorRSpinBox(nullptr),
       m_colorGSpinBox(nullptr), m_colorBSpinBox(nullptr), m_visibilityCheckBox(nullptr),
       m_showBBoxCheckBox(nullptr), m_bboxColorButton(nullptr), m_invertNormalsButton(nullptr),
@@ -1072,21 +1072,21 @@ void GeometryDialog::onInvertNormalsClicked() {
   m_invertNormalsButton->setEnabled(false);
 
   // Start the operation in a background thread
-  volrover3::app().startThread(
+  m_app.startThread(
       threadKey,
       [this, geom, geomName, threadKey]() mutable {
         // Use thread_feedback for proper progress tracking
-        cvc::app::thread_feedback feedback(volrover3::app(), threadKey);
+        cvc::app::thread_feedback feedback(m_app, threadKey);
 
         try {
-          volrover3::app().threadProgress(threadKey, 0.1);
-          volrover3::app().threadInfo(threadKey, "Inverting normals...");
+          m_app.threadProgress(threadKey, 0.1);
+          m_app.threadInfo(threadKey, "Inverting normals...");
 
           // Perform the normal inversion
           geom.invert_normals();
 
-          volrover3::app().threadProgress(threadKey, 0.9);
-          volrover3::app().threadInfo(threadKey, "Updating scene...");
+          m_app.threadProgress(threadKey, 0.9);
+          m_app.threadInfo(threadKey, "Updating scene...");
 
           // Post scene update to main thread
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
@@ -1097,7 +1097,7 @@ void GeometryDialog::onInvertNormalsClicked() {
               geomNode->setGeometry(geom);
             }
 
-            volrover3::app().finishThreadProgress(threadKey);
+            m_app.finishThreadProgress(threadKey);
 
             // Re-enable button on Qt thread
             QMetaObject::invokeMethod(
@@ -1147,20 +1147,20 @@ void GeometryDialog::onReorientClicked() {
   m_reorientButton->setEnabled(false);
 
   // Start the operation in a background thread
-  volrover3::app().startThread(
+  m_app.startThread(
       threadKey,
       [this, geom, geomName, threadKey]() mutable {
-        cvc::app::thread_feedback feedback(volrover3::app(), threadKey);
+        cvc::app::thread_feedback feedback(m_app, threadKey);
 
         try {
-          volrover3::app().threadProgress(threadKey, 0.1);
-          volrover3::app().threadInfo(threadKey, "Reorienting mesh...");
+          m_app.threadProgress(threadKey, 0.1);
+          m_app.threadInfo(threadKey, "Reorienting mesh...");
 
           // Perform the reorient operation
           geom.reorient();
 
-          volrover3::app().threadProgress(threadKey, 0.9);
-          volrover3::app().threadInfo(threadKey, "Updating scene...");
+          m_app.threadProgress(threadKey, 0.9);
+          m_app.threadInfo(threadKey, "Updating scene...");
 
           // Post scene update to main thread
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
@@ -1171,7 +1171,7 @@ void GeometryDialog::onReorientClicked() {
               geomNode->setGeometry(geom);
             }
 
-            volrover3::app().finishThreadProgress(threadKey);
+            m_app.finishThreadProgress(threadKey);
 
             QMetaObject::invokeMethod(
                 this, [this]() { m_reorientButton->setEnabled(true); }, Qt::QueuedConnection);
@@ -1232,20 +1232,20 @@ void GeometryDialog::onProjectClicked() {
 
   m_projectButton->setEnabled(false);
 
-  volrover3::app().startThread(
+  m_app.startThread(
       threadKey,
       [this, geom, targetGeom, geomName, threadKey]() mutable {
-        cvc::app::thread_feedback feedback(volrover3::app(), threadKey);
+        cvc::app::thread_feedback feedback(m_app, threadKey);
 
         try {
-          volrover3::app().threadProgress(threadKey, 0.1);
-          volrover3::app().threadInfo(threadKey, "Projecting to target geometry...");
+          m_app.threadProgress(threadKey, 0.1);
+          m_app.threadInfo(threadKey, "Projecting to target geometry...");
 
           // Perform the projection
           geom.project(targetGeom);
 
-          volrover3::app().threadProgress(threadKey, 0.9);
-          volrover3::app().threadInfo(threadKey, "Updating scene...");
+          m_app.threadProgress(threadKey, 0.9);
+          m_app.threadInfo(threadKey, "Updating scene...");
 
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
@@ -1255,7 +1255,7 @@ void GeometryDialog::onProjectClicked() {
               geomNode->setGeometry(geom);
             }
 
-            volrover3::app().finishThreadProgress(threadKey);
+            m_app.finishThreadProgress(threadKey);
 
             QMetaObject::invokeMethod(
                 this, [this]() { m_projectButton->setEnabled(true); }, Qt::QueuedConnection);
@@ -1307,22 +1307,22 @@ void GeometryDialog::onSmoothingClicked() {
 
   m_smoothingButton->setEnabled(false);
 
-  volrover3::app().startThread(
+  m_app.startThread(
       threadKey,
       [this, geom, delta, fixBoundary, perturb1, geoFlow, smoothingEnabled, perturb2, geomName,
        threadKey]() mutable {
-        cvc::app::thread_feedback feedback(volrover3::app(), threadKey);
+        cvc::app::thread_feedback feedback(m_app, threadKey);
 
         try {
-          volrover3::app().threadProgress(threadKey, 0.1);
-          volrover3::app().threadInfo(threadKey, "Smoothing mesh...");
+          m_app.threadProgress(threadKey, 0.1);
+          m_app.threadInfo(threadKey, "Smoothing mesh...");
 
           // Perform the smoothing operation with all parameters
-          geom.smoothing(volrover3::app(), delta, fixBoundary, perturb1, geoFlow, smoothingEnabled,
+          geom.smoothing(m_app, delta, fixBoundary, perturb1, geoFlow, smoothingEnabled,
                          perturb2);
 
-          volrover3::app().threadProgress(threadKey, 0.9);
-          volrover3::app().threadInfo(threadKey, "Updating scene...");
+          m_app.threadProgress(threadKey, 0.9);
+          m_app.threadInfo(threadKey, "Updating scene...");
 
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
@@ -1332,7 +1332,7 @@ void GeometryDialog::onSmoothingClicked() {
               geomNode->setGeometry(geom);
             }
 
-            volrover3::app().finishThreadProgress(threadKey);
+            m_app.finishThreadProgress(threadKey);
 
             QMetaObject::invokeMethod(
                 this, [this]() { m_smoothingButton->setEnabled(true); }, Qt::QueuedConnection);
@@ -1381,20 +1381,20 @@ void GeometryDialog::onQualityImproveClicked() {
 
   m_qualityImproveButton->setEnabled(false);
 
-  volrover3::app().startThread(
+  m_app.startThread(
       threadKey,
       [this, geom, iterations, method, geomName, threadKey]() mutable {
-        cvc::app::thread_feedback feedback(volrover3::app(), threadKey);
+        cvc::app::thread_feedback feedback(m_app, threadKey);
 
         try {
-          volrover3::app().threadProgress(threadKey, 0.1);
-          volrover3::app().threadInfo(threadKey, "Improving mesh quality...");
+          m_app.threadProgress(threadKey, 0.1);
+          m_app.threadInfo(threadKey, "Improving mesh quality...");
 
           // Perform the quality improvement
           geom.quality_improve(iterations, method);
 
-          volrover3::app().threadProgress(threadKey, 0.9);
-          volrover3::app().threadInfo(threadKey, "Updating scene...");
+          m_app.threadProgress(threadKey, 0.9);
+          m_app.threadInfo(threadKey, "Updating scene...");
 
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
@@ -1404,7 +1404,7 @@ void GeometryDialog::onQualityImproveClicked() {
               geomNode->setGeometry(geom);
             }
 
-            volrover3::app().finishThreadProgress(threadKey);
+            m_app.finishThreadProgress(threadKey);
 
             QMetaObject::invokeMethod(
                 this, [this]() { m_qualityImproveButton->setEnabled(true); }, Qt::QueuedConnection);

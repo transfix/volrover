@@ -15,12 +15,16 @@ class QPushButton;
 class QProgressBar;
 class QLabel;
 class SceneGraph;
+namespace cvc {
+class app;
+}
 
 class IsosurfaceDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit IsosurfaceDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent = nullptr);
+  explicit IsosurfaceDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph,
+                            QWidget *parent = nullptr);
   ~IsosurfaceDialog() = default;
 
 private slots:
@@ -36,6 +40,7 @@ private:
   void onComputeFinished(bool success, const std::string &message);
   void setControlsEnabled(bool enabled);
 
+  cvc::app &m_app;
   std::shared_ptr<SceneGraph> m_sceneGraph;
 
   // UI elements

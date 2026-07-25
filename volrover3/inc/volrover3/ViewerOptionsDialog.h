@@ -10,12 +10,13 @@ class QComboBox;
 class QPushButton;
 class VTKRenderWidget;
 class SceneGraph;
+class AppState;
 
 class ViewerOptionsDialog : public QWidget {
   Q_OBJECT
 
 public:
-  explicit ViewerOptionsDialog(VTKRenderWidget *renderWidget,
+  explicit ViewerOptionsDialog(AppState &appState, VTKRenderWidget *renderWidget,
                                std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent = nullptr);
   ~ViewerOptionsDialog() override;
 
@@ -35,6 +36,7 @@ private:
   void connectSignals();
   void loadFromState();
 
+  AppState &m_appState;
   VTKRenderWidget *m_renderWidget;
   std::shared_ptr<SceneGraph> m_sceneGraph;
 

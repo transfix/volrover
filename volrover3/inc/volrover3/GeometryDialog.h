@@ -15,12 +15,16 @@ class QGroupBox;
 class QTableWidget;
 class QPushButton;
 class SceneGraph;
+namespace cvc {
+class app;
+}
 
 class GeometryDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit GeometryDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent = nullptr);
+  explicit GeometryDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph,
+                          QWidget *parent = nullptr);
   ~GeometryDialog() = default;
 
 private slots:
@@ -54,6 +58,7 @@ private:
   void updateExtentLabelColorButton();
   void setOperationButtonsEnabled(bool enabled);
 
+  cvc::app &m_app;
   std::shared_ptr<SceneGraph> m_sceneGraph;
 
   // UI elements

@@ -9,13 +9,14 @@
 #include <QShowEvent>
 #include <QVBoxLayout>
 #include <volrover3/AppState.h>
-#include <volrover3/SceneGraph.h>
+#include <cvc/gl/SceneGraph.h>
 #include <volrover3/VTKRenderWidget.h>
 #include <volrover3/ViewerOptionsDialog.h>
 
-ViewerOptionsDialog::ViewerOptionsDialog(VTKRenderWidget *renderWidget,
+ViewerOptionsDialog::ViewerOptionsDialog(AppState &appState, VTKRenderWidget *renderWidget,
                                          std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
-    : QWidget(parent, Qt::Window), m_renderWidget(renderWidget), m_sceneGraph(sceneGraph),
+    : QWidget(parent, Qt::Window), m_appState(appState), m_renderWidget(renderWidget),
+      m_sceneGraph(sceneGraph),
       m_showFPSCheckBox(nullptr), m_graphicsRootComboBox(nullptr), m_refreshRootsButton(nullptr),
       m_cameraComboBox(nullptr), m_refreshCamerasButton(nullptr) {
   setupUI();
@@ -98,7 +99,7 @@ void ViewerOptionsDialog::connectSignals() {
 
 void ViewerOptionsDialog::loadFromState() {
   // Load FPS display setting from AppState
-  bool showFPS = AppState::instance().showFPS();
+  bool showFPS = m_appState.showFPS();
   m_showFPSCheckBox->setChecked(showFPS);
 
   // Populate combo boxes
@@ -114,7 +115,7 @@ void ViewerOptionsDialog::showEvent(QShowEvent *event) {
 void ViewerOptionsDialog::closeEvent(QCloseEvent *event) { QWidget::closeEvent(event); }
 
 void ViewerOptionsDialog::onShowFPSChanged(bool checked) {
-  AppState::instance().setShowFPS(checked);
+  m_appState.setShowFPS(checked);
 
   // Update the render widget to show/hide FPS display
   if (m_renderWidget) {

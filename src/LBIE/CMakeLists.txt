@@ -56,22 +56,8 @@ endif(Boost_FOUND)
 
 TARGET_LINK_LIBRARIES(LBIE ${LINK_LIBS})
 
-OPTION(BUILD_LBIE_MESHER "Build LBIE Mesher" ON)
-IF(BUILD_LBIE_MESHER)
-  find_package(Boost 1.34.0 COMPONENTS program_options)
-  if(Boost_FOUND)
-    ADD_EXECUTABLE(Mesher main.cpp)
-    
-    set_target_properties(Mesher PROPERTIES
-      AUTOMOC OFF
-      AUTOUIC OFF
-      AUTORCC OFF
-    )
-    TARGET_LINK_LIBRARIES(Mesher
-      LBIE
-      ${Boost_LIBRARIES} 
-    )
-  else(Boost_FOUND)
-    message("boost_program_options component not found, cannot build Mesher")
-  endif(Boost_FOUND)
-ENDIF(BUILD_LBIE_MESHER)
+# The standalone `Mesher` executable was removed: every meshing mode it exposed
+# (single-surface iso, tetra, hexa, tetra2, inner/outer interval) is provided by
+# the `cvc` CLI — `cvc iso / tetrahedralize / hexahedralize / tetrahedralize2 /
+# layer-mesh` — running the SAME LBIE engine, now vendored inside libcvc/cvc-cli.
+# The LBIE static library above is retained (still linked by the VolumeRover2 GUI).

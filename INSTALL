@@ -15,13 +15,13 @@ Required Libraries:
 4. OpenGL (3.3+)                  - required for rendering
 
 Optional Libraries:
-5. GSL (1.15+)                    - required for tiling, volume grid rover, and volutils
+5. GSL (1.15+)                    - required for tiling and volume grid rover
 6. HDF5 (1.8.5+)                  - required for heirarchical volume handling
 7. CGAL (4.0+)                    - required for tiling, segmentation, curation, pockettunnel, 
                                     skeletonization, secondary structure elucidation, tightcocone, 
                                     super secondary structure elucidation, and volume grid rover
-8. FFTW (3.2.4+)                  - required for volutils and reconstruction
-9. ImageMagick                    - required for some volume utilities
+8. FFTW (3.2.4+)                  - required for reconstruction
+9. ImageMagick                    - required for image-format volume I/O
 
 **Note:** GLEW is now a system dependency. Install libglew-dev (Ubuntu/Debian) 
 or glew-devel (Fedora/RHEL). The old bundled GLEW in src/glew/ is no longer used.
