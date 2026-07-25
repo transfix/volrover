@@ -18,6 +18,7 @@ import pycvc
 
 # ── injected by EmbeddedInterpreter at boot / when the main window is set ──
 _app_capsule = None    # PyCapsule("cvc.app") -> shared_ptr<cvc::app>*
+_scene_capsule = None  # PyCapsule("cvc.scenegraph") -> shared_ptr<SceneGraph>*
 _main_window_ptr = 0   # QMainWindow* as an int
 
 
@@ -32,6 +33,31 @@ def app():
             "vrhost: no host app bound — are you running inside the volrover3 "
             "embedded interpreter?")
     return pycvc.app_from_capsule(_app_capsule)
+
+
+def scene():
+    """The LIVE volrover3 3D scene as a ``pycvc_gl.Scene`` bound to the running window.
+
+    ``add_geometry`` / ``add_volume`` on the returned Scene mutate the RUNNING
+    scene graph, so they appear in the live volrover3 viewport (the render widget's
+    timer drains the queued mutations) — not a separate offscreen scene:
+
+        import vrhost
+        s = vrhost.scene()
+        s.add_geometry("mesh", g)   # shows up in the live window
+
+    The host hands the scene across as ``_scene_capsule`` (a PyCapsule named
+    "cvc.scenegraph"); ``pycvc_gl.scene_from_capsule`` wraps it + the app capsule
+    into a Scene that ADOPTS the live SceneGraph — no SWIG type sharing, no
+    parallel scene. Requires ``pycvc_gl`` and single-interpreter mode (multi-mode
+    denies pycvc_gl imports).
+    """
+    if _scene_capsule is None or _app_capsule is None:
+        raise RuntimeError(
+            "vrhost: no host scene bound — are you running inside the volrover3 "
+            "embedded interpreter in single-interpreter mode?")
+    import pycvc_gl
+    return pycvc_gl.scene_from_capsule(_app_capsule, _scene_capsule)
 
 
 def main_window_ptr():

@@ -6,6 +6,8 @@
 #include <volrover3/EmbeddedInterpreter.h>
 #include <volrover3/PyHost.h>
 
+#include <cvc/gl/SceneGraph.h> // complete type so the scene-capsule dtor can run ~SceneGraph
+
 #include <cstdlib>
 #include <iostream>
 
@@ -72,6 +74,12 @@ static void app_capsule_dtor(PyObject *cap) {
   delete static_cast<std::shared_ptr<cvc::app> *>(PyCapsule_GetPointer(cap, "cvc.app"));
 }
 
+// PyCapsule("cvc.scenegraph") destructor: free the heap shared_ptr copy. The host
+// keeps its own ref, so this drop is not the last one during normal operation.
+static void scene_capsule_dtor(PyObject *cap) {
+  delete static_cast<std::shared_ptr<SceneGraph> *>(PyCapsule_GetPointer(cap, "cvc.scenegraph"));
+}
+
 // GIL must be held. Best-effort: never throws; logs + returns false on failure.
 bool EmbeddedInterpreter::bind_host() {
   // Resolve the dir holding _vrhost.so + vrhost.py (Config, else env). pycvc
@@ -123,6 +131,24 @@ bool EmbeddedInterpreter::bind_host() {
   } else {
     delete sp; // capsule creation failed — free the copy ourselves
   }
+
+  // Deliver the LIVE SceneGraph as PyCapsule("cvc.scenegraph") so vrhost.scene()
+  // can adopt it into a pycvc_gl.Scene — add_geometry/add_volume then mutate the
+  // RUNNING scene and appear in the live window (VTKRenderWidget's timer drains
+  // the queued mutations). Same raw-shared_ptr-copy pattern as the app capsule; a
+  // null scene (headless/tests) simply leaves vrhost._scene_capsule = None.
+  if (auto scene = m_host->scene()) {
+    auto *ssp = new std::shared_ptr<SceneGraph>(scene);
+    PyObject *scap = PyCapsule_New(ssp, "cvc.scenegraph", &scene_capsule_dtor); // new
+    if (scap) {
+      if (PyObject_SetAttrString(vr, "_scene_capsule", scap) != 0)
+        PyErr_Print();
+      Py_DECREF(scap); // vrhost._scene_capsule holds the ref
+    } else {
+      delete ssp;
+    }
+  }
+
   Py_DECREF(vr);
   return bound;
 }
