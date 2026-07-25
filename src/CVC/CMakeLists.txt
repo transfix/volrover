@@ -49,19 +49,59 @@ if(CVC_USING_HDF5)
        HDF5_Utilities.cpp
     )
 
-    # Collect all HDF5 include directories
-    # Modern FindHDF5 uses HDF5_INCLUDE_DIRS, but also check legacy HDF5_INCLUDE_DIR
-    # On some systems, manually add the serial path
+    # The upstream/cvcpkg HDF5 CONFIG package sets HDF5_FOUND + imported targets
+    # but leaves HDF5_LIBRARIES EMPTY, so the H5:: C++ API in HDF5_Utilities.cpp
+    # goes unlinked (undefined H5:: symbols at final link). When empty, derive the
+    # link libs from the config's imported targets — one C++ (hdf5_cpp) + one C
+    # (hdf5) target, preferring shared, probing cvcpkg's non-namespaced names AND
+    # the namespaced forms. Falls back to the FindHDF5-module vars for system
+    # installs. (Mirrors src/VolMagick/CMakeLists.txt.)
+    set(CVC_HDF5_LIBS ${HDF5_LIBRARIES})
+    if(NOT CVC_HDF5_LIBS)
+      foreach(_cpp hdf5_cpp-shared hdf5::hdf5_cpp-shared hdf5_cpp-static hdf5::hdf5_cpp-static hdf5_cpp hdf5::hdf5_cpp)
+        if(TARGET ${_cpp})
+          list(APPEND CVC_HDF5_LIBS ${_cpp})
+          break()
+        endif()
+      endforeach()
+      foreach(_c hdf5-shared hdf5::hdf5-shared hdf5-static hdf5::hdf5-static hdf5 hdf5::hdf5)
+        if(TARGET ${_c})
+          list(APPEND CVC_HDF5_LIBS ${_c})
+          break()
+        endif()
+      endforeach()
+    endif()
+    if(NOT CVC_HDF5_LIBS) # last resort: raw component vars from FindHDF5 module
+      set(CVC_HDF5_LIBS ${HDF5_CXX_LIBRARIES} ${HDF5_C_LIBRARIES})
+    endif()
+    set(CVC_LINK_LIBS ${CVC_LINK_LIBS} ${CVC_HDF5_LIBS})
+
+    # HDF5 include dirs. CRITICAL: do NOT mix the Debian/Ubuntu
+    # /usr/include/hdf5/serial headers with a deps/cvcpkg HDF5 — their hsize_t
+    # differs (serial `unsigned long long` vs the deps build's uint64_t ==
+    # unsigned long), so a shadowing serial path makes HDF5_Utilities.cpp emit H5::
+    # methods taking `unsigned long long*` that the linked libhdf5_cpp (exporting
+    # `unsigned long*`) doesn't provide → undefined refs. Prefer find_package's
+    # include dirs; else pull them off the imported target; only fall back to the
+    # system serial path for a bare apt build. (Mirrors src/VolMagick/CMakeLists.txt.)
     set(CVC_HDF5_INCLUDE_DIRS ${HDF5_INCLUDE_DIRS} ${HDF5_C_INCLUDE_DIRS} ${HDF5_CXX_INCLUDE_DIRS} ${HDF5_INCLUDE_DIR})
-    if(EXISTS "/usr/include/hdf5/serial")
+    if(NOT CVC_HDF5_INCLUDE_DIRS)
+      foreach(_t hdf5_cpp-shared hdf5::hdf5_cpp-shared hdf5-shared hdf5::hdf5-shared hdf5_cpp-static hdf5-static)
+        if(TARGET ${_t})
+          get_target_property(_inc ${_t} INTERFACE_INCLUDE_DIRECTORIES)
+          if(_inc)
+            list(APPEND CVC_HDF5_INCLUDE_DIRS ${_inc})
+            break()
+          endif()
+        endif()
+      endforeach()
+    endif()
+    if(NOT CVC_HDF5_INCLUDE_DIRS AND EXISTS "/usr/include/hdf5/serial")
       list(APPEND CVC_HDF5_INCLUDE_DIRS "/usr/include/hdf5/serial")
     endif()
-    # Remove duplicates
     if(CVC_HDF5_INCLUDE_DIRS)
       list(REMOVE_DUPLICATES CVC_HDF5_INCLUDE_DIRS)
     endif()
-
-    set(CVC_LINK_LIBS ${CVC_LINK_LIBS} ${HDF5_LIBRARIES})
   else(HDF5_FOUND)
     message("HDF5 not found! CVC file support disabled")
     set(CVC_HDF5_DISABLED TRUE)

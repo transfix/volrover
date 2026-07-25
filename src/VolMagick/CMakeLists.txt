@@ -77,17 +77,62 @@ if(CVC_USING_HDF5)
        HDF5_IO.cpp
     )
 
-    # Store HDF5 include dirs for target_include_directories later
-    # Modern FindHDF5 uses different variable names
+    # Resolve the HDF5 link libs. The upstream/cvcpkg HDF5 CONFIG package
+    # (hdf5-config.cmake) sets HDF5_FOUND and defines imported targets, but leaves
+    # HDF5_LIBRARIES EMPTY — so HDF5_IO.cpp's H5:: C++ API went unlinked (undefined
+    # H5::DataSpace at final link). When empty, derive from the config's imported
+    # targets: one C++ (hdf5_cpp) + one C (hdf5), preferring shared, probing
+    # cvcpkg's non-namespaced names AND the namespaced forms (vcpkg/brew). The _cpp
+    # target transitively pulls the C lib; we list both for a deterministic line.
+    # The system FindHDF5-module path (apt/brew) sets HDF5_LIBRARIES and is used
+    # as-is.
+    set(VOLMAGICK_HDF5_LIBS ${HDF5_LIBRARIES})
+    if(NOT VOLMAGICK_HDF5_LIBS)
+      foreach(_cpp hdf5_cpp-shared hdf5::hdf5_cpp-shared hdf5_cpp-static hdf5::hdf5_cpp-static hdf5_cpp hdf5::hdf5_cpp)
+        if(TARGET ${_cpp})
+          list(APPEND VOLMAGICK_HDF5_LIBS ${_cpp})
+          break()
+        endif()
+      endforeach()
+      foreach(_c hdf5-shared hdf5::hdf5-shared hdf5-static hdf5::hdf5-static hdf5 hdf5::hdf5)
+        if(TARGET ${_c})
+          list(APPEND VOLMAGICK_HDF5_LIBS ${_c})
+          break()
+        endif()
+      endforeach()
+    endif()
+    if(NOT VOLMAGICK_HDF5_LIBS) # last resort: raw component vars from FindHDF5 module
+      set(VOLMAGICK_HDF5_LIBS ${HDF5_CXX_LIBRARIES} ${HDF5_C_LIBRARIES})
+    endif()
+    SET(VOLMAGICK_LINK_LIBS ${VOLMAGICK_LINK_LIBS} ${VOLMAGICK_HDF5_LIBS})
+
+    # HDF5 include dirs for target_include_directories. CRITICAL: do NOT mix the
+    # Debian/Ubuntu /usr/include/hdf5/serial headers with a deps/cvcpkg HDF5. Their
+    # hsize_t differs — serial is `unsigned long long`, the deps build is
+    # `uint64_t` (== unsigned long) — so if the system serial path shadows the deps
+    # headers, HDF5_IO.cpp emits H5:: methods taking `unsigned long long*` that the
+    # linked libhdf5_cpp (which exports `unsigned long*`) does not provide →
+    # undefined references at the final link. Prefer find_package's include dirs;
+    # if it gave none, pull them off the imported target; only fall back to the
+    # system serial path for a bare apt build where neither is available.
     set(VOLMAGICK_HDF5_INCLUDE_DIRS ${HDF5_INCLUDE_DIRS} ${HDF5_C_INCLUDE_DIRS} ${HDF5_CXX_INCLUDE_DIRS} ${HDF5_INCLUDE_DIR})
-    if(EXISTS "/usr/include/hdf5/serial")
+    if(NOT VOLMAGICK_HDF5_INCLUDE_DIRS)
+      foreach(_t hdf5_cpp-shared hdf5::hdf5_cpp-shared hdf5-shared hdf5::hdf5-shared hdf5_cpp-static hdf5-static)
+        if(TARGET ${_t})
+          get_target_property(_inc ${_t} INTERFACE_INCLUDE_DIRECTORIES)
+          if(_inc)
+            list(APPEND VOLMAGICK_HDF5_INCLUDE_DIRS ${_inc})
+            break()
+          endif()
+        endif()
+      endforeach()
+    endif()
+    if(NOT VOLMAGICK_HDF5_INCLUDE_DIRS AND EXISTS "/usr/include/hdf5/serial")
       list(APPEND VOLMAGICK_HDF5_INCLUDE_DIRS "/usr/include/hdf5/serial")
     endif()
     if(VOLMAGICK_HDF5_INCLUDE_DIRS)
       list(REMOVE_DUPLICATES VOLMAGICK_HDF5_INCLUDE_DIRS)
     endif()
-
-    SET(VOLMAGICK_LINK_LIBS ${VOLMAGICK_LINK_LIBS} ${HDF5_LIBRARIES})
   else(HDF5_FOUND)
     message("HDF5 not found! CVC file support disabled")
   endif(HDF5_FOUND)
