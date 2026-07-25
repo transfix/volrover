@@ -55,7 +55,7 @@ TEST_F(VrHostQtBridgeTest, ReadWidgetsAndAddMenuFiringMessageBox) {
   win.menuBar()->addMenu("&File");
   win.menuBar()->addMenu("&View");
   win.menuBar()->addMenu("&Tools");
-  interp->host()->set_main_window_ptr(reinterpret_cast<std::uintptr_t>(&win));
+  interp->set_main_window_ptr(reinterpret_cast<std::uintptr_t>(&win));
 
   // Single-Qt litmus + PySide6 present, and wrap the live window ONCE into `mw`
   // (repeated vrhost.main_window() would mint independent shiboken wrappers whose

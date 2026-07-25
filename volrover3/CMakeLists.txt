@@ -56,9 +56,9 @@ find_package(OpenGL REQUIRED)
 # volrover3 hosts a first-class CPython interpreter: Development.Embed links
 # libpython so the app IS the interpreter; SWIG generates the `vrhost`
 # host-control module. See EmbeddedInterpreter + PyHost.
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Embed Development.Module)
-find_package(SWIG 4.0 REQUIRED)
-include(UseSWIG)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Embed)
+# NOTE: volrover3 no longer builds any SWIG module — vrhost is a pure-Python shim
+# that delivers the app via pycvc.app_from_capsule (no SWIG, no pycvc.i).
 
 # Source files
 set(VOLROVER3_SOURCES
@@ -412,44 +412,17 @@ if(COMMAND cpack_add_component)
     DESCRIPTION  "VolumeRover3 desktop visualization application")
 endif()
 
-# ── vrhost: the baked-in host-control Python module (delivers the live cvc::app)
-# Built as a private _vrhost.so + vrhost.py bundled with volrover3 and imported
-# by EmbeddedInterpreter at boot (after pycvc). %import "pycvc.i" makes
-# shared_ptr<cvc::app> the SAME SWIG proxy type pycvc consumes, so the app
-# handle round-trips into pycvc.state_set / volume / geometry with no conversion.
-# SWIG needs pycvc.i (and the cvc headers it %includes) on its -I path; the cvc
-# include dirs are fed explicitly so USE_TARGET_INCLUDE_DIRECTORIES picks them up
-# (transitive interface includes don't land in the INCLUDE_DIRECTORIES property).
-set(VOLROVER3_PYCVC_SWIG_DIR
-  "/home/joe/src/cvc/libcvc-rearch/bindings/pycvc"
-  CACHE PATH "Directory containing pycvc.i (shipped by the pycvc package)")
-if(EXISTS "${VOLROVER3_PYCVC_SWIG_DIR}/pycvc.i")
-  set_property(SOURCE bindings/vrhost.i PROPERTY CPLUSPLUS ON)
-  set_property(SOURCE bindings/vrhost.i PROPERTY DEPENDS
-    ${PROJECT_SOURCE_DIR}/inc/volrover3/PyHost.h)
-  # Co-locate the generated vrhost.py with _vrhost.so so `import vrhost` resolves.
-  set(CMAKE_SWIG_OUTDIR "${CMAKE_BINARY_DIR}/pymod")
-  swig_add_library(vrhost
-    LANGUAGE python
-    SOURCES bindings/vrhost.i PyHost.cpp)
-  target_include_directories(vrhost PRIVATE
-    ${PROJECT_SOURCE_DIR}/inc
-    ${VOLROVER3_PYCVC_SWIG_DIR}
-    $<TARGET_PROPERTY:cvc::cvc,INTERFACE_INCLUDE_DIRECTORIES>
-    $<TARGET_PROPERTY:cvc::cvcGL,INTERFACE_INCLUDE_DIRECTORIES>)
-  set_target_properties(vrhost PROPERTIES
-    SWIG_USE_TARGET_INCLUDE_DIRECTORIES ON
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/pymod")
-  target_link_libraries(vrhost PRIVATE cvc::cvc cvc::cvcGL Python3::Module)
-  # Ship it inside the install tree; EmbeddedInterpreter adds this dir to sys.path.
-  install(TARGETS vrhost LIBRARY DESTINATION share/volrover3/pymod COMPONENT volrover3)
-  install(FILES "${CMAKE_BINARY_DIR}/pymod/vrhost.py"
-    DESTINATION share/volrover3/pymod COMPONENT volrover3)
-else()
-  message(WARNING "volrover3: pycvc.i not found at ${VOLROVER3_PYCVC_SWIG_DIR}; "
-    "vrhost host-control module will NOT be built (embedded scripts lose app access). "
-    "Set -DVOLROVER3_PYCVC_SWIG_DIR=<pycvc bindings dir>.")
-endif()
+# ── vrhost: the host-control shim delivering the live cvc::app to scripts ──
+# A PURE-PYTHON module (bindings/vrhost.py) — NO SWIG, NO pycvc.i. EmbeddedInterpreter
+# hands it the live app as a PyCapsule("cvc.app") + the QMainWindow address;
+# vrhost.app() feeds the capsule to pycvc.app_from_capsule (pycvc wraps it into its
+# OWN type, so no cross-module SWIG type sharing and no pycvc.i build dependency).
+# Copy it into <build>/pymod (the dir EmbeddedInterpreter/tests add to sys.path)
+# and install it to share/volrover3/pymod for the shipped app.
+configure_file(${PROJECT_SOURCE_DIR}/bindings/vrhost.py
+               ${CMAKE_BINARY_DIR}/pymod/vrhost.py COPYONLY)
+install(FILES ${PROJECT_SOURCE_DIR}/bindings/vrhost.py
+        DESTINATION share/volrover3/pymod COMPONENT volrover3)
 
 # Tests
 option(VOLROVER3_BUILD_TESTS "Build volrover3 unit tests with Google Test" ON)
@@ -566,28 +539,25 @@ if(VOLROVER3_BUILD_TESTS)
   set_tests_properties(PyConsoleDockTest PROPERTIES
     ENVIRONMENT "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};LD_LIBRARY_PATH=${_VR3_PYHOME}/lib;QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${_VR3_PYHOME}/plugins")
 
-  # vrhost host-control binding (Phase 1 capstone) — proves `vrhost.host.app()`
-  # delivers the LIVE cvc::app to pycvc scripts. Needs the built _vrhost.so +
-  # vrhost.py (in ${CMAKE_BINARY_DIR}/pymod) and numpy's private libs on the
-  # loader path (numpy is pulled in transitively by pycvc via vrhost).
-  if(TARGET vrhost)
-    add_executable(volrover3_vrhost_test tests/VrHostBindingTest.cpp)
-    add_dependencies(volrover3_vrhost_test vrhost)
-    target_link_libraries(volrover3_vrhost_test
-      volrover3_lib
-      GTest::gtest) # custom main()
-    add_test(NAME VrHostBindingTest COMMAND volrover3_vrhost_test)
-    set_tests_properties(VrHostBindingTest PROPERTIES
-      ENVIRONMENT
-      "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
+  # vrhost host-control binding — proves `vrhost.app()` delivers the LIVE cvc::app
+  # to pycvc scripts (via the PyCapsule -> pycvc.app_from_capsule path). Needs the
+  # pure-Python vrhost.py (in ${CMAKE_BINARY_DIR}/pymod) + numpy's private libs on
+  # the loader path (numpy is pulled in transitively by pycvc).
+  add_executable(volrover3_vrhost_test tests/VrHostBindingTest.cpp)
+  target_link_libraries(volrover3_vrhost_test
+    volrover3_lib
+    GTest::gtest) # custom main()
+  add_test(NAME VrHostBindingTest COMMAND volrover3_vrhost_test)
+  set_tests_properties(VrHostBindingTest PROPERTIES
+    ENVIRONMENT
+    "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
 
-    # Qt-from-Python bridge (Phase 6) — Python reads the live QMainWindow's
-    # widgets and adds a menu item that fires a QMessageBox, via pyside6/shiboken6
-    # wrapping the real C++ window. Runs only when the hermetic pyside6 module is
-    # present in the prefix (built by the cvcpkg pyside6 recipe); skipped otherwise.
-    if(EXISTS "${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/PySide6")
+  # Qt-from-Python bridge (Phase 6) — Python reads the live QMainWindow's widgets
+  # and adds a menu item that fires a QMessageBox, via pyside6/shiboken6 wrapping
+  # the real C++ window. Runs only when the hermetic pyside6 module is present in
+  # the prefix (built by the cvcpkg pyside6 recipe); skipped otherwise.
+  if(EXISTS "${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/PySide6")
       add_executable(volrover3_qtbridge_test tests/VrHostQtBridgeTest.cpp)
-      add_dependencies(volrover3_qtbridge_test vrhost)
       target_link_libraries(volrover3_qtbridge_test
         volrover3_lib
         Qt${QT_VERSION_MAJOR}::Widgets
@@ -600,7 +570,6 @@ if(VOLROVER3_BUILD_TESTS)
       message(STATUS "volrover3: PySide6 not in the prefix; VrHostQtBridgeTest skipped "
         "(build the cvcpkg pyside6 recipe into the prefix to enable it)")
     endif()
-  endif()
 
   # TransferFunction tests
   add_executable(volrover3_transferfunction_test

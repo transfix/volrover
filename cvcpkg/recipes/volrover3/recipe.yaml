@@ -29,10 +29,10 @@ depends:
     - name: cvcgl
     # Embedded CPython: find_package(Python3 Development.Embed) links libpython
     # so volrover3 hosts a first-class interpreter (see docs/EMBEDDED_PYTHON.md).
+    # NOTE: pycvc is NOT a build dep — volrover3 builds no SWIG module. The vrhost
+    # shim is pure Python and delivers the app via pycvc.app_from_capsule at
+    # RUNTIME, so pycvc appears only under runtime: below.
     - name: python311
-    # pycvc supplies pycvc.i, which the vrhost SWIG module %imports so its
-    # shared_ptr<cvc::app> is the same proxy type pycvc consumes.
-    - name: pycvc
     # yaml-cpp: ~/.volrover/settings.yaml round-trip for volrover3::Settings.
     - name: yaml-cpp
   runtime:
@@ -45,13 +45,18 @@ depends:
     - name: vtk
     # the embedded interpreter (libpython3.11.so) + the bindings scripts import.
     - name: python311
+    # pycvc delivers the live cvc::app to scripts (vrhost.app() ->
+    # pycvc.app_from_capsule); pycvc-gl wraps the 3D scene.
     - name: pycvc
     - name: pycvc-gl
+    # Qt-from-Python bridge (docs §7): vrhost.main_window() uses
+    # shiboken6.wrapInstance; both must link the SAME cvcpkg qt6 as the app (no
+    # bundled Qt) so there is one libQt6Core in-process.
+    - name: pyside6
+    - name: shiboken6
   host_tools:
     - cmake
     - ninja
-    # generates the vrhost host-control wrapper from bindings/vrhost.i.
-    - swig
 
 build:
   # The BSD entries do not run in GitHub Actions; they let the cvcpkg

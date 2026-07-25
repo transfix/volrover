@@ -160,13 +160,18 @@ pycvc (#136) crosses `cvc::app` **only** as `std::shared_ptr<cvc::app>` (`%share
 `std::shared_ptr<cvc::app>`, so `PyHost::app()` simply returns it — real ownership, real control block, no alias
 hack, no dangling risk (the interpreter is torn down in `~MainWindow` before the app shared_ptr drops).
 
-Because `vrhost.i` does **`%import "pycvc.i"`**, the `shared_ptr<cvc::app>` it returns is the **same SWIG proxy
-type** pycvc consumes (SWIG merges the `%shared_ptr(cvc::app)` `swig_type_info` in a per-process runtime table
-keyed by mangled name). The handle round-trips into pycvc with **zero conversion**. The exact Phase-1 script:
+**Delivery mechanism (no SWIG in volrover3, no `pycvc.i`).** volrover3 does **not** build a SWIG module and
+does **not** carry `pycvc.i`. Instead `EmbeddedInterpreter::bind_host()` wraps the live app in a
+`PyCapsule` named `"cvc.app"` (holding a heap `std::shared_ptr<cvc::app>` copy — shared ownership; the capsule
+destructor frees the copy) and injects it into a **pure-Python `vrhost` shim** as `vrhost._app_capsule`.
+`vrhost.app()` feeds that capsule to **`pycvc.app_from_capsule(cap)`**, which wraps it into **pycvc's OWN** app
+proxy (the same `%shared_ptr(cvc::app)` typemap as `make_app`). The handle is therefore type-compatible with
+pycvc **by construction** — no cross-module SWIG type sharing, and no SWIG-runtime-version coupling (the fragility
+that shipping `pycvc.i` + `%import` used to impose). The script:
 
 ```python
 import vrhost, pycvc
-app = vrhost.host.app()                              # THE live volrover3 app, as shared_ptr<cvc::app>
+app = vrhost.app()                                   # THE live volrover3 app, as a pycvc app handle
 pycvc.state_set(app, "volrover3.camera.fov", "42")   # writes the RUNNING app's state tree
 print(pycvc.state_get(app, "volrover3.camera.fov"))  # -> 42; the FOV widget updates on the UI thread
 ```
@@ -176,9 +181,9 @@ Because `app` **is** the process app, `cvc::state::instance(*app)` inside pycvc 
 end-to-end. A script that instead called `pycvc.make_app()` would get a **fresh, disconnected** tree the UI never
 sees — exactly the bug #136 + this host module exist to prevent.
 
-`vrhost.host` is bound at boot by wrapping the live `PyHost*` with
-`SWIG_NewPointerObj(m_host.get(), SWIGTYPE_p_volrover3__PyHost, 0)` — the **injected-handle** pattern, no
-singleton, no `vh.myid` reflection.
+The app is injected at boot as `vrhost._app_capsule` (the `PyCapsule("cvc.app")` above), and the QMainWindow
+address as `vrhost._main_window_ptr` (pushed by `EmbeddedInterpreter::set_main_window_ptr` once the window
+exists) — the **injected-handle** pattern, no singleton, no reflection, no SWIG.
 
 ## 6. Single vs multi interpreter policy
 

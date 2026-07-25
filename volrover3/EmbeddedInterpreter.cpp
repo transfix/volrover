@@ -67,6 +67,11 @@ EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
   m_mainState = PyEval_SaveThread();
 }
 
+// PyCapsule("cvc.app") destructor: free the heap shared_ptr copy bind_host made.
+static void app_capsule_dtor(PyObject *cap) {
+  delete static_cast<std::shared_ptr<cvc::app> *>(PyCapsule_GetPointer(cap, "cvc.app"));
+}
+
 // GIL must be held. Best-effort: never throws; logs + returns false on failure.
 bool EmbeddedInterpreter::bind_host() {
   // Resolve the dir holding _vrhost.so + vrhost.py (Config, else env). pycvc
@@ -86,36 +91,60 @@ bool EmbeddedInterpreter::bind_host() {
     }
   }
 
-  // `import vrhost` also imports pycvc (SWIG emits it), registering the shared
-  // std::shared_ptr<cvc::app> SWIG type so PyHost::app() round-trips into pycvc.
+  // Import the PURE-PYTHON vrhost shim (it `import pycvc`s). No SWIG module.
   PyObject *vr = PyImport_ImportModule("vrhost"); // new
   if (!vr) {
     PyErr_Print(); // report + clear
     std::cerr << "volrover3: `import vrhost` failed — app scripting unavailable "
-                 "(set VOLROVER3_PYMODULE_PATH to the dir containing _vrhost.so)\n";
+                 "(set VOLROVER3_PYMODULE_PATH to the dir containing vrhost.py)\n";
     return false;
   }
 
   bool bound = false;
-  // Hand the live PyHost* across as a name-matched PyCapsule (see vrhost.i).
-  PyObject *cap = PyCapsule_New(m_host.get(), "volrover3.PyHost", nullptr); // new
+  // Deliver the LIVE app as a PyCapsule("cvc.app") holding a heap shared_ptr COPY
+  // (shares ownership; the capsule's destructor frees the copy). vrhost.app()
+  // feeds it to pycvc.app_from_capsule, which wraps it into pycvc's OWN app type —
+  // so volrover3 needs no SWIG and no pycvc.i (see docs/EMBEDDED_PYTHON.md §5).
+  auto *sp = new std::shared_ptr<cvc::app>(m_host->app());
+  PyObject *cap = PyCapsule_New(sp, "cvc.app", &app_capsule_dtor); // new
   if (cap) {
-    if (PyObject *r = PyObject_CallMethod(vr, "_bind_host_capsule", "O", cap)) { // new
-      Py_DECREF(r);
-      // `host` was captured as None at import (before this bind) — refresh it so
-      // `vrhost.host` is the live host (vrhost.app() is already dynamic).
-      if (PyObject *live = PyObject_CallMethod(vr, "_current_host", nullptr)) { // new
-        PyObject_SetAttrString(vr, "host", live);
-        Py_DECREF(live);
-        bound = true;
+    if (PyObject_SetAttrString(vr, "_app_capsule", cap) == 0) {
+      // Seed the window pointer (usually 0 at boot; set_main_window_ptr updates it
+      // once MainWindow exists).
+      if (PyObject *mw = PyLong_FromUnsignedLongLong(m_host->main_window_ptr())) {
+        PyObject_SetAttrString(vr, "_main_window_ptr", mw);
+        Py_DECREF(mw);
       }
+      bound = true;
     } else {
       PyErr_Print();
     }
-    Py_DECREF(cap);
+    Py_DECREF(cap); // vrhost._app_capsule holds the ref; dtor frees sp on teardown
+  } else {
+    delete sp; // capsule creation failed — free the copy ourselves
   }
   Py_DECREF(vr);
   return bound;
+}
+
+// Push the live QMainWindow address to the (already-imported) vrhost shim so
+// vrhost.main_window() resolves it. Called by MainWindow after boot (GIL parked).
+void EmbeddedInterpreter::set_main_window_ptr(std::uintptr_t ptr) {
+  if (m_host)
+    m_host->set_main_window_ptr(ptr);
+  if (!m_hostBound)
+    return;
+  PyGILState_STATE gil = PyGILState_Ensure();
+  if (PyObject *vr = PyImport_ImportModule("vrhost")) { // cached import
+    if (PyObject *mw = PyLong_FromUnsignedLongLong(ptr)) {
+      PyObject_SetAttrString(vr, "_main_window_ptr", mw);
+      Py_DECREF(mw);
+    }
+    Py_DECREF(vr);
+  } else {
+    PyErr_Clear();
+  }
+  PyGILState_Release(gil);
 }
 
 EmbeddedInterpreter::~EmbeddedInterpreter() {

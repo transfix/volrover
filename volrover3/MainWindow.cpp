@@ -1,6 +1,9 @@
 #include <QAction>
 #include <QCloseEvent>
+#include <QCoreApplication>
+#include <QDir>
 #include <QDockWidget>
+#include <QFileInfo>
 #include <QFileDialog>
 #include <QLabel>
 #include <QMenu>
@@ -88,16 +91,35 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   volrover3::EmbeddedInterpreter::Config icfg;
   icfg.mode = m_settings->mode();          // single | multi, from ~/.volrover (restart-applied)
   icfg.python_home = m_settings->pythonHome();
+
+  // Self-locate CPython home + the vrhost module dir relative to THIS executable
+  // so an INSTALLED bundle scripts with NO env vars: bin/volrover3 -> <prefix>,
+  // CPython stdlib at <prefix>/lib/pythonX.Y, vrhost.py at <prefix>/share/volrover3/pymod
+  // (or <build>/pymod in the build tree). Settings win; then $VOLROVER3_* (resolved
+  // in EmbeddedInterpreter); this app-relative derivation is the last fallback.
+  const QString appDir = QCoreApplication::applicationDirPath();
+  const QString prefix = QDir::cleanPath(appDir + "/..");
+  if (icfg.python_home.empty() && !qEnvironmentVariableIsSet("VOLROVER3_PYTHON_HOME") &&
+      !QDir(prefix + "/lib").entryList({"python3.*"}, QDir::Dirs).isEmpty())
+    icfg.python_home = prefix.toStdString();
+  if (icfg.module_path.empty() && !qEnvironmentVariableIsSet("VOLROVER3_PYMODULE_PATH")) {
+    for (const QString &cand : {prefix + "/share/volrover3/pymod", appDir + "/pymod"}) {
+      if (QFileInfo::exists(cand + "/vrhost.py")) {
+        icfg.module_path = QDir::cleanPath(cand).toStdString();
+        break;
+      }
+    }
+  }
+
   m_interp = std::make_unique<volrover3::EmbeddedInterpreter>(m_app, m_sceneGraph, icfg);
   if (!m_interp->ok())
     qWarning("volrover3: embedded Python interpreter unavailable (scripting disabled)");
 
-  // Hand our live QMainWindow* to the host so `vrhost.main_window()` can adopt it
-  // via shiboken6.wrapInstance(addr, QtWidgets.QMainWindow) — the Qt-from-Python
-  // bridge (docs/EMBEDDED_PYTHON.md §7). A raw address crosses the SWIG<->Shiboken
-  // boundary; same-process, same cvcpkg-Qt, so no ownership/ABI issue.
-  if (auto host = m_interp->host())
-    host->set_main_window_ptr(reinterpret_cast<std::uintptr_t>(this));
+  // Hand our live QMainWindow* to the interpreter, which pushes it to the vrhost
+  // shim so `vrhost.main_window()` adopts it via shiboken6.wrapInstance(addr,
+  // QtWidgets.QMainWindow) — the Qt-from-Python bridge (docs/EMBEDDED_PYTHON.md §7).
+  // Just an address crosses; same process, same cvcpkg-Qt, so no ownership/ABI issue.
+  m_interp->set_main_window_ptr(reinterpret_cast<std::uintptr_t>(this));
 
   // Job scheduler (cooperative tick over the job registry) + the console dock
   // that drives it and the REPL (docs/EMBEDDED_PYTHON.md §12).

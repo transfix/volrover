@@ -17,6 +17,7 @@
 
 #include <cvc/core/app.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -84,6 +85,11 @@ public:
   // (so `vrhost.host` / `vrhost.app()` deliver the running app). False in Multi
   // mode, when the vrhost module dir is unknown, or if the import failed.
   bool host_bound() const { return m_hostBound; }
+
+  // Push the live QMainWindow's address to the vrhost shim so
+  // `vrhost.main_window()` (shiboken6.wrapInstance) resolves it. Call after the
+  // window exists; safe to call before boot (updates the C++ host only).
+  void set_main_window_ptr(std::uintptr_t ptr);
 
 private:
   // After boot (GIL held): put the vrhost module dir on sys.path, `import vrhost`
