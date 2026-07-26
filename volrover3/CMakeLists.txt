@@ -256,15 +256,12 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/scripts/examples/
   FILES_MATCHING PATTERN "*.py"
   PATTERN "__pycache__" EXCLUDE)
 
-# A venv-style activation script: `source <prefix>/bin/activate` puts the bundled
-# commands on PATH and wires up the dynamic-library search path so the embedded
-# interpreter + libs just work with no manual env vars.
-if(UNIX AND NOT APPLE)
-  install(PROGRAMS ${PROJECT_SOURCE_DIR}/share/activate.sh
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
-    RENAME activate
-    COMPONENT volrover3)
-endif()
+# NOTE: no activation script is installed here. volrover3 installs into a cvcpkg
+# prefix, whose own `bin/activate` (written by `cvcpkg install`) already exports
+# PATH + LD_LIBRARY_PATH + CMAKE_PREFIX_PATH + PKG_CONFIG_PATH for that prefix.
+# Combined with the INSTALL_RPATH above, `source <prefix>/bin/activate` then
+# `volrover3` runs with no extra configuration — we reuse it rather than ship a
+# competing activate.
 
 # Linux: install a Freedesktop .desktop file and PNG icon for the menu /
 # launcher.
