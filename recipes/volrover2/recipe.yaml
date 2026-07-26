@@ -14,10 +14,10 @@ recipe:
 source:
   # The recipe is co-located with the VolumeRover source tree. The
   # publish workflow uses `cvcpkg pack --from-prefix`, which does not
-  # consume this field, but the schema requires it; `../../..` points
+  # consume this field, but the schema requires it; `../..` points
   # at the volrover repo root for tools that walk the source tree.
   type: vendored
-  path: ../../..
+  path: ../..
 
 patches: []
 

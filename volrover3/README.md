@@ -30,7 +30,7 @@ libcvc-deps bundle alongside the SDK itself.
 
 ### Canonical build with cvcpkg (recommended)
 
-VolRover3 ships its own **cvcpkg recipe** (`cvcpkg/recipes/volrover3`), so cvcpkg
+VolRover3 ships its own **cvcpkg recipe** (`recipes/volrover3`), so cvcpkg
 builds it **exactly the way it is packaged/published** — it resolves and builds the
 *entire* dependency closure (the libcvc family, Qt6, VTK, the embedded CPython, and
 PySide6/shiboken6 for the Qt-from-Python bridge), then builds the app from its
@@ -38,8 +38,11 @@ recipe and installs everything into one prefix whose own `bin/activate` sets up 
 environment. From the volrover repo root:
 
 ```bash
-# One shot: build volrover3 + its whole dependency closure into ./deps
-cvcpkg build volrover3 --recipes-dir cvcpkg/recipes --prefix ./deps
+# One shot from the repo root: build volrover3 + its whole dependency closure
+# into ./deps.  cvcpkg auto-discovers the recipe under ./recipes (no
+# --recipes-dir); --with-deps builds the closure from source (the default is
+# to build only the named recipe).
+cvcpkg build volrover3 --with-deps --prefix ./deps
 
 # Activate the prefix and run — self-locates its embedded Python + libs, no env vars
 source ./deps/bin/activate
@@ -56,9 +59,11 @@ libs via `RUNPATH`, so it needs no environment variables; example scripts land i
 `$CVCPKG_ACTIVE_PREFIX/share/volrover3/examples/`.
 
 **Iterating.** After the first build the dependencies are already in `./deps`, so
-re-run with `--no-deps` to rebuild only volrover3. For a fast cmake-incremental
-inner loop (recompile only changed files + run tests), build the closure once as
-above, keep the prefix activated, then iterate with plain CMake — see
+re-running `cvcpkg build volrover3` rebuilds only volrover3 — skipping the
+dependency closure is now the default (pass `--with-deps` again to rebuild it).
+For a fast cmake-incremental inner loop (recompile only changed files), add
+`--incremental`, which reuses a persistent keyed build tree instead of a fresh
+one; or keep the prefix activated and iterate with plain CMake — see
 **Build Steps** below.
 
 ### Build Steps (incremental inner loop)

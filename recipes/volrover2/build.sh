@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cvcpkg/recipes/volrover2/build.sh - build VolumeRover 2.0 from the
+# recipes/volrover2/build.sh - build VolumeRover 2.0 from the
 # in-repo source tree. Mirrors the flags proven by the repo's CI
 # (.github/workflows/ci.yml / release.yml).
 set -euo pipefail
@@ -26,7 +26,7 @@ CMAKE_ARGS=(
   -DVOLROVER_RELEASE=ON
   -DUSE_QT6=ON
   -DDISABLE_CGAL=ON
-  # volrover3 is a separate recipe (cvcpkg/recipes/volrover3); the
+  # volrover3 is a separate recipe (recipes/volrover3); the
   # VolumeRover 2.0 package never enables it.
   -DBUILD_VOLROVER3=OFF
 )
