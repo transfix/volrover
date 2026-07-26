@@ -1,7 +1,7 @@
 # Publish VolumeRover packages to cvcpkg.org
 #
 # Triggered by version tags (v*) and manual dispatch. Builds the
-# VolumeRover 2.0 application (recipe: cvcpkg/recipes/volrover2) on
+# VolumeRover 2.0 application (recipe: recipes/volrover2) on
 # Linux (x86_64 + experimental arm64), macOS (arm64 + experimental
 # x86_64), and Windows (x86_64), packs each install into an archive
 # with `cvcpkg pack --from-prefix`, and publishes to the `cvc`
@@ -19,7 +19,7 @@
 # until this pipeline proves out (follow-up).
 #
 # A second, gated job builds the VolumeRover3 application (recipe:
-# cvcpkg/recipes/volrover3). It is OFF by default because volrover3
+# recipes/volrover3). It is OFF by default because volrover3
 # consumes libcvc as an external SDK — it activates once @cvc/libcvc
 # (and vtk) are published on cvcpkg.org.
 #
@@ -101,7 +101,7 @@ jobs:
             exit 1
           fi
 
-  # ── VolumeRover 2.0 (cvcpkg/recipes/volrover2) ──────────────────────
+  # ── VolumeRover 2.0 (recipes/volrover2) ──────────────────────
   build-volrover2:
     needs: ensure-org
     strategy:
@@ -252,7 +252,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cvcpkg pack cvcpkg/recipes/volrover2 \
+          cvcpkg pack recipes/volrover2 \
             --from-prefix stage \
             --platform "${{ matrix.platform }}" \
             --config release \
@@ -288,7 +288,7 @@ jobs:
             --output-dir dist \
             --token "$CVCPKG_TOKEN"
 
-  # ── VolumeRover3 (cvcpkg/recipes/volrover3) — GATED ─────────────────
+  # ── VolumeRover3 (recipes/volrover3) — GATED ─────────────────
   #
   # volrover3 consumes libcvc as an external SDK (find_package(cvc
   # CONFIG) -> cvc::cvc) plus VTK. Neither is on the cvcpkg.org catalog
@@ -431,7 +431,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cvcpkg pack cvcpkg/recipes/volrover3 \
+          cvcpkg pack recipes/volrover3 \
             --from-prefix stage \
             --platform "${{ matrix.platform }}" \
             --config release \

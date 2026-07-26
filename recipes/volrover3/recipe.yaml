@@ -16,7 +16,7 @@ source:
   # under volrover3/ behind the BUILD_VOLROVER3 CMake option, default
   # OFF — enabling it never disturbs the VolumeRover 2.0 targets).
   type: vendored
-  path: ../../..
+  path: ../..
 
 patches: []
 

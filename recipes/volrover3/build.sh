@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cvcpkg/recipes/volrover3/build.sh - build the VolumeRover3 application.
+# recipes/volrover3/build.sh - build the VolumeRover3 application.
 #
 # volrover3 consumes libcvc as an EXTERNAL SDK (find_package(cvc CONFIG)
 # -> cvc::cvc), so CVC_DEPS_PREFIX must contain an installed libcvc SDK
