@@ -136,6 +136,13 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   m_renderWidget->setSceneGraph(m_sceneGraph);
   setCentralWidget(m_renderWidget);
 
+  // Continuous max-framerate mode: stop the scheduler's own coarse timer and let
+  // the render widget drive tick() once per frame (real dt), rendering every
+  // frame — so job-driven animation (e.g. a moving agent) is smooth instead of
+  // stepped at the ~10 Hz job tick.
+  m_scheduler->stop();
+  m_renderWidget->setContinuousMode(m_scheduler.get());
+
   createDockWidgets();
   createMenus();
   createToolBar();

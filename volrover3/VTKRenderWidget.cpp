@@ -3,6 +3,7 @@
 #include <QWheelEvent>
 #include <volrover3/AppState.h>
 #include <volrover3/CameraController.h>
+#include <volrover3/JobScheduler.h>
 #include <cvc/gl/SceneGraph.h>
 #include <volrover3/VTKRenderWidget.h>
 #include <vtkCamera.h>
@@ -200,13 +201,29 @@ bool VTKRenderWidget::saveScreenshot(const QString &path) {
 }
 
 void VTKRenderWidget::processSceneGraphEvents() {
-  if (m_sceneGraph) {
+  if (!m_sceneGraph)
+    return;
+  if (m_continuous && m_scheduler) {
+    // Render-synced pump: advance the jobs by REAL elapsed dt once per frame
+    // (JobScheduler::tick() derives dt from a steady clock), drain scene events,
+    // then render EVERY frame at the widget's cadence — smooth motion decoupled
+    // from the coarse self-tick.
+    m_scheduler->tick();
     m_sceneGraph->processEvents();
-    // Trigger render if any events modified the scene
-    if (m_sceneGraph->checkAndResetRenderNeeded()) {
-      render();
-    }
+    m_sceneGraph->checkAndResetRenderNeeded(); // consume the flag; we render anyway
+    render();
+    return;
   }
+  m_sceneGraph->processEvents();
+  // Trigger render if any events modified the scene
+  if (m_sceneGraph->checkAndResetRenderNeeded()) {
+    render();
+  }
+}
+
+void VTKRenderWidget::setContinuousMode(volrover3::JobScheduler *scheduler) {
+  m_scheduler = scheduler;
+  m_continuous = (scheduler != nullptr);
 }
 
 void VTKRenderWidget::setShowFPS(bool show) {

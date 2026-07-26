@@ -25,6 +25,9 @@ class vtkGenericOpenGLRenderWindow;
 class vtkCornerAnnotation;
 class SceneGraph;
 class CameraController;
+namespace volrover3 {
+class JobScheduler;
+}
 
 class VTKRenderWidget : public QVTK_WIDGET_BASE {
   Q_OBJECT
@@ -41,6 +44,13 @@ public:
   // demo capture). Pumps queued scene events + frames the camera first. Returns
   // false if there is no render window.
   bool saveScreenshot(const QString &path);
+
+  // Continuous max-framerate mode: drive `scheduler`'s tick() off this widget's
+  // render clock (so job step(dt) advances by real elapsed dt each frame) and
+  // render every frame — decouples motion smoothness from the coarse job tick.
+  // Pass the scheduler to enable; the caller should stop() the scheduler's own
+  // timer first so it isn't double-driven. Pass nullptr to disable.
+  void setContinuousMode(volrover3::JobScheduler *scheduler);
 
   // FPS display control
   void setShowFPS(bool show);
@@ -71,6 +81,10 @@ private:
   std::shared_ptr<SceneGraph> m_sceneGraph;
   std::unique_ptr<CameraController> m_cameraController;
   QTimer m_eventTimer; // Timer for processing SceneGraph events
+  // Continuous-mode driving (see setContinuousMode): when set, m_eventTimer ticks
+  // this scheduler and renders every frame.
+  volrover3::JobScheduler *m_scheduler = nullptr;
+  bool m_continuous = false;
 
   // FPS display
   vtkSmartPointer<vtkCornerAnnotation> m_fpsAnnotation;
