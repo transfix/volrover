@@ -61,6 +61,12 @@ void AppState::initializeDefaults() {
 
   // Initialize viewer options
   getState("viewer.show_fps").value(false);
+
+  // Render refresh-rate cap (frames/sec). Drives the render widget's frame/event
+  // timer; live-tunable from the state tree (or the Python console via
+  // state_set(app, "volrover3.viewer.max_fps", ...)).
+  getState("viewer.max_fps").value(60.0);
+  getState("viewer.max_fps").comment("Render/event refresh rate cap in FPS (1-240)");
 }
 
 cvc::state &AppState::getState(const std::string &path) {
@@ -197,6 +203,14 @@ void AppState::setCameraFieldOfView(double fov) { getState("camera.fov").value(f
 bool AppState::showFPS() { return getState("viewer.show_fps").value<bool>(); }
 
 void AppState::setShowFPS(bool show) { getState("viewer.show_fps").value(show); }
+
+double AppState::maxFPS() { return getState("viewer.max_fps").value<double>(); }
+
+void AppState::setMaxFPS(double fps) { getState("viewer.max_fps").value(fps); }
+
+boost::signals2::connection AppState::onMaxFPSChanged(const boost::function<void()> &callback) {
+  return getState("viewer.max_fps").valueChanged.connect(callback);
+}
 
 boost::signals2::connection AppState::onCameraChanged(const boost::function<void()> &callback) {
   // Connect to the "camera" parent node's childChanged signal

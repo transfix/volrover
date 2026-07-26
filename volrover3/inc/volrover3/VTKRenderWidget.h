@@ -3,6 +3,7 @@
 
 #include <QTimer>
 #include <QWidget>
+#include <boost/signals2/connection.hpp>
 #include <memory>
 #include <vtkSmartPointer.h>
 
@@ -69,6 +70,10 @@ protected:
 private slots:
   void processSceneGraphEvents();
   void updateFPSDisplay();
+  // Re-read viewer.max_fps and restart the frame/event timer at the new rate.
+  // Invoked on the GUI thread (queued) since the state change may fire from a
+  // job/script thread while QTimer must be driven from the widget's thread.
+  void applyRenderRate();
 
 private:
   void initializeVTK();
@@ -85,6 +90,8 @@ private:
   // this scheduler and renders every frame.
   volrover3::JobScheduler *m_scheduler = nullptr;
   bool m_continuous = false;
+  // Live "volrover3.viewer.max_fps" observer -> restarts m_eventTimer (GUI thread).
+  boost::signals2::scoped_connection m_maxFpsConn;
 
   // FPS display
   vtkSmartPointer<vtkCornerAnnotation> m_fpsAnnotation;

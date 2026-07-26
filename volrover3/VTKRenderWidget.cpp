@@ -24,9 +24,16 @@ VTKRenderWidget::VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *par
       m_fpsAnnotation(vtkSmartPointer<vtkCornerAnnotation>::New()), m_showFPS(false) {
   initializeVTK();
 
-  // Set up timer to process SceneGraph events on main thread
+  // Set up timer to process SceneGraph events on main thread. Its interval is the
+  // render/event refresh cap from state ("volrover3.viewer.max_fps"); applyRenderRate
+  // reads it and (re)starts the timer. Observe the state key so the rate is tunable
+  // live from the state tree / Python console.
   connect(&m_eventTimer, &QTimer::timeout, this, &VTKRenderWidget::processSceneGraphEvents);
-  m_eventTimer.start(16); // ~60fps event processing
+  applyRenderRate(); // start the timer at the state-configured rate
+  m_maxFpsConn = m_appState.onMaxFPSChanged([this]() {
+    // May fire from a job/script thread; hop to the GUI thread to touch the QTimer.
+    QMetaObject::invokeMethod(this, "applyRenderRate", Qt::QueuedConnection);
+  });
 
   // Set up timer to update FPS display (every 500ms)
   connect(&m_fpsTimer, &QTimer::timeout, this, &VTKRenderWidget::updateFPSDisplay);
@@ -80,7 +87,7 @@ void VTKRenderWidget::keyPressEvent(QKeyEvent *event) {
   if (m_cameraController) {
     m_cameraController->handleKeyPress(event->key());
     updateCamera();
-    renderWindow()->Render();
+    render(); // render() re-fits the clip range (see render())
   }
   QVTK_WIDGET_BASE::keyPressEvent(event);
 }
@@ -120,7 +127,7 @@ void VTKRenderWidget::mouseMoveEvent(QMouseEvent *event) {
     QPoint delta = event->pos() - m_lastMousePos;
     m_cameraController->handleMouseMove(delta.x(), delta.y());
     updateCamera();
-    renderWindow()->Render();
+    render(); // render() re-fits the clip range (see render())
   }
   m_lastMousePos = event->pos();
   // Don't pass middle mouse moves to VTK when middle button is pressed
@@ -134,7 +141,7 @@ void VTKRenderWidget::wheelEvent(QWheelEvent *event) {
   if (m_cameraController) {
     m_cameraController->handleMouseWheel(event->angleDelta().y());
     updateCamera();
-    renderWindow()->Render();
+    render(); // render() re-fits the clip range (see render())
   }
   QVTK_WIDGET_BASE::wheelEvent(event);
 }
@@ -154,6 +161,16 @@ void VTKRenderWidget::resetCamera() {
 
 void VTKRenderWidget::render() {
   if (m_renderWindow) {
+    // Re-fit the near/far clipping planes to the scene every frame. The camera is
+    // driven directly (SetPosition/SetFocalPoint via CameraController / the
+    // volrover3.camera state path), and VTK does NOT auto-adjust the clip range on
+    // a manual camera move — so a large scene (e.g. the ~3 km Austin bundle) gets
+    // sliced by a stale, too-tight far plane. ResetCameraClippingRange() recomputes
+    // near/far from the current actor bounds + camera pose; it's cheap for our
+    // handful of props and is exactly what VTK's own interactors do each render.
+    if (m_renderer) {
+      m_renderer->ResetCameraClippingRange();
+    }
     m_renderWindow->Render();
   }
 }
@@ -224,6 +241,20 @@ void VTKRenderWidget::processSceneGraphEvents() {
 void VTKRenderWidget::setContinuousMode(volrover3::JobScheduler *scheduler) {
   m_scheduler = scheduler;
   m_continuous = (scheduler != nullptr);
+}
+
+void VTKRenderWidget::applyRenderRate() {
+  // Clamp to a sane range: <1 FPS would stall event pumping; >240 wastes CPU and
+  // out-runs any display. Interval is milliseconds per frame.
+  double fps = m_appState.maxFPS();
+  if (!(fps >= 1.0))
+    fps = 1.0; // also catches NaN
+  if (fps > 240.0)
+    fps = 240.0;
+  int intervalMs = static_cast<int>(1000.0 / fps + 0.5);
+  if (intervalMs < 1)
+    intervalMs = 1;
+  m_eventTimer.start(intervalMs); // QTimer::start restarts with the new interval
 }
 
 void VTKRenderWidget::setShowFPS(bool show) {

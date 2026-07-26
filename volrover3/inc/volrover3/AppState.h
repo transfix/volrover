@@ -74,11 +74,19 @@ public:
   bool showFPS();
   void setShowFPS(bool show);
 
+  // Render refresh rate cap (frames/sec). Drives the render widget's frame/event
+  // timer — in continuous mode this is the target animation frame rate; otherwise
+  // it is how often queued scene events are pumped. Tunable live via the state
+  // key "volrover3.viewer.max_fps". Clamped to a sane range by the widget.
+  double maxFPS();
+  void setMaxFPS(double fps);
+
   // Register callbacks for state changes
   // Returns a connection object that can be used to disconnect the callback
   boost::signals2::connection onWorldBoundsChanged(const boost::function<void()> &callback);
   boost::signals2::connection onCameraModeChanged(const boost::function<void()> &callback);
   boost::signals2::connection onCameraChanged(const boost::function<void()> &callback);
+  boost::signals2::connection onMaxFPSChanged(const boost::function<void()> &callback);
 
   // State tree access for debugging/inspection
   cvc::state &getRootState();
