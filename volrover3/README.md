@@ -28,10 +28,42 @@ ImageMagick, libiimod) must also be resolvable at configure time —
 point `CMAKE_PREFIX_PATH` at a cvcpkg prefix or an extracted
 libcvc-deps bundle alongside the SDK itself.
 
-### Build Steps
+### Canonical build with cvcpkg (recommended)
 
-From the volrover repository root (VolRover3 is disabled by default so
-the legacy VolumeRover 2.0 build is unaffected):
+[`cvcpkg`](https://cvcpkg.org) fetches VolRover3's **entire dependency closure**
+as prebuilt bundles into one prefix — the libcvc family (`libcvc`, `cvcgl`,
+`pycvc`, `pycvc-gl`), Qt6, VTK, and the embedded CPython (`python311` + `numpy`) —
+whose own `bin/activate` then sets up the environment. From the volrover repo root:
+
+```bash
+# 1. Fetch the whole dependency closure into a cvcpkg prefix (./deps)
+cvcpkg install libcvc cvcgl pycvc pycvc-gl qt6 vtk vtk-python-cp311 python311 numpy-cp311 \
+  --prefix ./deps --config release --link shared
+
+# 2. Activate the prefix (sets PATH + LD_LIBRARY_PATH + CMAKE_PREFIX_PATH + PKG_CONFIG_PATH)
+source ./deps/bin/activate
+
+# 3. Configure, build, and INSTALL VolRover3 into the same prefix
+cmake -B build -DBUILD_VOLROVER3=ON -DCMAKE_INSTALL_PREFIX="$CVCPKG_ACTIVE_PREFIX"
+cmake --build build --target volrover3
+cmake --install build --component volrover3
+
+# 4. Run it — self-locates its embedded Python + libs from the prefix, no env vars
+volrover3
+```
+
+Installing into the activated prefix lets the binary self-locate its CPython home
+(`$CVCPKG_ACTIVE_PREFIX/lib/pythonX.Y`) and the `vrhost` module, and its `RUNPATH`
+finds the bundled libs — so `volrover3` (and the embedded interpreter) run with no
+manual environment variables. Example scripts land in
+`$CVCPKG_ACTIVE_PREFIX/share/volrover3/examples/`.
+
+### Build Steps (manual prefix)
+
+If you already have the libcvc SDK + deps in a prefix (e.g. an extracted
+libcvc-deps bundle) rather than a cvcpkg install, point `CMAKE_PREFIX_PATH` at it.
+From the volrover repository root (VolRover3 is disabled by default so the legacy
+VolumeRover 2.0 build is unaffected):
 
 ```bash
 cmake -B build -DBUILD_VOLROVER3=ON \
