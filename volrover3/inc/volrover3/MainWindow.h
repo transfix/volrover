@@ -46,6 +46,11 @@ public:
   // file in the embedded interpreter, and render the current scene to a PNG.
   void execStartupScript(const QString &path);
   bool saveScreenshot(const QString &path);
+  // Load a Python file as a JobScheduler job (defines step(dt)) so it appears in
+  // the Python Console Jobs tab and is ticked cooperatively — unlike
+  // execStartupScript, which just runs it once in __main__. Returns the job id
+  // (>=0) or -1. Forwards to the console dock's existing submit path.
+  int runScriptAsJob(const QString &path, bool onWorker = false);
 
 private slots:
   void openFile();

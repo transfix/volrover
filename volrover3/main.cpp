@@ -41,9 +41,15 @@ int main(int argc, char *argv[]) {
   QCommandLineOption shotOpt("screenshot",
                              "Render the scene to a PNG after the startup script runs.", "file");
   QCommandLineOption exitOpt("exit-after", "Quit once the startup script/screenshot is done.");
+  QCommandLineOption jobOpt(
+      "run-job",
+      "Load a Python file as a JobScheduler job (defines step(dt)) — it appears in "
+      "the Python Console Jobs tab and is ticked cooperatively, unlike --exec-script.",
+      "file");
   parser.addOption(execOpt);
   parser.addOption(shotOpt);
   parser.addOption(exitOpt);
+  parser.addOption(jobOpt);
   parser.process(app);
 
   // Own the process-wide cvc::app explicitly (no singleton). This shared_ptr
@@ -55,17 +61,22 @@ int main(int argc, char *argv[]) {
   MainWindow mainWindow(cvcApp);
   mainWindow.show();
 
-  if (parser.isSet(execOpt) || parser.isSet(shotOpt)) {
+  if (parser.isSet(execOpt) || parser.isSet(shotOpt) || parser.isSet(jobOpt)) {
     const QString script = parser.value(execOpt);
+    const QString job = parser.value(jobOpt);
     const QString shot = parser.value(shotOpt);
     const bool exitAfter = parser.isSet(exitOpt);
     // Let the window + the render widget's event timer come up first, then run
-    // the script (which mutates the live scene), give the timer a couple of
-    // ticks to pump + render the new nodes, then screenshot / quit.
-    QTimer::singleShot(700, &mainWindow, [&mainWindow, script, shot, exitAfter]() {
+    // the startup script and/or submit the job (which mutate the live scene),
+    // give the scheduler several ticks to animate, then screenshot / quit.
+    QTimer::singleShot(700, &mainWindow, [&mainWindow, script, job, shot, exitAfter]() {
       if (!script.isEmpty())
         mainWindow.execStartupScript(script);
-      QTimer::singleShot(900, &mainWindow, [&mainWindow, shot, exitAfter]() {
+      if (!job.isEmpty())
+        mainWindow.runScriptAsJob(job, /*onWorker=*/false);
+      // ~30 scheduler ticks (jobs run on the scheduler's QTimer) so the agent
+      // visibly moves before the screenshot.
+      QTimer::singleShot(3000, &mainWindow, [&mainWindow, shot, exitAfter]() {
         if (!shot.isEmpty())
           mainWindow.saveScreenshot(shot);
         if (exitAfter)

@@ -205,6 +205,17 @@ void MainWindow::execStartupScript(const QString &path) {
   }
 }
 
+int MainWindow::runScriptAsJob(const QString &path, bool onWorker) {
+  // Reuse the console dock's existing submit path (it calls m_scheduler->submit
+  // and refreshes the Jobs table), so a --run-job script becomes a real
+  // scheduler job visible in the Jobs tab — not a one-shot __main__ exec.
+  if (!m_consoleDock) {
+    qWarning("volrover3: --run-job: Python console/scheduler unavailable");
+    return -1;
+  }
+  return m_consoleDock->runScriptFile(path, onWorker);
+}
+
 bool MainWindow::saveScreenshot(const QString &path) {
   return m_renderWidget && m_renderWidget->saveScreenshot(path);
 }
