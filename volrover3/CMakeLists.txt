@@ -234,11 +234,34 @@ if(APPLE)
     RUNTIME     DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT volrover3
   )
 else()
+  # $ORIGIN/../lib so the INSTALLED binary finds the bundle's own shared libs
+  # (cvc, cvcGL, VTK, Qt) relative to itself — <prefix>/bin/volrover3 ->
+  # <prefix>/lib — without needing LD_LIBRARY_PATH set. The activate script still
+  # adds numpy's vendored BLAS dir, which lives under site-packages.
+  set_target_properties(volrover3 PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../lib"
+    INSTALL_RPATH_USE_LINK_PATH ON)
   install(TARGETS volrover3
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     COMPONENT volrover3
   )
 endif()
+
+# Example scripts — installed so a user has runnable references to base their own
+# scripts on (and to smoke-test an install). They land in the bundle at
+# share/volrover3/examples; load them from the Jobs tab -> "Load Script...".
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/scripts/examples/
+  DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/volrover3/examples
+  COMPONENT volrover3
+  FILES_MATCHING PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE)
+
+# NOTE: no activation script is installed here. volrover3 installs into a cvcpkg
+# prefix, whose own `bin/activate` (written by `cvcpkg install`) already exports
+# PATH + LD_LIBRARY_PATH + CMAKE_PREFIX_PATH + PKG_CONFIG_PATH for that prefix.
+# Combined with the INSTALL_RPATH above, `source <prefix>/bin/activate` then
+# `volrover3` runs with no extra configuration — we reuse it rather than ship a
+# competing activate.
 
 # Linux: install a Freedesktop .desktop file and PNG icon for the menu /
 # launcher.
@@ -551,6 +574,22 @@ if(VOLROVER3_BUILD_TESTS)
   set_tests_properties(VrHostBindingTest PROPERTIES
     ENVIRONMENT
     "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
+
+  # Live-scene bridge — a script adds geometry via vrhost.scene() and the SAME
+  # live C++ SceneGraph gains the node (adopt-existing, not a parallel scene).
+  # Needs pycvc_gl in the prefix (single-interpreter mode); skipped otherwise.
+  if(EXISTS "${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/pycvc_gl.py")
+    add_executable(volrover3_scenebridge_test tests/VrHostSceneBridgeTest.cpp)
+    target_link_libraries(volrover3_scenebridge_test
+      volrover3_lib
+      GTest::gtest) # custom main()
+    add_test(NAME VrHostSceneBridgeTest COMMAND volrover3_scenebridge_test)
+    set_tests_properties(VrHostSceneBridgeTest PROPERTIES
+      ENVIRONMENT
+      "VOLROVER3_PYTHON_HOME=${_VR3_PYHOME};VOLROVER3_PYMODULE_PATH=${CMAKE_BINARY_DIR}/pymod;LD_LIBRARY_PATH=${_VR3_PYHOME}/lib:${_VR3_PYHOME}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/numpy.libs;QT_QPA_PLATFORM=offscreen")
+  else()
+    message(STATUS "volrover3: pycvc_gl not in the prefix; VrHostSceneBridgeTest skipped")
+  endif()
 
   # Qt-from-Python bridge (Phase 6) — Python reads the live QMainWindow's widgets
   # and adds a menu item that fires a QMessageBox, via pyside6/shiboken6 wrapping

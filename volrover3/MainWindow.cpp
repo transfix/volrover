@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDockWidget>
+#include <QFile>
 #include <QFileInfo>
 #include <QFileDialog>
 #include <QLabel>
@@ -135,6 +136,13 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   m_renderWidget->setSceneGraph(m_sceneGraph);
   setCentralWidget(m_renderWidget);
 
+  // Continuous max-framerate mode: stop the scheduler's own coarse timer and let
+  // the render widget drive tick() once per frame (real dt), rendering every
+  // frame — so job-driven animation (e.g. a moving agent) is smooth instead of
+  // stepped at the ~10 Hz job tick.
+  m_scheduler->stop();
+  m_renderWidget->setContinuousMode(m_scheduler.get());
+
   createDockWidgets();
   createMenus();
   createToolBar();
@@ -185,6 +193,38 @@ MainWindow::~MainWindow() {
     conn.disconnect();
   }
   m_connections.clear();
+}
+
+void MainWindow::execStartupScript(const QString &path) {
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    qWarning("volrover3: --exec-script: cannot open %s (%s)", qUtf8Printable(path),
+             qUtf8Printable(f.errorString()));
+    return;
+  }
+  const QString src = QString::fromUtf8(f.readAll());
+  if (m_interp && m_interp->ok()) {
+    // Run in the embedded interpreter (Py_file_input); a raising script prints its
+    // traceback but never brings down the app.
+    m_interp->run_string(src.toStdString());
+  } else {
+    qWarning("volrover3: --exec-script: embedded interpreter unavailable");
+  }
+}
+
+int MainWindow::runScriptAsJob(const QString &path, bool onWorker) {
+  // Reuse the console dock's existing submit path (it calls m_scheduler->submit
+  // and refreshes the Jobs table), so a --run-job script becomes a real
+  // scheduler job visible in the Jobs tab — not a one-shot __main__ exec.
+  if (!m_consoleDock) {
+    qWarning("volrover3: --run-job: Python console/scheduler unavailable");
+    return -1;
+  }
+  return m_consoleDock->runScriptFile(path, onWorker);
+}
+
+bool MainWindow::saveScreenshot(const QString &path) {
+  return m_renderWidget && m_renderWidget->saveScreenshot(path);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

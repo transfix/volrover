@@ -11,6 +11,9 @@ A prototype visualization application built on libcvc for rendering volumetric d
 - **Quake-Style Camera**: First-person camera controls for intuitive navigation
 - **Scene Elements**: Toggleable grid and coordinate axis for reference
 - **File I/O Integration**: Support for CVC geometry and volume formats
+- **Embedded Python**: script the *live* scene from a built-in CPython interpreter
+  (Python Console / Jobs tab / `--run-job`) via `pycvc` / `pycvc_gl` / `vrhost`
+  (see [Embedded Python & Scripting](#embedded-python--scripting))
 
 ## Building
 
@@ -72,6 +75,73 @@ ctest --test-dir build/volrover3
 **View Menu**:
 - `Show Grid` - Toggle ground grid display
 - `Show Axis` - Toggle coordinate axis display
+
+## Embedded Python & Scripting
+
+VolRover3 embeds a first-class CPython interpreter that drives the **live** scene
+through the `pycvc` / `pycvc_gl` bindings. The `vrhost` module hands a script the
+running app and scene, so a script mutates what you see in the window — this is
+how the GRL-SNAM lab and the Austin drive demo run inside the viewer.
+
+### Install & activate (recommended)
+
+Install into a cvcpkg prefix and use **that prefix's own activation script** — no
+manual environment variables, because cvcpkg's `activate` already exports `PATH`,
+`LD_LIBRARY_PATH`, `CMAKE_PREFIX_PATH`, and `PKG_CONFIG_PATH` for the prefix:
+
+```bash
+cmake --install build --prefix /path/to/cvcpkg-prefix --component volrover3
+source /path/to/cvcpkg-prefix/bin/activate    # cvcpkg's script; sets up the env
+volrover3                                      # just works
+```
+
+The installed binary self-locates its CPython home (`<prefix>/lib/pythonX.Y`) and
+the `vrhost` module (`<prefix>/share/volrover3/pymod`) from its own location, and
+its `RUNPATH` (`$ORIGIN/../lib`) finds the bundle's shared libs — so no
+`VOLROVER3_*` variables are needed. Example scripts install to
+`<prefix>/share/volrover3/examples/`.
+
+### Running a script
+
+Three ways, all against the same embedded interpreter:
+
+- **Interactively** — open the **Python Console** dock, or its **Jobs** tab →
+  *Load Script…* → *Run as Job*. A script that defines `step(dt)` is ticked
+  cooperatively by the scheduler (it appears in the Jobs tab; pause/stop there).
+- **At startup, as a job** — `volrover3 --run-job my_demo.py` submits the file as
+  a scheduler job once the window is up.
+- **At startup, once** — `volrover3 --exec-script setup.py` runs the file once (no
+  scheduler). Add `--screenshot out.png --exit-after` for a headless capture.
+
+### The live-scene API
+
+```python
+import vrhost, pycvc, pycvc_gl
+app   = vrhost.app()        # the running cvc::app
+scene = vrhost.scene()      # the live pycvc_gl.SceneGraph
+
+g = pycvc.geometry(app)
+g.add_vertices([0, 0, 0, 10, 0, 0, 0, 10, 0]); g.add_triangle(0, 1, 2)
+scene.addGraphics("tri", g)                     # appears in the window immediately
+scene.getGraphics("tri").setPosition(1, 2, 3)   # move it in place (no rebuild)
+scene.getGraphics("tri").setTransform(m16)      # or a full 4x4 (row-major list)
+
+def step(dt):                                   # optional: animate, ticked per frame
+    scene.getGraphics("tri").setPosition(...)
+    scene.processEvents()
+```
+
+Drive the camera and viewer settings through the state tree:
+
+```python
+# direct camera control (also: view_direction.{x,y,z}, up_vector.{x,y,z}, fov)
+pycvc.state_set(app, "volrover3.camera.position.x", "10.0")
+# tunable render/refresh rate, 1–240 fps (see State Management)
+pycvc.state_set(app, "volrover3.viewer.max_fps", "60")
+```
+
+Hide reference gizmos for a clean demo:
+`scene.setAxisVisible(False)` / `scene.setGridVisible(False)`.
 
 ## Supported File Formats
 

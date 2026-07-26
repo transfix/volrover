@@ -3,6 +3,7 @@
 
 #include <QTimer>
 #include <QWidget>
+#include <boost/signals2/connection.hpp>
 #include <memory>
 #include <vtkSmartPointer.h>
 
@@ -25,6 +26,9 @@ class vtkGenericOpenGLRenderWindow;
 class vtkCornerAnnotation;
 class SceneGraph;
 class CameraController;
+namespace volrover3 {
+class JobScheduler;
+}
 
 class VTKRenderWidget : public QVTK_WIDGET_BASE {
   Q_OBJECT
@@ -36,6 +40,18 @@ public:
   void setSceneGraph(std::shared_ptr<SceneGraph> sceneGraph);
   void resetCamera();
   void render(); // Force an immediate render
+
+  // Render the current scene and write it to a PNG (for --screenshot / headless
+  // demo capture). Pumps queued scene events + frames the camera first. Returns
+  // false if there is no render window.
+  bool saveScreenshot(const QString &path);
+
+  // Continuous max-framerate mode: drive `scheduler`'s tick() off this widget's
+  // render clock (so job step(dt) advances by real elapsed dt each frame) and
+  // render every frame — decouples motion smoothness from the coarse job tick.
+  // Pass the scheduler to enable; the caller should stop() the scheduler's own
+  // timer first so it isn't double-driven. Pass nullptr to disable.
+  void setContinuousMode(volrover3::JobScheduler *scheduler);
 
   // FPS display control
   void setShowFPS(bool show);
@@ -54,6 +70,10 @@ protected:
 private slots:
   void processSceneGraphEvents();
   void updateFPSDisplay();
+  // Re-read viewer.max_fps and restart the frame/event timer at the new rate.
+  // Invoked on the GUI thread (queued) since the state change may fire from a
+  // job/script thread while QTimer must be driven from the widget's thread.
+  void applyRenderRate();
 
 private:
   void initializeVTK();
@@ -66,6 +86,12 @@ private:
   std::shared_ptr<SceneGraph> m_sceneGraph;
   std::unique_ptr<CameraController> m_cameraController;
   QTimer m_eventTimer; // Timer for processing SceneGraph events
+  // Continuous-mode driving (see setContinuousMode): when set, m_eventTimer ticks
+  // this scheduler and renders every frame.
+  volrover3::JobScheduler *m_scheduler = nullptr;
+  bool m_continuous = false;
+  // Live "volrover3.viewer.max_fps" observer -> restarts m_eventTimer (GUI thread).
+  boost::signals2::scoped_connection m_maxFpsConn;
 
   // FPS display
   vtkSmartPointer<vtkCornerAnnotation> m_fpsAnnotation;

@@ -3,14 +3,18 @@
 #include <QWheelEvent>
 #include <volrover3/AppState.h>
 #include <volrover3/CameraController.h>
+#include <volrover3/JobScheduler.h>
 #include <cvc/gl/SceneGraph.h>
 #include <volrover3/VTKRenderWidget.h>
 #include <vtkCamera.h>
 #include <vtkCornerAnnotation.h>
 #include <vtkGenericOpenGLRenderWindow.h>
+#include <vtkNew.h>
+#include <vtkPNGWriter.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
 #include <vtkTextProperty.h>
+#include <vtkWindowToImageFilter.h>
 
 VTKRenderWidget::VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *parent)
     : QVTK_WIDGET_BASE(parent), m_app(app), m_appState(appState),
@@ -20,9 +24,16 @@ VTKRenderWidget::VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *par
       m_fpsAnnotation(vtkSmartPointer<vtkCornerAnnotation>::New()), m_showFPS(false) {
   initializeVTK();
 
-  // Set up timer to process SceneGraph events on main thread
+  // Set up timer to process SceneGraph events on main thread. Its interval is the
+  // render/event refresh cap from state ("volrover3.viewer.max_fps"); applyRenderRate
+  // reads it and (re)starts the timer. Observe the state key so the rate is tunable
+  // live from the state tree / Python console.
   connect(&m_eventTimer, &QTimer::timeout, this, &VTKRenderWidget::processSceneGraphEvents);
-  m_eventTimer.start(16); // ~60fps event processing
+  applyRenderRate(); // start the timer at the state-configured rate
+  m_maxFpsConn = m_appState.onMaxFPSChanged([this]() {
+    // May fire from a job/script thread; hop to the GUI thread to touch the QTimer.
+    QMetaObject::invokeMethod(this, "applyRenderRate", Qt::QueuedConnection);
+  });
 
   // Set up timer to update FPS display (every 500ms)
   connect(&m_fpsTimer, &QTimer::timeout, this, &VTKRenderWidget::updateFPSDisplay);
@@ -76,7 +87,7 @@ void VTKRenderWidget::keyPressEvent(QKeyEvent *event) {
   if (m_cameraController) {
     m_cameraController->handleKeyPress(event->key());
     updateCamera();
-    renderWindow()->Render();
+    render(); // render() re-fits the clip range (see render())
   }
   QVTK_WIDGET_BASE::keyPressEvent(event);
 }
@@ -116,7 +127,7 @@ void VTKRenderWidget::mouseMoveEvent(QMouseEvent *event) {
     QPoint delta = event->pos() - m_lastMousePos;
     m_cameraController->handleMouseMove(delta.x(), delta.y());
     updateCamera();
-    renderWindow()->Render();
+    render(); // render() re-fits the clip range (see render())
   }
   m_lastMousePos = event->pos();
   // Don't pass middle mouse moves to VTK when middle button is pressed
@@ -130,7 +141,7 @@ void VTKRenderWidget::wheelEvent(QWheelEvent *event) {
   if (m_cameraController) {
     m_cameraController->handleMouseWheel(event->angleDelta().y());
     updateCamera();
-    renderWindow()->Render();
+    render(); // render() re-fits the clip range (see render())
   }
   QVTK_WIDGET_BASE::wheelEvent(event);
 }
@@ -150,18 +161,100 @@ void VTKRenderWidget::resetCamera() {
 
 void VTKRenderWidget::render() {
   if (m_renderWindow) {
+    // Re-fit the near/far clipping planes to the scene every frame. The camera is
+    // driven directly (SetPosition/SetFocalPoint via CameraController / the
+    // volrover3.camera state path), and VTK does NOT auto-adjust the clip range on
+    // a manual camera move — so a large scene (e.g. the ~3 km Austin bundle) gets
+    // sliced by a stale, too-tight far plane. ResetCameraClippingRange() recomputes
+    // near/far from the current actor bounds + camera pose; it's cheap for our
+    // handful of props and is exactly what VTK's own interactors do each render.
+    if (m_renderer) {
+      m_renderer->ResetCameraClippingRange();
+    }
     m_renderWindow->Render();
   }
 }
 
-void VTKRenderWidget::processSceneGraphEvents() {
-  if (m_sceneGraph) {
-    m_sceneGraph->processEvents();
-    // Trigger render if any events modified the scene
-    if (m_sceneGraph->checkAndResetRenderNeeded()) {
-      render();
-    }
+bool VTKRenderWidget::saveScreenshot(const QString &path) {
+  if (!m_sceneGraph) {
+    return false;
   }
+  // Render the live scene to a dedicated OFFSCREEN window (reliable even under
+  // QT_QPA_PLATFORM=offscreen, where the QVTK widget's own window is 0x0). We
+  // temporarily hand the scene graph this renderer, capture, then restore the
+  // widget's renderer so interactive rendering keeps working.
+  vtkNew<vtkRenderer> renderer;
+  vtkNew<vtkRenderWindow> window;
+  window->SetOffScreenRendering(1);
+  window->AddRenderer(renderer);
+  window->SetSize(1024, 768);
+  m_sceneGraph->setRenderer(renderer); // attach node actors to the offscreen renderer
+  m_sceneGraph->processEvents();
+  renderer->ResetCamera();
+  // Tilt from the default top-down view to an oblique aerial angle so 3D
+  // structure (terrain relief, draped tracks, markers) reads in the capture.
+  if (vtkCamera *cam = renderer->GetActiveCamera()) {
+    cam->Elevation(-60.0);
+    cam->Azimuth(30.0);
+    cam->OrthogonalizeViewUp();
+    renderer->ResetCamera(); // refit at the oblique angle
+  }
+  window->Render();
+
+  vtkNew<vtkWindowToImageFilter> w2i;
+  w2i->SetInput(window);
+  w2i->Update();
+  vtkNew<vtkPNGWriter> writer;
+  writer->SetFileName(path.toUtf8().constData());
+  writer->SetInputConnection(w2i->GetOutputPort());
+  writer->Write();
+
+  // Restore the live view's renderer.
+  if (m_renderer) {
+    m_sceneGraph->setRenderer(m_renderer);
+    m_sceneGraph->processEvents();
+  }
+  return true;
+}
+
+void VTKRenderWidget::processSceneGraphEvents() {
+  if (!m_sceneGraph)
+    return;
+  if (m_continuous && m_scheduler) {
+    // Render-synced pump: advance the jobs by REAL elapsed dt once per frame
+    // (JobScheduler::tick() derives dt from a steady clock), drain scene events,
+    // then render EVERY frame at the widget's cadence — smooth motion decoupled
+    // from the coarse self-tick.
+    m_scheduler->tick();
+    m_sceneGraph->processEvents();
+    m_sceneGraph->checkAndResetRenderNeeded(); // consume the flag; we render anyway
+    render();
+    return;
+  }
+  m_sceneGraph->processEvents();
+  // Trigger render if any events modified the scene
+  if (m_sceneGraph->checkAndResetRenderNeeded()) {
+    render();
+  }
+}
+
+void VTKRenderWidget::setContinuousMode(volrover3::JobScheduler *scheduler) {
+  m_scheduler = scheduler;
+  m_continuous = (scheduler != nullptr);
+}
+
+void VTKRenderWidget::applyRenderRate() {
+  // Clamp to a sane range: <1 FPS would stall event pumping; >240 wastes CPU and
+  // out-runs any display. Interval is milliseconds per frame.
+  double fps = m_appState.maxFPS();
+  if (!(fps >= 1.0))
+    fps = 1.0; // also catches NaN
+  if (fps > 240.0)
+    fps = 240.0;
+  int intervalMs = static_cast<int>(1000.0 / fps + 0.5);
+  if (intervalMs < 1)
+    intervalMs = 1;
+  m_eventTimer.start(intervalMs); // QTimer::start restarts with the new interval
 }
 
 void VTKRenderWidget::setShowFPS(bool show) {
