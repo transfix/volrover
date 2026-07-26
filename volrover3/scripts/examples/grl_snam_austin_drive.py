@@ -11,14 +11,13 @@
 # position-driven chase camera + terrain-normal vehicle orientation.
 #
 # NOTE ON PATH FINDING: the route here is planned with a plain A*/occupancy-grid
-# heuristic (grl_snam_lab.scenes.plan_ground_route) — it is NOT yet the GRL-SNAM
-# learned/physics-informed planner. That rig-up is the next step; this example
-# shows the live-scene + driving + camera plumbing the planner will feed.
+# heuristic (pycvc_gl.scenes.plan_ground_route) — it is NOT yet a learned/
+# physics-informed planner. Swapping in the GRL-SNAM navigator is the next step;
+# this example shows the live-scene + driving + camera plumbing it will feed.
 #
-# SETUP (this example is NOT self-contained — it needs the GRL-SNAM lab + assets):
-#   * grl_snam_lab importable (pip install the GRL-SNAM repo, or symlink/PYTHONPATH
-#     it into the interpreter — it is symlinked into the dev deps prefix already).
-#   * numpy + the vtk-python wrappers (present in the volrover3 embedded env).
+# SETUP: this example needs only the volrover3 embedded env — pycvc / pycvc_gl (the
+# scene helpers ship as pycvc_gl.camera / .vehicle / .lab / .scenes), numpy, and the
+# vtk-python wrappers — plus the scene assets on disk. It does NOT depend on GRL-SNAM.
 #   * the austin_south bundle on disk; override its path with GRL_SNAM_SCENE_BUNDLE.
 #
 # RUN: Python Console -> Jobs tab -> "Load Script..." -> "Run as Job" (the glTF is
@@ -35,16 +34,16 @@
 import math
 import os
 
-from grl_snam_lab.camera import ChaseCamera
-from grl_snam_lab.lab import Lab
-from grl_snam_lab.scenes import (
+from pycvc_gl.camera import ChaseCamera
+from pycvc_gl.lab import Lab
+from pycvc_gl.scenes import (
     building_occupancy,
     load_geometry_bundle,
     plan_ground_route,
     resample_polyline,
     terrain_grid,
 )
-from grl_snam_lab.vehicle import VehiclePose
+from pycvc_gl.vehicle import VehiclePose
 
 try:
     import pycvc
