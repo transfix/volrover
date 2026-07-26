@@ -234,10 +234,36 @@ if(APPLE)
     RUNTIME     DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT volrover3
   )
 else()
+  # $ORIGIN/../lib so the INSTALLED binary finds the bundle's own shared libs
+  # (cvc, cvcGL, VTK, Qt) relative to itself — <prefix>/bin/volrover3 ->
+  # <prefix>/lib — without needing LD_LIBRARY_PATH set. The activate script still
+  # adds numpy's vendored BLAS dir, which lives under site-packages.
+  set_target_properties(volrover3 PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../lib"
+    INSTALL_RPATH_USE_LINK_PATH ON)
   install(TARGETS volrover3
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     COMPONENT volrover3
   )
+endif()
+
+# Example scripts — installed so a user has runnable references to base their own
+# scripts on (and to smoke-test an install). They land in the bundle at
+# share/volrover3/examples; load them from the Jobs tab -> "Load Script...".
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/scripts/examples/
+  DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/volrover3/examples
+  COMPONENT volrover3
+  FILES_MATCHING PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE)
+
+# A venv-style activation script: `source <prefix>/bin/activate` puts the bundled
+# commands on PATH and wires up the dynamic-library search path so the embedded
+# interpreter + libs just work with no manual env vars.
+if(UNIX AND NOT APPLE)
+  install(PROGRAMS ${PROJECT_SOURCE_DIR}/share/activate.sh
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    RENAME activate
+    COMPONENT volrover3)
 endif()
 
 # Linux: install a Freedesktop .desktop file and PNG icon for the menu /
