@@ -28,10 +28,56 @@ ImageMagick, libiimod) must also be resolvable at configure time —
 point `CMAKE_PREFIX_PATH` at a cvcpkg prefix or an extracted
 libcvc-deps bundle alongside the SDK itself.
 
-### Build Steps
+### Canonical build with cvcpkg (recommended)
 
-From the volrover repository root (VolRover3 is disabled by default so
-the legacy VolumeRover 2.0 build is unaffected):
+VolRover3 ships its own **cvcpkg recipe** (`cvcpkg/recipes/volrover3`), so cvcpkg
+builds it **exactly the way it is packaged/published** — it resolves and builds the
+*entire* dependency closure (the libcvc family, Qt6, VTK, the embedded CPython, and
+PySide6/shiboken6 for the Qt-from-Python bridge), then builds the app from its
+recipe and installs everything into one prefix whose own `bin/activate` sets up the
+environment. From the volrover repo root:
+
+```bash
+# One shot: build volrover3 + its whole dependency closure into ./deps
+cvcpkg build volrover3 --recipes-dir cvcpkg/recipes --prefix ./deps
+
+# Activate the prefix and run — self-locates its embedded Python + libs, no env vars
+source ./deps/bin/activate
+volrover3
+```
+
+`cvcpkg build` pulls each dependency as a prebuilt bundle from the catalog when one
+is available and **builds the rest from recipe source** — so this works even before
+the whole closure is published (deps not yet on the catalog just take longer, built
+from source the first time). It is the same path CI uses to publish: *if it builds
+here, it packages.* The installed binary self-locates its CPython home
+(`$CVCPKG_ACTIVE_PREFIX/lib/pythonX.Y`) + the `vrhost` module and finds the bundled
+libs via `RUNPATH`, so it needs no environment variables; example scripts land in
+`$CVCPKG_ACTIVE_PREFIX/share/volrover3/examples/`.
+
+**Iterating.** After the first build the dependencies are already in `./deps`, so
+re-run with `--no-deps` to rebuild only volrover3. For a fast cmake-incremental
+inner loop (recompile only changed files + run tests), build the closure once as
+above, keep the prefix activated, then iterate with plain CMake — see
+**Build Steps** below.
+
+### Build Steps (incremental inner loop)
+
+For a fast dev loop, build the dependency closure **once** with `cvcpkg build`
+(above), `source ./deps/bin/activate` — which puts the prefix on `CMAKE_PREFIX_PATH`
+for you — then iterate with plain CMake so only changed files recompile, and run
+the tests:
+
+```bash
+cmake -B build -DBUILD_VOLROVER3=ON     # CMAKE_PREFIX_PATH is set by the activated prefix
+cmake --build build --target volrover3  # incremental — recompiles only what changed
+ctest --test-dir build/volrover3        # unit tests (Google Test)
+cmake --install build --component volrover3   # refresh the installed app when ready
+```
+
+Or, without a cvcpkg prefix, point `CMAKE_PREFIX_PATH` at an existing libcvc SDK +
+deps prefix (e.g. an extracted libcvc-deps bundle). VolRover3 is disabled by default
+so the legacy VolumeRover 2.0 build is unaffected:
 
 ```bash
 cmake -B build -DBUILD_VOLROVER3=ON \
