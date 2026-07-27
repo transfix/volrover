@@ -68,6 +68,7 @@ set(VOLROVER3_SOURCES
   # Scene-graph nodes (SceneGraph/SceneNode/Geometry/Graphics/Volume/Null/Grid/
   # Axis/BBox) now come from cvcGL (cvc::cvcGL); volrover3 no longer forks them.
   CameraController.cpp
+  InputState.cpp
   # Embedded Python interpreter subsystem (docs/EMBEDDED_PYTHON.md).
   PyHost.cpp
   EmbeddedInterpreter.cpp
@@ -97,6 +98,7 @@ set(VOLROVER3_HEADERS
   ${PROJECT_SOURCE_DIR}/inc/volrover3/VTKRenderWidget.h
   # Scene-graph node headers now come from cvcGL (<cvc/gl/*.h>).
   ${PROJECT_SOURCE_DIR}/inc/volrover3/CameraController.h
+  ${PROJECT_SOURCE_DIR}/inc/volrover3/InputState.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/PyHost.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/EmbeddedInterpreter.h
   ${PROJECT_SOURCE_DIR}/inc/volrover3/JobScheduler.h
@@ -628,6 +630,15 @@ if(VOLROVER3_BUILD_TESTS)
     GTest::gtest_main)
   add_test(NAME CameraControllerTest COMMAND volrover3_camera_test)
 
+  # InputState tests
+  add_executable(volrover3_inputstate_test
+    tests/InputStateTest.cpp)
+  target_link_libraries(volrover3_inputstate_test
+    volrover3_lib
+    GTest::gtest
+    GTest::gtest_main)
+  add_test(NAME InputStateTest COMMAND volrover3_inputstate_test)
+
   # StateTreeWidget tests
   add_executable(volrover3_statetree_test
     tests/StateTreeWidgetTest.cpp)
@@ -670,6 +681,7 @@ if(VOLROVER3_BUILD_TESTS)
     AppStateTest
     TransferFunctionTest
     CameraControllerTest
+    InputStateTest
     StateTreeWidgetTest
     StateDashboardWidgetTest
     GeometryDialogTest

@@ -26,6 +26,7 @@ class vtkGenericOpenGLRenderWindow;
 class vtkCornerAnnotation;
 class SceneGraph;
 class CameraController;
+class InputState;
 namespace volrover3 {
 class JobScheduler;
 }
@@ -58,6 +59,7 @@ public:
   bool showFPS() const { return m_showFPS; }
 
   CameraController *getCameraController() { return m_cameraController.get(); }
+  InputState *getInputState() { return m_inputState.get(); }
 
 protected:
   void keyPressEvent(QKeyEvent *event) override;
@@ -66,6 +68,10 @@ protected:
   void mouseReleaseEvent(QMouseEvent *event) override;
   void mouseMoveEvent(QMouseEvent *event) override;
   void wheelEvent(QWheelEvent *event) override;
+  // Held keys/buttons must be dropped on focus loss, or a key held while
+  // alt-tabbing stays "down" in the state tree forever.
+  void focusOutEvent(QFocusEvent *event) override;
+  void leaveEvent(QEvent *event) override;
 
 private slots:
   void processSceneGraphEvents();
@@ -85,6 +91,9 @@ private:
   vtkSmartPointer<vtkRenderer> m_renderer;
   std::shared_ptr<SceneGraph> m_sceneGraph;
   std::unique_ptr<CameraController> m_cameraController;
+  // Mirrors mouse/keyboard into volrover3.input.* so scripts and nodes can
+  // react to input through the state tree instead of a wrapped Qt API.
+  std::unique_ptr<InputState> m_inputState;
   QTimer m_eventTimer; // Timer for processing SceneGraph events
   // Continuous-mode driving (see setContinuousMode): when set, m_eventTimer ticks
   // this scheduler and renders every frame.

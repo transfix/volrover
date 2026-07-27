@@ -3,6 +3,7 @@
 #include <QWheelEvent>
 #include <volrover3/AppState.h>
 #include <volrover3/CameraController.h>
+#include <volrover3/InputState.h>
 #include <volrover3/JobScheduler.h>
 #include <cvc/gl/SceneGraph.h>
 #include <volrover3/VTKRenderWidget.h>
@@ -21,6 +22,7 @@ VTKRenderWidget::VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *par
       m_renderWindow(vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New()),
       m_renderer(vtkSmartPointer<vtkRenderer>::New()),
       m_cameraController(std::make_unique<CameraController>(app)),
+      m_inputState(std::make_unique<InputState>(app)),
       m_fpsAnnotation(vtkSmartPointer<vtkCornerAnnotation>::New()), m_showFPS(false) {
   initializeVTK();
 
@@ -74,6 +76,10 @@ void VTKRenderWidget::initializeVTK() {
 
   // Enable focus for keyboard input
   setFocusPolicy(Qt::StrongFocus);
+  // Publish hover position too, not just drags: without tracking, Qt only
+  // delivers mouseMoveEvent while a button is held, so volrover3.input.mouse.x/y
+  // would be stale whenever the user is not dragging.
+  setMouseTracking(true);
 }
 
 void VTKRenderWidget::setSceneGraph(std::shared_ptr<SceneGraph> sceneGraph) {
@@ -84,6 +90,12 @@ void VTKRenderWidget::setSceneGraph(std::shared_ptr<SceneGraph> sceneGraph) {
 }
 
 void VTKRenderWidget::keyPressEvent(QKeyEvent *event) {
+  if (m_inputState && !event->isAutoRepeat()) {
+    // Skip auto-repeat: X11 synthesises press/release pairs for a held key, so
+    // publishing them would make key.held flicker for a key that never moved.
+    m_inputState->handleKeyPress(event->key(), static_cast<int>(event->modifiers()),
+                                 event->text().toStdString());
+  }
   if (m_cameraController) {
     m_cameraController->handleKeyPress(event->key());
     updateCamera();
@@ -93,6 +105,9 @@ void VTKRenderWidget::keyPressEvent(QKeyEvent *event) {
 }
 
 void VTKRenderWidget::keyReleaseEvent(QKeyEvent *event) {
+  if (m_inputState && !event->isAutoRepeat()) {
+    m_inputState->handleKeyRelease(event->key(), static_cast<int>(event->modifiers()));
+  }
   if (m_cameraController) {
     m_cameraController->handleKeyRelease(event->key());
   }
@@ -101,6 +116,11 @@ void VTKRenderWidget::keyReleaseEvent(QKeyEvent *event) {
 
 void VTKRenderWidget::mousePressEvent(QMouseEvent *event) {
   m_lastMousePos = event->pos();
+  if (m_inputState) {
+    m_inputState->handleMousePress(static_cast<int>(event->button()), event->pos().x(),
+                                   event->pos().y(), static_cast<int>(event->buttons()),
+                                   static_cast<int>(event->modifiers()));
+  }
   if (m_cameraController) {
     m_cameraController->handleMousePress(event->button());
   }
@@ -112,6 +132,11 @@ void VTKRenderWidget::mousePressEvent(QMouseEvent *event) {
 }
 
 void VTKRenderWidget::mouseReleaseEvent(QMouseEvent *event) {
+  if (m_inputState) {
+    m_inputState->handleMouseRelease(static_cast<int>(event->button()), event->pos().x(),
+                                     event->pos().y(), static_cast<int>(event->buttons()),
+                                     static_cast<int>(event->modifiers()));
+  }
   if (m_cameraController) {
     m_cameraController->handleMouseRelease(event->button());
   }
@@ -123,8 +148,13 @@ void VTKRenderWidget::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 void VTKRenderWidget::mouseMoveEvent(QMouseEvent *event) {
+  QPoint delta = event->pos() - m_lastMousePos;
+  if (m_inputState) {
+    m_inputState->handleMouseMove(event->pos().x(), event->pos().y(), delta.x(), delta.y(),
+                                  static_cast<int>(event->buttons()),
+                                  static_cast<int>(event->modifiers()));
+  }
   if (m_cameraController) {
-    QPoint delta = event->pos() - m_lastMousePos;
     m_cameraController->handleMouseMove(delta.x(), delta.y());
     updateCamera();
     render(); // render() re-fits the clip range (see render())
@@ -138,12 +168,32 @@ void VTKRenderWidget::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void VTKRenderWidget::wheelEvent(QWheelEvent *event) {
+  if (m_inputState) {
+    m_inputState->handleWheel(event->angleDelta().x(), event->angleDelta().y(),
+                              static_cast<int>(event->position().x()),
+                              static_cast<int>(event->position().y()),
+                              static_cast<int>(event->modifiers()));
+  }
   if (m_cameraController) {
     m_cameraController->handleMouseWheel(event->angleDelta().y());
     updateCamera();
     render(); // render() re-fits the clip range (see render())
   }
   QVTK_WIDGET_BASE::wheelEvent(event);
+}
+
+void VTKRenderWidget::focusOutEvent(QFocusEvent *event) {
+  if (m_inputState) {
+    m_inputState->clearHeld();
+  }
+  QVTK_WIDGET_BASE::focusOutEvent(event);
+}
+
+void VTKRenderWidget::leaveEvent(QEvent *event) {
+  if (m_inputState) {
+    m_inputState->getState("mouse.inside").value(false);
+  }
+  QVTK_WIDGET_BASE::leaveEvent(event);
 }
 
 void VTKRenderWidget::updateCamera() {
