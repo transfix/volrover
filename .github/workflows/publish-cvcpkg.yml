@@ -379,7 +379,12 @@ jobs:
         run: |
           set -euo pipefail
           export CVCPKG_SERVER_URL="$CVCPKG_SERVER"
-          cvcpkg install cvc/libcvc vtk \
+          # `cvcpkg install` component specs are bare names, not org/name —
+          # "cvc/libcvc" is silently dropped by the resolver (no error, no
+          # install) rather than rejected, so `find_package(cvc CONFIG)`
+          # failed downstream with no obvious cause. `libcvc` alone resolves
+          # correctly regardless of which org publishes it.
+          cvcpkg install libcvc vtk \
             --prefix "$GITHUB_WORKSPACE/cvc-deps" \
             --platform "${{ matrix.platform }}" \
             --config release \
