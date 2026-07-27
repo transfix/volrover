@@ -71,6 +71,7 @@ private slots:
   void onCurrentStateDestroyed();
 
 private:
+  bool m_refreshPending = false; // coalesces onTreeStructureChanged rebuilds
   void buildStateTreeTab(QTabWidget *tabs);
   void refreshStateTree();
   void populateTree(QTreeWidgetItem *parentItem, cvc::state *state);

@@ -1,3 +1,4 @@
+#include <QTimer>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QInputDialog>
@@ -247,10 +248,18 @@ void StateTreeWidget::onCurrentStateChanged() {
 }
 
 void StateTreeWidget::onTreeStructureChanged() {
-  // The tree structure changed (child added or removed)
-  // Refresh the entire tree to show the changes
-  // The refresh() method will preserve the current selection if it still exists
-  refresh();
+  // The root's childChanged fires for EVERY descendant write, not just
+  // structural add/remove, and refresh() rebuilds the whole QTreeWidget. A
+  // script animating the scene through the state tree can drive hundreds of
+  // writes per second; rebuilding thousands of tree items on each one pins the
+  // GUI thread. Coalesce to at most one rebuild per 250 ms.
+  if (m_refreshPending)
+    return;
+  m_refreshPending = true;
+  QTimer::singleShot(250, this, [this]() {
+    m_refreshPending = false;
+    refresh();
+  });
 }
 
 void StateTreeWidget::onCurrentStateDestroyed() {
