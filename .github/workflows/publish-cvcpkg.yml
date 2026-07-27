@@ -349,7 +349,8 @@ jobs:
             libgl1-mesa-dev libglu1-mesa-dev libglew-dev \
             libboost-all-dev libfftw3-dev libgsl-dev \
             liblog4cplus-dev libnsl-dev \
-            imagemagick libmagick++-dev
+            imagemagick libmagick++-dev \
+            python3-dev
 
       - name: Install dependencies (macOS)
         if: matrix.platform == 'macos'
@@ -384,7 +385,12 @@ jobs:
           # install) rather than rejected, so `find_package(cvc CONFIG)`
           # failed downstream with no obvious cause. `libcvc` alone resolves
           # correctly regardless of which org publishes it.
-          cvcpkg install libcvc vtk \
+          # cvcgl (find_package(cvcGL CONFIG REQUIRED), volrover3/CMakeLists.txt)
+          # and yaml-cpp (find_package(yaml-cpp CONFIG REQUIRED), for
+          # volrover3::Settings) landed as separate cvcpkg packages after this
+          # install line was first written — add them explicitly rather than
+          # relying on them riding in transitively.
+          cvcpkg install libcvc vtk cvcgl yaml-cpp \
             --prefix "$GITHUB_WORKSPACE/cvc-deps" \
             --platform "${{ matrix.platform }}" \
             --config release \
