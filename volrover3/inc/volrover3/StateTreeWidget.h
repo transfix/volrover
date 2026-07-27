@@ -36,9 +36,11 @@ private slots:
   void onDeleteStateClicked();
   void onCurrentStateChanged();
   void onTreeStructureChanged();
+
   void onCurrentStateDestroyed();
 
 private:
+  bool m_refreshPending = false; // coalesces onTreeStructureChanged rebuilds
   void populateTree(QTreeWidgetItem *parentItem, cvc::state *state, const std::string &path);
   void populateTable(cvc::state *state);
   std::string getStateValue(cvc::state *state);

@@ -1,3 +1,4 @@
+#include <QTimer>
 #include <QApplication>
 #include <QFont>
 #include <QHBoxLayout>
@@ -370,7 +371,18 @@ void StateDashboardWidget::onDeleteStateClicked() {
   }
 }
 
-void StateDashboardWidget::onTreeStructureChanged() { refreshStateTree(); }
+void StateDashboardWidget::onTreeStructureChanged() {
+  // Coalesced for the same reason as StateTreeWidget::onTreeStructureChanged:
+  // childChanged fires per write, and a full rebuild per write starves the GUI
+  // thread under scripted per-frame state traffic.
+  if (m_refreshPending)
+    return;
+  m_refreshPending = true;
+  QTimer::singleShot(250, this, [this]() {
+    m_refreshPending = false;
+    refreshStateTree();
+  });
+}
 
 void StateDashboardWidget::onCurrentStateChanged() {
   if (m_currentState)
