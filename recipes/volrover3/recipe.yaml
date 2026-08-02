@@ -44,16 +44,20 @@ depends:
     - name: qt6
     - name: vtk
     # the embedded interpreter (libpython3.11.so) + the bindings scripts import.
+    # The EMBEDDED INTERPRETER COLUMN is chosen entirely by these dep pins:
+    # every python package below is a per-interpreter column recipe, and all
+    # columns (cp311/cp312/cp313) exist in the catalog — to embed a different
+    # python, repoint python311 + every -cp311 pin here to the same column.
     - name: python311
     # pycvc delivers the live cvc::app to scripts (vrhost.app() ->
     # pycvc.app_from_capsule); pycvc-gl wraps the 3D scene.
-    - name: pycvc
-    - name: pycvc-gl
+    - name: pycvc-cp311
+    - name: pycvc-gl-cp311
     # Qt-from-Python bridge (docs §7): vrhost.main_window() uses
     # shiboken6.wrapInstance; both must link the SAME cvcpkg qt6 as the app (no
     # bundled Qt) so there is one libQt6Core in-process.
-    - name: pyside6
-    - name: shiboken6
+    - name: pyside6-cp311
+    - name: shiboken6-cp311
   host_tools:
     - cmake
     - ninja
