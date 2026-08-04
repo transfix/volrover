@@ -167,11 +167,24 @@ jobs:
       # checkout that excludes recipes/. Reinstall the full package so
       # the bundled recipes are present for the glew source-fallback
       # below (and pin the same master used for pack/publish fixes).
+      #
+      # [publish] is REQUIRED, not decoration: cvcpkg's core install is
+      # click + PyYAML only, and everything that speaks to a cvcpkg server
+      # over HTTP now lives behind an extra named for its entry point. This
+      # job runs `cvcpkg publish` (volrover2) below, which needs httpx —
+      # only the extra pulls it in, and the composite action above installs
+      # the core client. PEP 508 direct reference: the bracket goes on the
+      # NAME, before the `@ <url>`.
+      #
+      # --no-deps is deliberately gone with it: under --no-deps pip honours
+      # neither the extra nor anything it requires, so the reinstall would
+      # leave httpx uninstalled and `cvcpkg publish` would fail. The core
+      # dependency set is two wheels, so resolving it is cheap.
       - name: Install cvcpkg (full, with bundled recipes)
         shell: bash
         run: |
           set -euo pipefail
-          pip install --force-reinstall --no-deps 'git+https://github.com/transfix/libcvc-deps@master'
+          pip install --force-reinstall 'cvcpkg[publish] @ git+https://github.com/transfix/libcvc-deps@master'
           cvcpkg --version
 
       # glew has a published bundle for linux/x86_64 only so far; on
@@ -332,8 +345,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # [publish] is REQUIRED, not decoration: cvcpkg's core install is
+          # click + PyYAML only, and everything that speaks to a cvcpkg
+          # server over HTTP now lives behind an extra named for its entry
+          # point. This job runs `cvcpkg publish` (volrover3) below, which
+          # needs httpx — only the extra pulls it in. PEP 508 direct
+          # reference: the bracket goes on the NAME, before the `@ <url>`.
           python -m pip install --upgrade pip
-          pip install 'git+https://github.com/transfix/libcvc-deps@master'
+          pip install 'cvcpkg[publish] @ git+https://github.com/transfix/libcvc-deps@master'
           cvcpkg --version
 
       # System toolchain + the VolumeRover 2.0 tree's own configure-time
