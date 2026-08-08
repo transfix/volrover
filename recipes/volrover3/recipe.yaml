@@ -35,6 +35,13 @@ depends:
     - name: python311
     # yaml-cpp: ~/.volrover/settings.yaml round-trip for volrover3::Settings.
     - name: yaml-cpp
+    # GLEW: the TOP-LEVEL CMakeLists does find_package(GLEW REQUIRED) (:129)
+    # unconditionally, and build.ps1/build.sh configure the whole tree even
+    # though only the volrover3 target is built — so GLEW gates the configure
+    # regardless of BUILD_VOLROVER3. It went unnoticed because it is a system
+    # package on the Linux/macOS builders; on Windows nothing provides it and
+    # the configure dies with "Could NOT find GLEW".
+    - name: glew
   runtime:
     # volrover3 consumes libcvc as an EXTERNAL SDK:
     # find_package(cvc CONFIG) -> cvc::cvc, published as @cvc/libcvc on
