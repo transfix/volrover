@@ -27,8 +27,12 @@ find_path(LOG4CPLUS_INCLUDE_DIR
   PATH_SUFFIXES include
 )
 
+# On Windows log4cplus encodes the char width in the library name: the
+# Unicode build (the default, and what the cvcpkg windows bundle ships) is
+# log4cplusU, the ANSI build log4cplus. Searching only "log4cplus" therefore
+# fails against the cvcpkg prefix even though log4cplusU.lib sits right there.
 find_library(LOG4CPLUS_LIBRARY
-  NAMES log4cplus
+  NAMES log4cplus log4cplusU log4cplusUS log4cplusS
   HINTS
     ${LOG4CPLUS_ROOT}
     ENV LOG4CPLUS_ROOT
