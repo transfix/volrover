@@ -392,14 +392,26 @@ if(WIN32)
         #   wglMakeCurrent failed ... The handle is invalid
         #   Unable to find a valid OpenGL 3.2 or later implementation
         # on a machine whose driver is perfectly fine.
-        [[[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\]]]
-        [[[/\\\\][Ss][Yy][Ss][Ww][Oo][Ww]64[/\\\\]]]
-        [[[/\\\\][Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\]]]
+        #
+        # Quoted [=[ ]=], NOT [[ ]]. A character class is the last thing in most
+        # of these patterns, so the plain form ends in ]]] -- and CMake's scanner
+        # takes the FIRST ]] it sees, which is the class's own ] plus one of the
+        # terminator's. The argument is cut a character short, the stray ] is
+        # left dangling, and the generated cmake_install.cmake fails to parse:
+        #   Syntax Error ... Argument not separated from preceding token
+        # It builds and links fine and only dies at install time, pointing at
+        # generated code rather than at this list.
+        # (Backslashes stay doubled: this whole block is an install(CODE \"...\")
+        # quoted argument, so \\\\ here is the \\\\ the generated file needs to
+        # express one literal backslash in a regex character class.)
+        [=[[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\]]=]
+        [=[[/\\\\][Ss][Yy][Ss][Ww][Oo][Ww]64[/\\\\]]=]
+        [=[[/\\\\][Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\]]=]
         # Driver-owned regardless of where they resolved from. Never bundle.
-        [[[Oo][Pp][Ee][Nn][Gg][Ll]32\\.dll]]
-        [[[Gg][Ll][Uu]32\\.dll]]
-        [[[Dd][Xx][Gg][Ii]\\.dll]]
-        [[[Dd]3[Dd][0-9].*\\.dll]]
+        [=[[Oo][Pp][Ee][Nn][Gg][Ll]32\\.dll]=]
+        [=[[Gg][Ll][Uu]32\\.dll]=]
+        [=[[Dd][Xx][Gg][Ii]\\.dll]=]
+        [=[[Dd]3[Dd][0-9].*\\.dll]=]
     )
 
     foreach(_dll IN LISTS _resolved)
