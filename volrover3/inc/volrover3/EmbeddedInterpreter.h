@@ -18,6 +18,7 @@
 #include <cvc/core/app.h>
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -91,6 +92,21 @@ public:
   // window exists; safe to call before boot (updates the C++ host only).
   void set_main_window_ptr(std::uintptr_t ptr);
 
+  // Expose AppState::setWorldBounds to scripts as vrhost.set_world_bounds().
+  //
+  // `volrover3.world_bounds` documents itself as "computed from graphics bounds"
+  // but is read-only in the state tree and is only ever written by the C++
+  // generators — so a script that builds a scene through pycvc_gl leaves it at
+  // the default and neither the grid nor the camera ever frames what it added
+  // (pycvc.state_set on it raises cvc::read_only_error). Handing the setter to
+  // Python closes that gap without making the node writable, and keeps the
+  // script in charge of WHEN bounds are final — recomputing them on every
+  // addGraphics would rebuild the grid once per node.
+  //
+  // `setter` is invoked on the caller's thread with the GIL held; MainWindow
+  // supplies one that marshals onto the GUI thread. Pass nullptr to unbind.
+  void set_world_bounds_hook(std::function<void(double, double, double, double, double, double)> setter);
+
 private:
   // After boot (GIL held): put the vrhost module dir on sys.path, `import vrhost`
   // (which auto-imports pycvc, registering the shared cvc::app SWIG type), then
@@ -104,6 +120,10 @@ private:
   bool m_initialized = false;
   bool m_booted = false;    // this instance called Py_Initialize (so it finalizes)
   bool m_hostBound = false; // vrhost imported + live host bound
+  // Owns the world-bounds setter for as long as the injected Python callable can
+  // be invoked; the callable holds a capsule pointing at it.
+  std::shared_ptr<std::function<void(double, double, double, double, double, double)>>
+      m_worldBoundsHook;
 };
 
 } // namespace volrover3

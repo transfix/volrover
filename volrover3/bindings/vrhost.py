@@ -20,6 +20,7 @@ import pycvc
 _app_capsule = None    # PyCapsule("cvc.app") -> shared_ptr<cvc::app>*
 _scene_capsule = None  # PyCapsule("cvc.scenegraph") -> shared_ptr<SceneGraph>*
 _main_window_ptr = 0   # QMainWindow* as an int
+_set_world_bounds = None  # PyCFunction -> AppState::setWorldBounds (see below)
 
 
 def app():
@@ -58,6 +59,32 @@ def scene():
             "embedded interpreter in single-interpreter mode?")
     import pycvc_gl
     return pycvc_gl.scene_from_capsule(_app_capsule, _scene_capsule)
+
+
+def set_world_bounds(minx, miny, minz, maxx, maxy, maxz):
+    """Set volrover3's world bounds — the grid and camera framing follow them.
+
+    ``volrover3.world_bounds`` is read-only in the state tree (``pycvc.state_set``
+    on it raises ``cvc::read_only_error``) and the C++ generators are the only
+    things that ever wrote it, so a scene built from a script left the grid and
+    camera framing a default 1-unit box. This is ``AppState::setWorldBounds``,
+    which is what those generators call::
+
+        import vrhost
+        s = vrhost.scene()
+        ...                                  # add all your graphics first
+        vrhost.set_world_bounds(*s.compute_graphics_bounds())
+
+    Call it ONCE, after the scene is built: each call rebuilds the world grid and
+    re-centres the camera's orbit, so calling it per-node is needless work. It
+    does not move the camera itself — the user stays in control of the view.
+    """
+    if _set_world_bounds is None:
+        raise RuntimeError(
+            "vrhost: no world-bounds setter bound — are you running inside the "
+            "volrover3 embedded interpreter?")
+    _set_world_bounds(float(minx), float(miny), float(minz),
+                      float(maxx), float(maxy), float(maxz))
 
 
 def main_window_ptr():
