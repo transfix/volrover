@@ -153,6 +153,65 @@ bool EmbeddedInterpreter::bind_host() {
   return bound;
 }
 
+namespace {
+
+using WorldBoundsFn = std::function<void(double, double, double, double, double, double)>;
+
+// Trampoline behind vrhost._set_world_bounds. `self` is the capsule holding the
+// std::function the host installed (owned by EmbeddedInterpreter, so it outlives
+// every call). Errors surface as Python exceptions, never as a C++ throw across
+// the C-API boundary.
+PyObject *world_bounds_trampoline(PyObject *self, PyObject *args) {
+  double minx, miny, minz, maxx, maxy, maxz;
+  if (!PyArg_ParseTuple(args, "dddddd", &minx, &miny, &minz, &maxx, &maxy, &maxz))
+    return nullptr;
+  auto *fn = static_cast<WorldBoundsFn *>(PyCapsule_GetPointer(self, "volrover3.world_bounds_fn"));
+  if (!fn || !*fn) {
+    PyErr_SetString(PyExc_RuntimeError, "vrhost: world-bounds setter is not bound");
+    return nullptr;
+  }
+  try {
+    (*fn)(minx, miny, minz, maxx, maxy, maxz);
+  } catch (const std::exception &e) {
+    PyErr_SetString(PyExc_RuntimeError, e.what());
+    return nullptr;
+  }
+  Py_RETURN_NONE;
+}
+
+PyMethodDef world_bounds_def = {"_set_world_bounds", world_bounds_trampoline, METH_VARARGS,
+                                "Set volrover3's world bounds (minx,miny,minz,maxx,maxy,maxz)."};
+
+} // namespace
+
+// Hand AppState::setWorldBounds to scripts. See the header for why the state
+// node alone cannot serve this (it is read-only by design).
+void EmbeddedInterpreter::set_world_bounds_hook(WorldBoundsFn setter) {
+  m_worldBoundsHook = setter ? std::make_shared<WorldBoundsFn>(std::move(setter)) : nullptr;
+  if (!m_hostBound)
+    return;
+  PyGILState_STATE gil = PyGILState_Ensure();
+  if (PyObject *vr = PyImport_ImportModule("vrhost")) { // cached import
+    if (!m_worldBoundsHook) {
+      PyObject_SetAttrString(vr, "_set_world_bounds", Py_None);
+    } else if (PyObject *cap = PyCapsule_New(m_worldBoundsHook.get(),
+                                             "volrover3.world_bounds_fn", nullptr)) {
+      // The capsule borrows the hook; m_worldBoundsHook keeps it alive, and the
+      // function object keeps the capsule alive.
+      if (PyObject *fn = PyCFunction_NewEx(&world_bounds_def, cap, nullptr)) {
+        PyObject_SetAttrString(vr, "_set_world_bounds", fn);
+        Py_DECREF(fn);
+      }
+      Py_DECREF(cap);
+    }
+    PyErr_Clear();
+    Py_DECREF(vr);
+  } else {
+    PyErr_Clear();
+  }
+  PyGILState_Release(gil);
+}
+
 // Push the live QMainWindow address to the (already-imported) vrhost shim so
 // vrhost.main_window() resolves it. Called by MainWindow after boot (GIL parked).
 void EmbeddedInterpreter::set_main_window_ptr(std::uintptr_t ptr) {

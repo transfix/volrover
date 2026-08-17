@@ -17,20 +17,21 @@
 #     the geometry never changes — we recompute each module's local transform
 #     from the current angles, and the sway ACCUMULATES down the hierarchy for
 #     free, exactly as it did through the old matrix stack.
-#   * GROWTH: folding a 0->1 scale into the frontier modules' transforms grows
-#     the newest depth level in place. No geometry is rebuilt, ever.
 #   * TIME: the original integrated against a 60 Hz glutTimerFunc. Here a
-#     cvc::world_clock (pycvc.world_clock) advances the wind and growth in fixed
-#     quanta and hands back an `alpha` to interpolate the presented pose — so the
-#     animation runs at the same rate whatever the tick rate, and stays smooth.
+#     cvc::world_clock (pycvc.world_clock) advances the wind in fixed quanta and
+#     hands back an `alpha` to interpolate the presented pose — so the animation
+#     runs at the same rate whatever the tick rate, and stays smooth.
+#
+# The script builds the tree, sets the world bounds so volrover3 frames it, and
+# then does nothing but blow wind through it until the job is stopped. It never
+# touches the camera: orbit/pan/zoom stay yours.
 #
 # LIVE CONTROLS (Python Console dock -> State tab, or from any script):
 #     pycvc.state_set(app, "volrover3.lsystem_tree.depth", "4")   # 1..5
-#     pycvc.state_set(app, "volrover3.lsystem_tree.grow",  "1")   # 0/1
 #     pycvc.state_set(app, "volrover3.lsystem_tree.wind",  "1")   # 0/1
 #     pycvc.state_set(app, "volrover3.lsystem_tree.speed", "0.5") # clock scale
-# The first three replace the original's 'a'/'s' (depth) and 'h' (growth) key
-# handlers; `speed` is the world clock's scale (0 pauses, 2 is double time).
+# `depth` replaces the original's 'a'/'s' keys; `speed` is the world clock's
+# scale (0 pauses the wind, 2 is double time).
 #
 # HOW TO RUN (inside a running volrover3): Python Console dock -> "Jobs" tab ->
 # "Load Script..." -> pick this file. Select it -> Stop to end.
@@ -71,7 +72,7 @@ NEEDLES = 25  # line segments per needle cluster
 LEAF_LEN = 4.0  # needle length / spread, both scaled with the branch
 LEAF_RAD = 1.0
 MAX_DEPTH = 5  # how deep the grammar is expanded (the original's LSYS_DEPTH)
-START_DEPTH = 2  # levels visible at submit
+START_DEPTH = MAX_DEPTH  # render the whole tree; `depth` can trim it live
 
 # 'R' and 'T' turn amounts. The original declares these as degrees (YROTATE 10,
 # TILT 120) but its Rotate() feeds the value straight to cos()/sin() — so the
@@ -83,7 +84,6 @@ YROTATE = 10.0  # radians, per the note above
 TILT = 120.0  # radians, likewise
 MICRO_TILT = 1.0e-4  # every 'F' pre-tilts by TILT/10000 — a slight natural lean
 
-GROWTH_RATE = 0.3  # frontier level goes 0 -> full in ~3.3 s (the original's feel)
 WIND_DEG_RATE = 120.0  # degrees/sec through the wind oscillator (60 Hz * ~2/tick)
 STAGGER = 6  # re-pose 1/STAGGER of the tree per frame (see _apply_transforms)
 POSE_EPS = 1e-7  # below this a re-pose is a no-op, so don't pay for it
@@ -117,12 +117,6 @@ def mat_rotate(angle, x, y, z):
 def mat_translate(x, y, z):
     m = np.identity(4)
     m[:3, 3] = (x, y, z)
-    return m
-
-
-def mat_scale(s):
-    m = np.identity(4)
-    m[0, 0] = m[1, 1] = m[2, 2] = s
     return m
 
 
@@ -351,7 +345,7 @@ def _state_int(key, default):
     return int(_state_float(key, default))
 
 
-for _k, _v in (("depth", START_DEPTH), ("grow", 0), ("wind", 1), ("speed", 1)):
+for _k, _v in (("depth", START_DEPTH), ("wind", 1), ("speed", 1)):
     pycvc.state_set(_app, STATE + "." + _k, str(_v))
 
 
@@ -373,30 +367,29 @@ for _k, _v in (("depth", START_DEPTH), ("grow", 0), ("wind", 1), ("speed", 1)):
 # The `speed` state key is the clock's scale: 0 pauses, 2 is double time.
 SIM_DT = 1.0 / 120.0
 PRIME_DT = 0.25  # a tick slower than this at startup is scene setup, not lag
+STALL_QUANTA = 60  # only shout about a stall once it costs ~half a second
 _clock = pycvc.world_clock(SIM_DT)
 
 
 # ── animation state ──────────────────────────────────────────────────────────
 _deg = _deg2 = 0.0  # the original's two wind oscillator phases
 _shown = START_DEPTH  # levels currently visible
-_growing = 0  # level currently being grown, 0 = none
-_growth = 1.0  # 0..1 ramp for that level (the simulated value)
 _bucket = 0  # which STAGGER slice gets re-posed this frame
 _stalled = False  # have we already reported a dropped-quanta stall?
 _primed = False  # has the first (scene-build) tick been discarded yet?
 
-# (tilt, yrotate, growth) at the previous and current simulation quanta; the
-# presented values below are interpolated between them by the clock's alpha.
-_prev_pose = _cur_pose = (TILT, YROTATE, 1.0)
-_tilt, _yrotate, _growth_shown = _cur_pose  # what _apply_transforms actually uses
+# (tilt, yrotate) at the previous and current simulation quanta; the presented
+# values below are interpolated between them by the clock's alpha.
+_prev_pose = _cur_pose = (TILT, YROTATE)
+_tilt, _yrotate = _cur_pose  # what _apply_transforms actually uses
 
 
 def _reveal():
     """Show levels 1.._shown, then re-pose the whole tree in one pass.
 
-    The full (unstaggered) pose matters here: a level that has just become the
-    growth frontier must pick up its 0-scale on the SAME frame it appears, or it
-    flashes at full size for a frame or two before shrinking.
+    The full (unstaggered) pose matters here: a level that has just become
+    visible must be placed on the SAME frame it appears, rather than waiting its
+    turn in the stagger and flashing at a stale pose for a frame or two.
     """
     for mod in _modules:
         vis = mod.level <= _shown
@@ -439,8 +432,6 @@ def _apply_transforms(bucket=None):
             cache[mod.ops] = m
         if mod.parent is None:
             m = ROOT_XFORM @ m  # stand the +Y turtle up in a Z-up world
-        if mod.level == _growing:
-            m = m @ mat_scale(_growth_shown)  # the frontier level, mid-growth
         was = mod.posed
         if was is not None and np.abs(was - m).max() < POSE_EPS:
             continue
@@ -450,78 +441,40 @@ def _apply_transforms(bucket=None):
 
 _reveal()
 
-# Frame the camera on the tree we just built (chase_cam_demo drives the same
-# state keys). Bounds come from the scene itself rather than hard-coded numbers.
-_b = _sg.compute_graphics_bounds()
-_cx, _cy = (_b[0] + _b[3]) / 2.0, (_b[1] + _b[4]) / 2.0
-_cz, _span = (_b[2] + _b[5]) / 2.0, max(_b[3] - _b[0], _b[4] - _b[1], _b[5] - _b[2], 1.0)
-_eye = (_cx, _cy - 1.9 * _span, _cz + 0.35 * _span)
-_dir = (_cx - _eye[0], _cy - _eye[1], _cz - _eye[2])
-_len = math.sqrt(sum(c * c for c in _dir)) or 1.0
-for _k, _v in (
-    ("position.x", _eye[0]), ("position.y", _eye[1]), ("position.z", _eye[2]),
-    ("view_direction.x", _dir[0] / _len), ("view_direction.y", _dir[1] / _len),
-    ("view_direction.z", _dir[2] / _len),
-    ("up_vector.x", 0.0), ("up_vector.y", 0.0), ("up_vector.z", 1.0),
-    ("fov", 55.0),
-):
-    pycvc.state_set(_app, "volrover3.camera." + _k, "%.6f" % float(_v))
+# Hand volrover3 the bounds of what we just built, so the world grid resizes and
+# the camera's orbit centre lands on the tree. That is the ONLY thing this script
+# does to the view — it never writes volrover3.camera.*, so orbit, pan and zoom
+# stay entirely the user's. (Until vrhost.set_world_bounds existed there was no
+# way to do this from a script: the world_bounds state node is read-only.)
+vrhost.set_world_bounds(*_sg.compute_graphics_bounds())
 
-print("lsystem_tree: running. Set %s.depth (1-%d) / .grow / .wind / .speed to drive it."
-      % (STATE, MAX_DEPTH))
+print("lsystem_tree: running — wind until the job is stopped. Set %s.depth (1-%d) / "
+      ".wind / .speed to drive it." % (STATE, MAX_DEPTH))
 
 
-def _simulate(want, grow, wind):
-    """Advance wind and growth by exactly one SIM_DT quantum."""
-    global _deg, _deg2, _shown, _growing, _growth, _prev_pose, _cur_pose
+def _simulate(want, wind):
+    """Advance the wind by exactly one SIM_DT quantum."""
+    global _deg, _deg2, _shown, _prev_pose, _cur_pose
 
     _prev_pose = _cur_pose
 
-    # Growth: ramp the frontier level in, then advance to the next one. Starting
-    # growth rewinds to a sapling, as the original's 'h' did.
-    snap = False
-    if grow and not _growing:
-        _shown, _growing, _growth = 1, 1, 0.0
-        _reveal()
-        snap = True
-    elif not grow and _growing:
-        _growing, _growth = 0, 1.0
-    if _growing:
-        _growth += GROWTH_RATE * SIM_DT
-        if _growth >= 1.0:
-            _growth = 1.0
-            if _growing < MAX_DEPTH:
-                _growing += 1
-                _shown, _growth = _growing, 0.0
-                _reveal()
-                snap = True
-            else:
-                _growing = 0  # fully grown
-                pycvc.state_set(_app, STATE + ".grow", "0")
-                pycvc.state_set(_app, STATE + ".depth", str(_shown))  # keep what we grew
-                print("lsystem_tree: done growing.")
-    elif want != _shown:
+    if want != _shown:
         _shown = want
         _reveal()
 
-    # Wind: the original's two oscillators, now stepped by a fixed quantum
-    # instead of by whatever the tick rate happened to be. They nudge the same
-    # two turn amounts the grammar uses.
+    # The original's two oscillators, now stepped by a fixed quantum instead of
+    # by whatever the tick rate happened to be. They nudge the same two turn
+    # amounts the grammar uses, so the sway accumulates down the hierarchy.
     if wind:
         rate = WIND_DEG_RATE * SIM_DT
         _deg = (_deg + rate * (0.5 + random.random())) % 720.0
         _deg2 = (_deg2 + rate * (0.5 + random.random())) % 720.0
     _cur_pose = (TILT + math.sin(math.radians(_deg * 0.5)) / 100.0,
-                 YROTATE + math.cos(math.radians(_deg2 * 0.5)) / 1000.0,
-                 _growth)
-    if snap:
-        # A level change is discrete — interpolating across it would tween the
-        # new frontier out of the old one's scale. Collapse the pair instead.
-        _prev_pose = _cur_pose
+                 YROTATE + math.cos(math.radians(_deg2 * 0.5)) / 1000.0)
 
 
 def step(dt):
-    global _tilt, _yrotate, _growth_shown, _bucket, _stalled, _primed
+    global _tilt, _yrotate, _bucket, _stalled, _primed
 
     if not _primed:
         # Startup is two big blocking deltas, neither of which is simulation
@@ -536,14 +489,16 @@ def step(dt):
             _primed = True
 
     want = max(1, min(MAX_DEPTH, _state_int("depth", _shown)))
-    grow = _state_int("grow", 0)
     wind = _state_int("wind", 1)
     _clock.set_scale(_state_float("speed", 1.0))
 
     r = _clock.advance(dt)  # -> whole quanta to run + alpha into the next
     for _ in range(r.steps):
-        _simulate(want, grow, wind)
-    if r.dropped_steps and not _stalled:
+        _simulate(want, wind)
+    if r.dropped_steps > STALL_QUANTA and not _stalled:
+        # A hitch of a frame or two is normal (a heavy first render, a GC
+        # pause) and reporting it would just cry wolf; a sustained stall is
+        # worth surfacing rather than silently skipping world time.
         _stalled = True  # report a stall once; do not pretend it didn't happen
         print("lsystem_tree: stalled — world_clock dropped %d quanta." % r.dropped_steps)
 
@@ -552,7 +507,6 @@ def step(dt):
     a = r.alpha
     _tilt = _prev_pose[0] + (_cur_pose[0] - _prev_pose[0]) * a
     _yrotate = _prev_pose[1] + (_cur_pose[1] - _prev_pose[1]) * a
-    _growth_shown = _prev_pose[2] + (_cur_pose[2] - _prev_pose[2]) * a
 
     _bucket = (_bucket + 1) % STAGGER
     _apply_transforms(_bucket)

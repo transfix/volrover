@@ -122,6 +122,25 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   // Just an address crosses; same process, same cvcpkg-Qt, so no ownership/ABI issue.
   m_interp->set_main_window_ptr(reinterpret_cast<std::uintptr_t>(this));
 
+  // Let scripts set the world bounds (vrhost.set_world_bounds) — the read-only
+  // state node is unwritable from Python, so without this a script-built scene
+  // never updates the grid or the camera's orbit centre. Marshalled onto the GUI
+  // thread: a job may call this from the scheduler's thread, and the callback it
+  // triggers rebuilds the grid and touches the render widget.
+  m_interp->set_world_bounds_hook(
+      [this](double minx, double miny, double minz, double maxx, double maxy, double maxz) {
+        QMetaObject::invokeMethod(
+            this,
+            [this, minx, miny, minz, maxx, maxy, maxz]() {
+              m_appState->setWorldBounds(
+                  cvc::bounding_box(minx, miny, minz, maxx, maxy, maxz));
+            },
+            // Auto, not Queued: a script on the GUI thread (--exec-script, or a
+            // scheduler-ticked job) then applies the bounds immediately and can
+            // read them straight back, while a worker-thread job still marshals.
+            Qt::AutoConnection);
+      });
+
   // Job scheduler (cooperative tick over the job registry) + the console dock
   // that drives it and the REPL (docs/EMBEDDED_PYTHON.md §12).
   m_scheduler =
@@ -188,6 +207,11 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
 }
 
 MainWindow::~MainWindow() {
+  // Drop the world-bounds hook first: it captures `this`, and the interpreter
+  // outlives nothing here but a late script call must not reach a dead window.
+  if (m_interp)
+    m_interp->set_world_bounds_hook(nullptr);
+
   // Disconnect all callbacks
   for (auto &conn : m_connections) {
     conn.disconnect();
