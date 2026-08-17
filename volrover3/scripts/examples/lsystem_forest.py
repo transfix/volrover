@@ -520,7 +520,11 @@ def _sky_raw(shift_cols):
 # that would be dead — the ramp would be read at half its intended height and
 # the clouds would come out far fainter than the table says. Normalise once,
 # from a fixed offset, so the mapping stays stable as the slab scrolls.
-_SKY_NORM = float(_sky_raw(0).max()) or 1.0
+# Sampled across offsets, not just offset 0: the pattern rolls underneath a
+# FIXED edge window, so which lumps get faded — and therefore the peak — changes
+# as the slab scrolls. Normalising on one offset let the field drift past 1.0
+# later and silently saturate against the top of the ramp.
+_SKY_NORM = max(float(_sky_raw(c).max()) for c in range(0, SKY_N, 4)) or 1.0
 
 
 def sky_field(shift_cols):
@@ -534,6 +538,16 @@ _sky_vol.set_float_grid(sky_field(0).ravel().tolist(), SKY_N, SKY_N, SKY_NZ,
 _sky_grid = _sky_vol.grid()
 _sg.addGraphics("forest_sky", _sky_vol)
 _sky_node = _sg.volume_node("forest_sky")
+# Cloud is not a lit surface. VolumeNode defaults to SetShade(1), and volume
+# shading uses the scalar GRADIENT as its normal — on a soft noise field those
+# gradients are weak and noisy, so it buys nothing and costs the colour 70% of
+# its brightness to the 0.3 ambient term. Absorption/emission only, full
+# brightness. (This is NOT why the clouds looked dark; see the opacity note
+# below. It is just the right mode for cloud.)
+_sky_node.setShading(False)
+_sky_node.setAmbient(1.0)
+_sky_node.setDiffuse(0.0)
+_sky_node.setSpecular(0.0)
 # Opacity has to be MINUTE here, and the reason is easy to get wrong: VTK applies
 # the opacity function once per ScalarOpacityUnitDistance, which it derives from
 # the voxel spacing — about 0.12 world units for this slab. A ray crossing 22
@@ -546,9 +560,27 @@ _sky_node = _sg.volume_node("forest_sky")
 # takes through the slab, which is what turned clear sky into grey haze and made
 # the volume read as a box.
 CLOUD_EMPTY = 0.22
-_sky_node.setTransferFunction(
-    [0.0, 0.62, 0.66, 0.74, 0.45, 0.88, 0.91, 0.95, 1.0, 1.00, 1.00, 1.00],
-    [0.0, 0.0, CLOUD_EMPTY, 0.0, 0.60, 0.0095, 1.0, 0.0260])
+
+
+def sky_transfer():
+    """Transfer function for the cloud slab.
+
+    Two things have to hold at once. Empty sky must be EXACTLY invisible, so the
+    transparent band is pinned flat at 0 rather than ramped down towards it — a
+    ramp that merely approaches zero still accumulates over the ~180 samples a
+    ray takes through the slab, which is what turned clear sky into grey haze
+    and made the volume read as a box. And cloud must be OPAQUE where it does
+    exist: composited over the sky, a puff that only reaches alpha 0.3 is 30%
+    of the background, which reads as dirty smoke. The cores have to reach
+    alpha ~1 to composite as white, which is only safe because the zeros are
+    pinned and the field is sparse.
+    """
+    color = [0.0, 0.72, 0.76, 0.82, 0.45, 0.92, 0.94, 0.97, 1.0, 1.00, 1.00, 1.00]
+    opacity = [0.0, 0.0, CLOUD_EMPTY, 0.0, 0.60, 0.075, 1.0, 0.200]
+    return color, opacity
+
+
+_sky_node.setTransferFunction(*sky_transfer())
 
 # Bounds over everything, so the grid resizes and the camera's orbit centre lands
 # on the island. This is the only thing the script does to the view.
@@ -615,6 +647,13 @@ def step(dt):
             _sky_col = col
             _sky_grid[:] = sky_field(col)
             _sky_node.setVolume(_sky_vol)
+            # setVolume RESETS the transfer function to VolumeNode's default
+            # grayscale ramp, so it has to be re-applied after every upload.
+            # Miss this and the clouds silently revert to black-at-zero with a
+            # 0->1 opacity ramp the moment the slab first scrolls — which looks
+            # like a lighting or colour bug and is neither. The sea only avoids
+            # it by re-applying its own transfer function every frame anyway.
+            _sky_node.setTransferFunction(*sky_transfer())
 
     if _state_float("wind", 1.0):
         # Each tree leans on its own phase. One transform per tree — the forest's
