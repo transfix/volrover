@@ -25,13 +25,18 @@
 #   grammar, opposite end of the granularity trade — that contrast is the point.
 #
 # THE TWO VOLUMES
-#   * SEA — a cvc::volume over the island's footprint. Its scalar field is depth
-#     below a travelling wave surface, and it is zeroed anywhere the terrain
-#     stands above sea level, so water appears exactly in the hollows the dirt
-#     patches carved. Both the field AND the transfer function animate: the field
-#     carries the swell, the transfer function breathes the surface highlight.
+#   * SEA — a cvc::volume over the island's footprint, filling the space between
+#     the seabed and a travelling wave surface, so water sits exactly in the
+#     hollows the dirt patches carved AND is only as thick as the water actually
+#     is. That thickness is what sells it: the transfer function is translucent
+#     enough that a knee-deep column barely tints the sand while open water
+#     stacks up to solid navy, so the shallows show their bottom and the deeps do
+#     not. Both the field and the transfer function animate — the field carries
+#     the swell, the transfer function breathes the surface.
 #   * SKY — a second volume slab overhead holding a band-limited noise field,
-#     scrolled by the wind. A soft ramp transfer function turns it into cloud.
+#     scrolled by the wind. Its transfer function pins alpha to exactly zero
+#     below a threshold, so empty sky is empty rather than a faint grey box, and
+#     the clouds read as discrete puffs.
 #
 # The script never touches the camera. It sets the world bounds once so volrover3
 # frames the island; orbit, pan and zoom stay yours.
@@ -411,7 +416,6 @@ _sgx, _sgy = np.meshgrid(_sea_ax, _sea_ax, indexing="xy")
 _idx = np.clip(((_sea_ax + HALF) / (2 * HALF) * (TERRAIN_N - 1)).round().astype(int),
                0, TERRAIN_N - 1)
 _sea_terrain = _H[np.ix_(_idx, _idx)]
-_wet = (_sea_terrain < SEA_LEVEL).astype(np.float32)  # 1 where there is sea floor
 
 _sea_vol = pycvc.volume(_app)
 # Phase of the swell at each column, precomputed — only the time term changes.
@@ -420,23 +424,48 @@ _zcol = _sea_z[:, None, None].astype(np.float32)
 
 
 def sea_field(t):
-    """Depth below the wave surface, 0 on land — the sea's scalar field."""
+    """Depth below the wave surface, bounded by the seabed — the sea's field.
+
+    The seabed clip is what makes shallow water actually look shallow. Masking
+    per COLUMN (is there sea floor here at all?) is not enough: without the
+    per-voxel bound, every wet column is filled from SEA_FLOOR up, so a sandbar
+    under a foot of water carries the same 20-unit slab of water as open ocean
+    and no transfer function can make the bottom show through it. Water only
+    exists between the bed and the surface.
+    """
     surf = SEA_LEVEL + WAVE_AMP * (np.sin(_wave_phase - WAVE_SPEED * t * 0.1)
                                    + 0.45 * np.sin(1.7 * _wave_phase + WAVE_SPEED * t * 0.13))
-    depth = np.clip((surf[None, :, :] - _zcol) / 6.0, 0.0, 1.0)
-    return (depth * _wet[None, :, :]).astype(np.float32)
+    below_surface = surf[None, :, :] - _zcol
+    above_bed = _zcol - _sea_terrain[None, :, :]
+    wet = (below_surface > 0.0) & (above_bed > 0.0)
+    depth = np.clip(below_surface / 6.0, 0.0, 1.0)
+    return (depth * wet).astype(np.float32)
 
 
 def sea_transfer(t):
-    """Transfer function for the sea. The knee where opacity climbs is what reads
-    as the surface, so drifting it slightly makes the water look alive even
-    between field updates."""
-    k = 0.16 + 0.05 * math.sin(t * 0.9)
-    color = [0.00, 0.02, 0.10, 0.22,
-             0.35, 0.05, 0.28, 0.48,
-             0.70, 0.10, 0.45, 0.62,
-             1.00, 0.55, 0.80, 0.85]  # foam-ish at the very top
-    opacity = [0.00, 0.00, max(k - 0.10, 0.001), 0.00, k, 0.32, 0.75, 0.72, 1.00, 0.90]
+    """Transfer function for the sea: translucent in the shallows, opaque offshore.
+
+    The scalar is depth below the surface, so 0 is the waterline and 1 is 6 m
+    down. Colour therefore runs LIGHT at 0 and dark at 1 — the reverse looks
+    like an X-ray of the sea.
+
+    The alphas are in thousandths for the same reason the sky's are: VTK applies
+    the opacity function once per ScalarOpacityUnitDistance, which it derives
+    from the voxel spacing (~0.06 world units here), so a ray crossing 6 m of
+    water applies it ~100 times. At the 0.3-per-sample this used to carry, a
+    puddle was as opaque as the deep ocean. At ~0.01 a knee-deep column
+    accumulates to roughly 0.15 and the sand reads straight through it, while
+    open water still stacks to effectively solid.
+
+    `k` drifts the mid alpha slightly so the surface keeps breathing between
+    field updates.
+    """
+    k = 0.0100 + 0.0015 * math.sin(t * 0.9)
+    color = [0.00, 0.42, 0.78, 0.74,   # waterline: pale turquoise over the sand
+             0.25, 0.14, 0.55, 0.66,
+             0.60, 0.04, 0.26, 0.46,
+             1.00, 0.01, 0.09, 0.22]   # deep water: near-black navy
+    opacity = [0.00, 0.0, 0.12, k * 0.45, 0.55, k, 1.00, k * 2.0]
     return color, opacity
 
 
@@ -464,6 +493,11 @@ for _oct in (1.0, 2.3, 4.7, 9.1):  # enough octaves that the edges are ragged
     _cloud2d += (1.0 / _oct) * np.sin(_oct * _cx + _px) * np.cos(_oct * _cy * 1.3 + _py)
 _cloud2d = (_cloud2d - _cloud2d.min()) / (np.ptp(_cloud2d) or 1.0)
 _taper = np.sin(np.linspace(0, math.pi, SKY_NZ)).astype(np.float32)[:, None, None]
+# The z faces are tapered above, but the x/y faces were a hard cut: cloud density
+# ran right up to the slab boundary, so the volume ended in a straight vertical
+# wall hanging in the sky. Fade to zero at every face instead.
+_w = np.hanning(SKY_N).astype(np.float32) ** 0.5
+_edge_fade = np.minimum.outer(_w, _w)[None, :, :]
 
 # A high threshold is what makes this read as CLOUD rather than as overcast: only
 # the top third of the noise becomes anything at all, so the slab is mostly holes
@@ -471,10 +505,26 @@ _taper = np.sin(np.linspace(0, math.pi, SKY_NZ)).astype(np.float32)[:, None, Non
 CLOUD_FLOOR = 0.62
 
 
-def sky_field(shift_cols):
+def _sky_raw(shift_cols):
     base = np.roll(_cloud2d, int(shift_cols) % SKY_N, axis=1)
     lumps = np.clip((base[None, :, :] - CLOUD_FLOOR) / (1.0 - CLOUD_FLOOR), 0.0, 1.0)
-    return (lumps * _taper).astype(np.float32)
+    # Square it: a linear ramp out of the threshold spreads thin haze over
+    # everything above the floor, which reads as overcast. Squaring keeps the
+    # dense cores and pushes the fringes towards the transparent band, so the
+    # clouds have edges and the sky between them is genuinely empty.
+    return lumps * lumps * _taper * _edge_fade
+
+
+# Squaring and the two fades leave the peak well under 1, so without this the
+# field would only ever reach ~0.43 and every transfer-function scalar above
+# that would be dead — the ramp would be read at half its intended height and
+# the clouds would come out far fainter than the table says. Normalise once,
+# from a fixed offset, so the mapping stays stable as the slab scrolls.
+_SKY_NORM = float(_sky_raw(0).max()) or 1.0
+
+
+def sky_field(shift_cols):
+    return (_sky_raw(shift_cols) / _SKY_NORM).astype(np.float32)
 
 
 # Same ordering rule as the sea: real voxels first, then the node, then the TF.
@@ -490,9 +540,15 @@ _sky_node = _sg.volume_node("forest_sky")
 # units of sky therefore compounds the alpha ~180 times, so an innocent-looking
 # 0.085 saturates to a solid grey lid. These values are chosen so a ray through
 # the densest cloud lands near 0.6 total, and empty sky stays empty.
+# Empty sky must be EXACTLY invisible, so the transparent band is wide and flat:
+# alpha is pinned to 0 from 0 up to CLOUD_EMPTY, not ramped down towards it. A
+# ramp that merely approaches zero still accumulates over the ~180 samples a ray
+# takes through the slab, which is what turned clear sky into grey haze and made
+# the volume read as a box.
+CLOUD_EMPTY = 0.22
 _sky_node.setTransferFunction(
-    [0.0, 0.55, 0.60, 0.70, 0.5, 0.85, 0.88, 0.93, 1.0, 1.00, 1.00, 1.00],
-    [0.0, 0.0, 0.30, 0.0, 0.65, 0.0035, 1.0, 0.0110])
+    [0.0, 0.62, 0.66, 0.74, 0.45, 0.88, 0.91, 0.95, 1.0, 1.00, 1.00, 1.00],
+    [0.0, 0.0, CLOUD_EMPTY, 0.0, 0.60, 0.0095, 1.0, 0.0260])
 
 # Bounds over everything, so the grid resizes and the camera's orbit centre lands
 # on the island. This is the only thing the script does to the view.
