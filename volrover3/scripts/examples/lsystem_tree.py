@@ -372,6 +372,7 @@ for _k, _v in (("depth", START_DEPTH), ("grow", 0), ("wind", 1), ("speed", 1)):
 #
 # The `speed` state key is the clock's scale: 0 pauses, 2 is double time.
 SIM_DT = 1.0 / 120.0
+PRIME_DT = 0.25  # a tick slower than this at startup is scene setup, not lag
 _clock = pycvc.world_clock(SIM_DT)
 
 
@@ -382,6 +383,7 @@ _growing = 0  # level currently being grown, 0 = none
 _growth = 1.0  # 0..1 ramp for that level (the simulated value)
 _bucket = 0  # which STAGGER slice gets re-posed this frame
 _stalled = False  # have we already reported a dropped-quanta stall?
+_primed = False  # has the first (scene-build) tick been discarded yet?
 
 # (tilt, yrotate, growth) at the previous and current simulation quanta; the
 # presented values below are interpolated between them by the clock's alpha.
@@ -519,7 +521,19 @@ def _simulate(want, grow, wind):
 
 
 def step(dt):
-    global _tilt, _yrotate, _growth_shown, _bucket, _stalled
+    global _tilt, _yrotate, _growth_shown, _bucket, _stalled, _primed
+
+    if not _primed:
+        # Startup is two big blocking deltas, neither of which is simulation
+        # time: building 422 nodes (the scheduler measures dt from the tick
+        # BEFORE it, so the whole build arrives as one delta), then VTK's first
+        # render of those actors. Charged to the clock they read as a genuine
+        # ~1800-quantum stall. Substitute a nominal delta until frames come back
+        # normal, then latch — after that a stall report means something real.
+        if dt > PRIME_DT:
+            dt = SIM_DT
+        else:
+            _primed = True
 
     want = max(1, min(MAX_DEPTH, _state_int("depth", _shown)))
     grow = _state_int("grow", 0)
