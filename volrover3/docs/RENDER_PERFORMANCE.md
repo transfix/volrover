@@ -176,15 +176,25 @@ Measured on this box (offscreen, 900×600), against the 3781-node baseline:
 
 | | baseline (3776 actors) | route C (145 actors) |
 |---|---:|---:|
-| render (shadows off) | 225 ms | **16.5 ms** |
+| render only (shadows off) | 225 ms | **16.5 ms** |
 | `step()` + processEvents | 410 ms | **31 ms** |
-| **live frame** | **1.6 fps** | **~21 fps** |
+| live frame, shadows **off** | ~1.6 fps | **~15.6 fps** (64 ms) |
+| live frame, shadows **on** | (hopeless) | **~9.3 fps** (108 ms) |
 
 The trees drop from ~194 ms of render (3776 draw calls) to ~0.4 ms; the terrain heightfield is
 now the largest single render cost. The per-vertex re-upload that route C pays each frame is
-inside that 31 ms `step()` and is not a bottleneck. Shadows, unmeasurable here (this box's
-offscreen EGL context errors in the shadow baker's framebuffer), are affordable at 145 actors
-and enabled by default; they render live in volrover3.
+inside that `step()` and is not a bottleneck.
+
+**Shadows are on by default and they render** (I was briefly wrong that they didn't — the shadow
+baker prints benign `ReleaseGraphicsResources` teardown warnings offscreen, but it casts
+correctly; verified by a shadows-on/off frame diff — 49.5% of pixels change — and a screenshot
+with a visible cast tree-shadow on the ground). The cost is real and now affordable: because the
+wind moves geometry every frame, `vtkShadowMapBakerPass` re-bakes the shadow map every frame, so
+a live step+render frame goes ~64 ms → ~108 ms with shadows on (**1.69×**), i.e. ~15.6 → ~9.3 fps.
+That is orbit-able. At 3776 actors that same per-frame re-bake — every actor, every light, every
+frame — was out of the question, which is the whole point: **shadows are affordable because the
+actor count came down.** (If 9 fps needs to climb, the shadow map does not have to re-bake at full
+rate — a stale shadow during a slow sway is invisible — but that optimisation is not needed yet.)
 
 Routes B (glyph instancing) and A (shader skinning) remain documented alternatives below. B was
 spiked and confirmed to drop the source's per-vertex colours, so it needs a custom wood shader
