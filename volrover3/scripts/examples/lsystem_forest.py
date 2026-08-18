@@ -385,20 +385,25 @@ def expand_tree(rule, depth, scale, radscale, name, parent, level, out):
     return mod
 
 
-def module_meshes(app, segs, leaves):
+def module_local_arrays(segs, leaves):
+    """One module's wood + needle geometry, in the module's OWN LOCAL frame.
 
-    pts = np.empty((len(segs) * _CYL_V, 3))
+    Returns (wood_pts, wood_tris, wood_colors, needle_pts, needle_lines) as numpy.
+    The points are local; the tree merge (below) multiplies them by each module's
+    world transform — recomputed per frame for the wind — so a whole tree can be
+    posed as ONE actor via GeometryNode.updateVertices instead of one actor per
+    module. This is fix #3 route C (docs/RENDER_PERFORMANCE.md): 3776 draw calls
+    collapse to ~140, which is what makes shadows affordable again.
+    """
+    wpts = np.empty((len(segs) * _CYL_V, 3))
     local = np.zeros((_CYL_V, 3))
     for s, (m, height, radius) in enumerate(segs):
         local[1:BASE_TRI + 1, 0::2] = _RING * radius
         local[BASE_TRI + 2:, 0::2] = _RING * radius
         local[BASE_TRI + 1:, 1] = height
-        pts[s * _CYL_V:(s + 1) * _CYL_V] = xform(m, local)
-    tris = (_CYL_TRIS + (np.arange(len(segs)) * _CYL_V)[:, None]).ravel()
-    wood = pycvc.geometry(app)
-    wood.add_vertices(pts.ravel().tolist())
-    wood.add_triangles(tris.tolist())
-    wood.set_colors(np.tile(_CYL_COLORS, (len(segs), 1)).ravel().tolist())
+        wpts[s * _CYL_V:(s + 1) * _CYL_V] = xform(m, local)
+    wtris = (_CYL_TRIS + (np.arange(len(segs)) * _CYL_V)[:, None]).ravel()
+    wcol = np.tile(_CYL_COLORS, (len(segs), 1))
 
     stride = NEEDLES + 1
     npts = np.empty((len(leaves) * stride, 3))
@@ -408,13 +413,117 @@ def module_meshes(app, segs, leaves):
         nloc[1:, 1] = LEAF_LEN * sc
         npts[c * stride:(c + 1) * stride] = xform(m, nloc)
     root = (np.arange(len(leaves)) * stride)[:, None]
-    lines = np.empty((len(leaves), NEEDLES, 2), dtype=np.int64)
-    lines[:, :, 0] = root
-    lines[:, :, 1] = root + 1 + np.arange(NEEDLES)
-    needles = pycvc.geometry(app)
-    needles.add_vertices(npts.ravel().tolist())
-    needles.add_lines(lines.ravel().tolist())
-    return wood, needles
+    nlines = np.empty((len(leaves), NEEDLES, 2), dtype=np.int64)
+    nlines[:, :, 0] = root
+    nlines[:, :, 1] = root + 1 + np.arange(NEEDLES)
+    return wpts, wtris, wcol, npts, nlines.reshape(-1, 2)
+
+
+class _TreeMod(object):
+    """Per-module re-pose record: local geometry + where it lands in the merge."""
+
+    __slots__ = ("local_wood", "w_off", "w_n", "local_needle", "n_off", "n_n",
+                 "parent", "hang", "swayer")
+
+
+class Tree(object):
+    """One tree = ONE merged wood actor (+ ONE merged needle actor), re-posed by
+    rewriting vertices each frame rather than transforming per-module nodes."""
+
+    __slots__ = ("wood_node", "needle_node", "mods", "phase", "sway",
+                 "wood_buf", "needle_buf")
+
+
+def build_tree(app, sg, name, sx, sy, hz, mods):
+    """Flatten an expanded tree's modules into one wood mesh + one needle mesh.
+
+    Each module keeps its LOCAL geometry and its bind-pose parent index/hang, so
+    the per-frame wind (repose_tree) can re-derive every module's world transform
+    — the exact cascade the scene graph used to do — and blit the posed vertices
+    into the merged buffers. Colours are per-vertex on the wood and set once here;
+    updateVertices never touches them.
+    """
+    name_idx = {m.name: i for i, m in enumerate(mods)}
+    tmods = []
+    wpts_all, wtris_all, wcol_all = [], [], []
+    npts_all, nlines_all = [], []
+    world = [None] * len(mods)
+    w_cur = n_cur = 0
+    for i, m in enumerate(mods):
+        wpts, wtris, wcol, npts, nlines = module_local_arrays(m.segs, m.leaves)
+        hang = (mat_translate(sx, sy, hz) @ TREE_UP) if m.parent is None else m.hang
+        parent = -1 if m.parent is None else name_idx[m.parent]
+        W = hang if parent < 0 else world[parent] @ hang
+        world[i] = W
+        R, tt = W[:3, :3].T, W[:3, 3]
+        wpts_all.append(wpts @ R + tt)          # bind-pose world verts
+        wtris_all.append(wtris + w_cur)
+        wcol_all.append(wcol)
+        n_n = npts.shape[0]
+        if n_n:
+            npts_all.append(npts @ R + tt)
+            nlines_all.append(nlines + n_cur)
+        tm = _TreeMod()
+        tm.local_wood, tm.w_off, tm.w_n = wpts, w_cur, wpts.shape[0]
+        tm.local_needle, tm.n_off, tm.n_n = (npts if n_n else None), n_cur, n_n
+        tm.parent, tm.hang, tm.swayer = parent, hang, (m.level <= SWAY_LEVELS)
+        tmods.append(tm)
+        w_cur += wpts.shape[0]
+        n_cur += n_n
+
+    tree = Tree()
+    tree.mods = tmods
+
+    merged_wood = np.concatenate(wpts_all)
+    wg = pycvc.geometry(app)
+    wg.add_vertices(merged_wood.ravel().tolist())
+    wg.add_triangles(np.concatenate(wtris_all).tolist())
+    wg.set_colors(np.concatenate(wcol_all).ravel().tolist())
+    sg.addGraphics(name, wg)
+    tree.wood_node = sg.geometry_node(name)
+    tree.wood_node.setUseSingleColor(False)
+    tree.wood_buf = merged_wood.copy()
+
+    if npts_all:
+        merged_needle = np.concatenate(npts_all)
+        ng = pycvc.geometry(app)
+        ng.add_vertices(merged_needle.ravel().tolist())
+        ng.add_lines(np.concatenate(nlines_all).ravel().tolist())
+        sg.addGraphics(name + "_n", ng)
+        tree.needle_node = sg.geometry_node(name + "_n")
+        tree.needle_node.setRenderMode(pycvc_gl.GeometryRenderMode_LINES)
+        tree.needle_node.setUseSingleColor(True)
+        tree.needle_node.setColor(*C_NEEDLE)
+        tree.needle_buf = merged_needle.copy()
+    else:
+        tree.needle_node = None
+        tree.needle_buf = None
+    return tree
+
+
+def repose_tree(tree, t):
+    """Re-derive every module's world transform (wind cascade) and blit the posed
+    vertices into the merged buffers, then push both with one updateVertices each.
+
+    Wind still ACCUMULATES: the swaying modules (level <= SWAY_LEVELS) get the
+    rotation baked into their local hang, and the cascade carries it down to every
+    descendant — the tips travel further than the trunk, exactly as the per-node
+    hierarchy did, but now the whole tree is one actor and one buffer upload."""
+    a = tree.sway * math.sin(1.3 * t + tree.phase)
+    sway = mat_rotate(a, *_TREE_AXIS)
+    world = [None] * len(tree.mods)
+    wb, nb = tree.wood_buf, tree.needle_buf
+    for i, m in enumerate(tree.mods):
+        local = (m.hang @ sway) if m.swayer else m.hang
+        W = local if m.parent < 0 else world[m.parent] @ local
+        world[i] = W
+        R, tt = W[:3, :3].T, W[:3, 3]
+        wb[m.w_off:m.w_off + m.w_n] = m.local_wood @ R + tt
+        if m.n_n:
+            nb[m.n_off:m.n_off + m.n_n] = m.local_needle @ R + tt
+    tree.wood_node.updateVertices(wb.ravel().tolist())
+    if tree.needle_node is not None:
+        tree.needle_node.updateVertices(nb.ravel().tolist())
 
 
 # ── build the scene ──────────────────────────────────────────────────────────
@@ -439,47 +548,30 @@ if len(_dry) > MAX_TREES:
 print("lsystem_forest: %d seeds, %d on dry land, planting %d." %
       (len(_seeds), sum(1 for x, y in _seeds if height_at(_H, x, y) >= SEA_LEVEL + 1.0), len(_dry)))
 
-_trees = []      # every module of every tree, flat, for the per-frame pose
-_tree_roots = []  # the root module of each tree
+# Each tree is built as ONE merged wood actor (+ ONE merged needle actor) instead
+# of one actor per module (fix #3 route C). The per-module hierarchy still exists
+# — as data — so the wind cascade is unchanged; it is just applied to the merged
+# vertices each frame (repose_tree) rather than to 21 separate scene-graph nodes.
+# 70 trees -> ~140 actors instead of ~3776, which is what brings shadows back into
+# budget. The colour gradient, per-module sway accumulation and look are identical.
+_forest = []
+_module_count = 0
 for _n, (_sx, _sy) in enumerate(_dry):
     _hz = height_at(_H, _sx, _sy)
-    _size = random.uniform(*TREE_SIZE)
-    _mods = []
+    _size = random.uniform(*TREE_SIZE)          # RNG order preserved so the
+    _mods = []                                  # forest is byte-for-byte the same
     expand_tree(TREE_RULES[0], random.choice(MATURITY), _size, _size,
                 "ftree%d" % _n, None, 1, _mods)
-    # One phase per TREE, not per module: the modules of a tree must lean
-    # together or it reads as a bush in a blender rather than a tree in wind.
-    _ph = random.uniform(0.0, 2 * math.pi)
-    _sw = 0.020 + 0.016 * random.random()  # ~1-2 deg per level; accumulates down the tree
-    for _m in _mods:
-        if not _m.segs:
-            continue
-        _wood, _needles = module_meshes(_app, _m.segs, _m.leaves)
-        if _m.parent is None:
-            _sg.addGraphics(_m.name, _wood)
-            _m.node = _sg.geometry_node(_m.name)
-            # The root carries the tree out to its seed and stands it upright;
-            # every module below is expressed in its parent's frame.
-            _m.hang = mat_translate(_sx, _sy, _hz) @ TREE_UP
-            _tree_roots.append(_m)
-        else:
-            _m.node = _sg.add_child_geometry(_m.parent, _m.name, _wood)
-        _m.node.setUseSingleColor(False)
-        _m.phase, _m.sway = _ph, _sw
-        _m.node.setTransform(_m.hang.ravel().tolist())
-        if _m.leaves:
-            _m.needles = _sg.add_child_geometry(_m.name, _m.name + "_n", _needles)
-            _m.needles.setRenderMode(pycvc_gl.GeometryRenderMode_LINES)
-            _m.needles.setUseSingleColor(True)
-            _m.needles.setColor(*C_NEEDLE)
-        _trees.append(_m)
+    _ph = random.uniform(0.0, 2 * math.pi)      # one phase per TREE (lean together)
+    _sw = 0.020 + 0.016 * random.random()       # ~1-2 deg/level; accumulates down
+    _tree = build_tree(_app, _sg, "ftree%d" % _n, _sx, _sy, _hz, _mods)
+    _tree.phase, _tree.sway = _ph, _sw
+    _forest.append(_tree)
+    _module_count += len(_mods)
 
-# Only the top SWAY_LEVELS are re-posed each frame. Everything below inherits
-# the motion through the graph, which is the whole point of the hierarchy — and
-# it keeps the per-frame cost proportional to the trunks, not to the twigs.
-_swayers = [m for m in _trees if m.level <= SWAY_LEVELS]
-print("lsystem_forest: %d trees planted as %d modules (%d posed/frame), maturities %s." %
-      (len(_tree_roots), len(_trees), len(_swayers), sorted(set(MATURITY))))
+_actor_count = sum(1 + (1 if t.needle_node is not None else 0) for t in _forest)
+print("lsystem_forest: %d trees, %d modules, merged to %d actors (was ~%d), maturities %s." %
+      (len(_forest), _module_count, _actor_count, 2 * _module_count, sorted(set(MATURITY))))
 
 
 # ── the sea: a volume whose field is depth under a travelling wave ───────────
@@ -767,24 +859,21 @@ SUN_AZ = -52.0
 _sun = _sg.addDirectionalLight(SUN_AZ, 34.0, 1.0, 0.94, 0.82, 0.95)
 _fill = _sg.addDirectionalLight(128.0, 52.0, 0.55, 0.66, 0.85, 0.55)
 
-# Shadows are OFF by default here, and the reason is measured (docs/RENDER_PERFORMANCE.md
-# fix #2): vtkShadowMapBakerPass re-renders every actor from every light, so at this
-# scene's ~3776 actors x 2 lights it more than doubles the render (217 -> ~590 ms) and
-# turns a live orbit into a slideshow. Shadows are not affordable until the actor count
-# comes down (the skinning work, fix #3), so they are opt-in rather than on by default.
+# Shadows are ON by default now that fix #3 (route C) brought the actor count down
+# from ~3776 to ~140: vtkShadowMapBakerPass re-renders every actor from every light,
+# so its cost scales with the ACTOR count, and at ~140 x 2 lights it is affordable
+# where it never was before. This is the payoff of merging each tree into one actor.
+# Turn them off live if you want the last few fps back:
+#     pycvc.state_set(app, "volrover3.lsystem_forest.shadows", "0")
 #
-# Flip them on live to see them (accepting the frame cost):
-#     pycvc.state_set(app, "volrover3.lsystem_forest.shadows", "1")
-#
-# setShadowsEnabled installs passes on the RENDER TARGET, so it can only succeed once the
-# scene is attached to one. Under volrover3 that has happened and it returns True; in a
-# headless harness that builds the scene before any renderer exists it returns False, and
-# the scene is simply lit without shadows rather than failing to load.
-_shadows_on = False
-_sg.setShadowsEnabled(False)
-print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows off by default "
-      "(set %s.shadows=1 to enable -- costs ~2x render at this actor count)"
-      % (SUN_AZ, _sg.numLights(), STATE))
+# setShadowsEnabled installs passes on the RENDER TARGET, so it can only succeed once
+# the scene is attached to one. Under volrover3 that has happened and it returns True;
+# in a headless harness that builds the scene before any renderer exists it returns
+# False, and the scene is simply lit without shadows rather than failing to load.
+_shadows_on = bool(_sg.setShadowsEnabled(True))
+print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows %s"
+      % (SUN_AZ, _sg.numLights(),
+         "on" if _shadows_on else "unavailable (no render target yet)"))
 
 # Bounds over everything, so the grid resizes and the camera's orbit centre lands
 # on the island. This is the only thing the script does to the view.
@@ -869,7 +958,7 @@ def place_sun(el_deg):
     _sun_halo.setGeometry(hg)
 
 for _k, _v in (("speed", 1), ("waves", 1), ("clouds", 1), ("wind", 1),
-               ("sun", 34), ("shadows", 0)):
+               ("sun", 34), ("shadows", 1)):
     pycvc.state_set(_app, STATE + "." + _k, str(_v))
 
 _clock = pycvc.world_clock(SIM_DT)
@@ -973,13 +1062,13 @@ def step(dt):
         _sky_node.setTransferFunction(*sky_transfer())
 
     if _state_float("wind", 1.0):
-        # Pose only the upper modules; the rest of each tree follows through the
-        # graph, so the sway ACCUMULATES and the tips travel further than the
-        # trunk — the original demo's motion rather than a rigid lean. Spread
-        # over TREE_STAGGER frames: the sway is a ~5 s cycle, so a two-frame lag
-        # on part of the forest is invisible.
+        # Re-pose whole trees, one merged actor each (fix #3 route C). The wind
+        # still ACCUMULATES down each tree — repose_tree runs the same cascade the
+        # node hierarchy used to, so the tips travel further than the trunk — but
+        # it blits the posed vertices into the merged buffer and pushes them with a
+        # single updateVertices per actor instead of one setTransform per module.
+        # Spread over TREE_STAGGER frames: the sway is a ~5 s cycle, so a two-frame
+        # lag on part of the forest is invisible.
         _bucket = (_bucket + 1) % TREE_STAGGER
-        for i in range(_bucket, len(_swayers), TREE_STAGGER):
-            m = _swayers[i]
-            a = m.sway * math.sin(1.3 * _t + m.phase)
-            m.node.setTransform((m.hang @ mat_rotate(a, *_TREE_AXIS)).ravel().tolist())
+        for i in range(_bucket, len(_forest), TREE_STAGGER):
+            repose_tree(_forest[i], _t)

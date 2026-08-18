@@ -66,9 +66,15 @@ def load_scene():
 def main():
     app, sg, mod, quiet = load_scene()
 
-    trees = mod.__dict__.get("_trees", [])
-    needles = [m.needles for m in trees if getattr(m, "needles", None) is not None]
-    wood = [m.node for m in trees if getattr(m, "node", None) is not None]
+    # Route C merges each tree to ONE wood actor (+ ONE needle actor); older
+    # revisions of the example exposed a per-module `_trees` list instead.
+    forest = mod.__dict__.get("_forest", [])
+    wood = [t.wood_node for t in forest if getattr(t, "wood_node", None) is not None]
+    needles = [t.needle_node for t in forest if getattr(t, "needle_node", None) is not None]
+    if not forest:  # legacy per-module structure
+        trees = mod.__dict__.get("_trees", [])
+        needles = [m.needles for m in trees if getattr(m, "needles", None) is not None]
+        wood = [m.node for m in trees if getattr(m, "node", None) is not None]
     vols = [n for n in (mod.__dict__.get("_sea_node"), mod.__dict__.get("_sky_node")) if n]
 
     print("scene: %d nodes  (%d needle actors, %d wood actors, %d volumes)"

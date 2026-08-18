@@ -153,27 +153,45 @@ existing `updateImageData` guarded on dims/type being unchanged. With it, per-fr
 updates are cheap and striding becomes unnecessary — this is what makes the water and cloud
 genuinely free rather than merely rationed.
 
-### 2. Turn shadows off by default (done)
+### 2. Shadows: off, then back ON once the actors came down (done)
 
-Shadow mapping more than doubles the render (217 -> ~590 ms): `vtkShadowMapBakerPass`
-re-renders every actor from every light, and this scene has 3776 actors and 2 lights. Not
-affordable until the actor count comes down. The example now loads with shadows OFF and
-exposes a live toggle (`…lsystem_forest.shadows` = 0/1) so they can be switched on to look
-at, accepting the frame cost. The sun and its lighting stay on — only the shadow passes go.
+Shadow mapping more than doubles the render: `vtkShadowMapBakerPass` re-renders every actor
+from every light, so its cost scales with the ACTOR count — at 3776 actors × 2 lights it
+turned a live orbit into a slideshow, so shadows were made off-by-default. Fix #3 then cut the
+actor count to ~140, which is exactly the quantity the shadow baker scales on, so **shadows
+are now ON by default again** and affordable. A live toggle (`…lsystem_forest.shadows` = 0/1)
+remains for the last few fps. The order matters: shadows became affordable *because* the actor
+count came down, not on their own.
 
-### 3. Reduce actor count (the real fix)
+### 3. Reduce actor count — DONE (route C), ~13× on the measured box
 
-3776 -> ~70-140 actors, roughly one per tree, is the change that addresses the actual
-bottleneck. Merging each tree's modules into a single polydata is the move; the constraint is
-that per-module wind must survive the merge. The design section below works through three
-VTK-9.5 routes that all reach the actor-count target while keeping the wind, and finds --
-against the assumption first recorded here -- that hand-written shader **skinning is the most
-expensive of the three**, not the obvious answer. The recommended first move is a merged-mesh
-CPU re-pose (smallest new surface, no GLSL); stock-VTK glyph instancing is the escalation;
-skinning is a documented fallback. Still the largest piece of work and it needs new cvcGL
-surface. See below.
+3776 → ~140 actors, roughly one per tree, was the real bottleneck, and it is now implemented
+as **route C** (the merged-mesh CPU re-pose from the design below). Each tree is built as ONE
+merged wood actor (+ ONE merged needle actor); the per-module hierarchy still exists as data,
+so the wind cascade is unchanged — it is applied to the merged vertices each frame via a new
+`GeometryNode::updateVertices` fast path in cvcGL (points-only, no cell/normal rebuild) instead
+of one `setTransform` per module. Per-vertex wood colour is kept natively (no shader).
 
-## Cutting the actor count: skinning vs. the cheaper routes
+Measured on this box (offscreen, 900×600), against the 3781-node baseline:
+
+| | baseline (3776 actors) | route C (145 actors) |
+|---|---:|---:|
+| render (shadows off) | 225 ms | **16.5 ms** |
+| `step()` + processEvents | 410 ms | **31 ms** |
+| **live frame** | **1.6 fps** | **~21 fps** |
+
+The trees drop from ~194 ms of render (3776 draw calls) to ~0.4 ms; the terrain heightfield is
+now the largest single render cost. The per-vertex re-upload that route C pays each frame is
+inside that 31 ms `step()` and is not a bottleneck. Shadows, unmeasurable here (this box's
+offscreen EGL context errors in the shadow baker's framebuffer), are affordable at 145 actors
+and enabled by default; they render live in volrover3.
+
+Routes B (glyph instancing) and A (shader skinning) remain documented alternatives below. B was
+spiked and confirmed to drop the source's per-vertex colours, so it needs a custom wood shader
+to match route C's look — which runs straight into the VTK glyph-shader fragility the review
+predicted. Route C reaches the same actor-count number, keeps the colour for free, and shipped.
+
+## Design detail: the three routes (route C shipped; B/A for reference)
 
 Fix #3 wants ~3776 actors -> one `vtkActor` per tree, without losing per-module wind. Read
 this the way the rest of the doc asks to be read: everything below marked "from source" is a
