@@ -409,7 +409,15 @@ jobs:
           # volrover3::Settings) landed as separate cvcpkg packages after this
           # install line was first written — add them explicitly rather than
           # relying on them riding in transitively.
-          cvcpkg install libcvc vtk cvcgl yaml-cpp \
+          # python311: volrover3 embeds a first-class CPython
+          # (find_package(Python3 Development.Embed)) and CMakeLists.txt PINS the
+          # search to this prefix and HARD-FAILS on a system interpreter (hermeticity
+          # — the app must embed the same python3XX the prefix's pycvc/pycvc-gl were
+          # built against). Without the cvcpkg python in the prefix the configure
+          # found the runner's /usr/bin/python3.12 and errored. It is not transitive,
+          # so install it explicitly. (It was dropped when the python packages moved
+          # to per-interpreter -cp3XX columns; the SDK closure no longer carries it.)
+          cvcpkg install libcvc vtk cvcgl yaml-cpp python311 \
             --prefix "$GITHUB_WORKSPACE/cvc-deps" \
             --platform "${{ matrix.platform }}" \
             --config release \
