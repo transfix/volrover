@@ -521,9 +521,12 @@ def repose_tree(tree, t):
         wb[m.w_off:m.w_off + m.w_n] = m.local_wood @ R + tt
         if m.n_n:
             nb[m.n_off:m.n_off + m.n_n] = m.local_needle @ R + tt
-    tree.wood_node.updateVertices(wb.ravel().tolist())
+    # numpy-direct: pass the contiguous float64 buffer straight to updateVertices,
+    # which reads it via the buffer protocol — no per-vertex .tolist() allocation
+    # (~11x cheaper per call, and this runs for every re-posed tree every frame).
+    tree.wood_node.updateVertices(wb.ravel())
     if tree.needle_node is not None:
-        tree.needle_node.updateVertices(nb.ravel().tolist())
+        tree.needle_node.updateVertices(nb.ravel())
 
 
 # ── build the scene ──────────────────────────────────────────────────────────
@@ -871,9 +874,17 @@ _fill = _sg.addDirectionalLight(128.0, 52.0, 0.55, 0.66, 0.85, 0.55)
 # in a headless harness that builds the scene before any renderer exists it returns
 # False, and the scene is simply lit without shadows rather than failing to load.
 _shadows_on = bool(_sg.setShadowsEnabled(True))
-print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows %s"
+# Re-bake the shadow map every SHADOW_STRIDE frames, not every frame. The baker
+# re-renders the whole scene depth from every light whenever geometry moves, and
+# the wind moves every tree every frame — but shadows from a slow ~5 s sway barely
+# change frame-to-frame, so baking at ~1/3 rate and reusing the map between is
+# visually indistinguishable and cuts the biggest remaining cost. The shadow
+# analogue of VOL_STRIDE. Set to 1 to bake every frame.
+SHADOW_STRIDE = 3
+_sg.setShadowUpdateInterval(SHADOW_STRIDE)
+print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows %s (re-bake every %d frames)"
       % (SUN_AZ, _sg.numLights(),
-         "on" if _shadows_on else "unavailable (no render target yet)"))
+         "on" if _shadows_on else "unavailable (no render target yet)", SHADOW_STRIDE))
 
 # Bounds over everything, so the grid resizes and the camera's orbit centre lands
 # on the island. This is the only thing the script does to the view.
