@@ -767,15 +767,24 @@ SUN_AZ = -52.0
 _sun = _sg.addDirectionalLight(SUN_AZ, 34.0, 1.0, 0.94, 0.82, 0.95)
 _fill = _sg.addDirectionalLight(128.0, 52.0, 0.55, 0.66, 0.85, 0.55)
 
-# Shadow mapping installs passes on the RENDER TARGET, so it can only succeed
-# once the scene is attached to one. Under volrover3 that has already happened
-# and this returns True. In a headless harness that builds the scene before any
-# renderer exists it returns False -- in which case the scene is simply lit
-# without shadows, rather than failing to load.
-_shadows = _sg.setShadowsEnabled(True)
-print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows %s"
-      % (SUN_AZ, _sg.numLights(),
-         "on" if _shadows else "unavailable (no render target yet)"))
+# Shadows are OFF by default here, and the reason is measured (docs/RENDER_PERFORMANCE.md
+# fix #2): vtkShadowMapBakerPass re-renders every actor from every light, so at this
+# scene's ~3776 actors x 2 lights it more than doubles the render (217 -> ~590 ms) and
+# turns a live orbit into a slideshow. Shadows are not affordable until the actor count
+# comes down (the skinning work, fix #3), so they are opt-in rather than on by default.
+#
+# Flip them on live to see them (accepting the frame cost):
+#     pycvc.state_set(app, "volrover3.lsystem_forest.shadows", "1")
+#
+# setShadowsEnabled installs passes on the RENDER TARGET, so it can only succeed once the
+# scene is attached to one. Under volrover3 that has happened and it returns True; in a
+# headless harness that builds the scene before any renderer exists it returns False, and
+# the scene is simply lit without shadows rather than failing to load.
+_shadows_on = False
+_sg.setShadowsEnabled(False)
+print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows off by default "
+      "(set %s.shadows=1 to enable -- costs ~2x render at this actor count)"
+      % (SUN_AZ, _sg.numLights(), STATE))
 
 # Bounds over everything, so the grid resizes and the camera's orbit centre lands
 # on the island. This is the only thing the script does to the view.
@@ -860,7 +869,7 @@ def place_sun(el_deg):
     _sun_halo.setGeometry(hg)
 
 for _k, _v in (("speed", 1), ("waves", 1), ("clouds", 1), ("wind", 1),
-               ("sun", 34)):
+               ("sun", 34), ("shadows", 0)):
     pycvc.state_set(_app, STATE + "." + _k, str(_v))
 
 _clock = pycvc.world_clock(SIM_DT)
@@ -872,7 +881,23 @@ _sun_el = 34.0  # last elevation pushed, so we only re-aim when it moves
 _bucket = 0  # which slice of the forest gets re-posed this frame
 TREE_STAGGER = 3
 
-print("lsystem_forest: running — %d nodes. Set %s.speed / .waves / .clouds / .wind / .sun."
+# ── decouple the volume uploads from the frame rate (fix #1) ─────────────────
+# The field NUMPY is cheap (~1-2 ms for both volumes). The cost of a per-frame
+# volume update is setVolume(): it re-imports the whole volume into VTK every call
+# -- deep-copies the cvc::volume, re-runs the vtkImageData setup + a memcpy of every
+# voxel, and RESETS the transfer function (which is why the TF has to be re-applied
+# below) -- and a live renderer then re-uploads the field to the GPU.
+# None of that has to happen at frame rate: water and cloud motion reads fine at
+# ~30 Hz. So each volume is refreshed once every VOL_STRIDE sim-steps, and the two
+# are offset so at most ONE volume re-uploads on any given frame. That cuts the
+# per-frame volume upload work ~4x (two uploads/frame -> one every other frame) with
+# no visible change to the motion. Set VOL_STRIDE=1 to restore per-frame updates.
+# The real fix is a lightweight in-place VolumeNode refresh in cvcGL (see the doc);
+# until that lands, striding the uploads is the reversible, C++-free mitigation.
+VOL_STRIDE = 2
+_vol_phase = 0
+
+print("lsystem_forest: running — %d nodes. Set %s.speed / .waves / .clouds / .wind / .sun / .shadows."
       % (_sg.num_graphics(), STATE))
 
 
@@ -884,7 +909,7 @@ def _state_float(key, default):
 
 
 def step(dt):
-    global _t, _primed, _stalled, _bucket, _sun_el
+    global _t, _primed, _stalled, _bucket, _sun_el, _shadows_on, _vol_phase
 
     if not _primed:
         # Scene setup (meshes, 2 volumes, node creation) blocks for seconds and
@@ -902,6 +927,14 @@ def step(dt):
         _sun_el = el
         place_sun(el)
 
+    want_shadows = _state_float("shadows", 0.0) >= 0.5
+    if want_shadows != _shadows_on:
+        # Off by default (fix #2): shadow mapping re-renders every actor per light,
+        # ~2x the frame at this actor count. Toggle it only when it changes, like
+        # the sun elevation above -- installing/removing the passes is not free.
+        _sg.setShadowsEnabled(want_shadows)
+        _shadows_on = want_shadows
+
     _clock.set_scale(_state_float("speed", 1.0))
     r = _clock.advance(dt)
     if r.dropped_steps > STALL_QUANTA and not _stalled:
@@ -914,15 +947,23 @@ def step(dt):
         return
     _t = _clock.t() + r.alpha * SIM_DT  # world seconds, smoothed into the frame
 
-    if _state_float("waves", 1.0):
+    # Refresh at most one volume per frame (fix #1): sea on one phase, sky on the
+    # next, each every VOL_STRIDE sim-steps. The field is still sampled at the true
+    # _t whenever it IS refreshed, so the motion keeps its phase -- it just updates
+    # at ~30 Hz instead of frame rate, which water and cloud do not need to beat.
+    _vol_phase += 1
+    _sea_due = (_vol_phase % VOL_STRIDE) == 0
+    _sky_due = (_vol_phase % VOL_STRIDE) == (1 % VOL_STRIDE)
+
+    if _sea_due and _state_float("waves", 1.0):
         _sea_grid[:] = sea_field(_t)  # in-place write into the voxel buffer
         _sea_node.setVolume(_sea_vol)
         _sea_node.setTransferFunction(*sea_transfer(_t))
 
-    if _state_float("clouds", 1.0):
-        # Continuous now, so this runs every frame rather than only when an
-        # integer column ticked over. That gating is precisely what made the
-        # drift snap; paying for it every frame is the cost of fluid motion.
+    if _sky_due and _state_float("clouds", 1.0):
+        # Continuous drift (sub-cell scroll + crossfade), so the field is smooth at
+        # any refresh rate -- unlike the old integer-column gate, which is what made
+        # the drift snap. Striding the UPLOAD (not the phase) keeps it fluid.
         shift = _t * CLOUD_DRIFT * SKY_N / (2 * SKY_HALF)
         morph = _t / CLOUD_MORPH_S * CLOUD_MAPS
         _sky_grid[:] = sky_field(shift, morph)
