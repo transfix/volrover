@@ -142,6 +142,28 @@ WAVE_AMP = 1.6
 WAVE_LEN = 46.0
 WAVE_SPEED = 7.0
 
+# ── the cloud grammar ────────────────────────────────────────────────────────
+# The clouds were sums of sine octaves, which is why they came out as round
+# blobs: every octave is separable and axis-aligned, so its level sets are
+# ellipses and no amount of stacking them makes an edge that turns a corner.
+# A grammar does, because a turtle can branch. Same symbols as the terrain
+# walk, deposited into a 2-D density map instead of onto the ground:
+#   F  drift forward, depositing a puff        + -  turn
+#   [ ]  push/pop        <  shrink the puff radius       A B  non-terminals
+CLOUD_AXIOM = "[A][+++++A][-----A][++++++++++A][----------A][+++++++++++++++A]"
+CLOUD_RULES = {
+    "A": "FF[+<B]F[-<B]<FA",
+    "B": "F[+<F]F<[-<F]B",
+}
+CLOUD_DEPTH = 6
+CLOUD_TURN = 32.0     # degrees per + / -
+CLOUD_STEP0 = 6.5     # first drift, in map cells
+CLOUD_STEP_DECAY = 0.9
+CLOUD_PUFF0 = 4.0     # first puff radius, in map cells
+CLOUD_PUFF_DECAY = 0.88
+CLOUD_MAPS = 2        # independent skies, crossfaded so cloud EVOLVES
+CLOUD_MORPH_S = 26.0  # seconds for a full crossfade cycle
+
 # ── the sky volume ───────────────────────────────────────────────────────────
 SKY_N = 64
 SKY_NZ = 14
@@ -531,14 +553,63 @@ _sea_node.setTransferFunction(*sea_transfer(0.0))
 
 # Band-limited noise: a few octaves of sine in x/y, tapered top and bottom so the
 # slab has soft faces rather than a hard cut.
-_kx = np.linspace(-3.0, 3.0, SKY_N)
-_cx, _cy = np.meshgrid(_kx, _kx, indexing="xy")
+def walk_clouds(rng):
+    """Run the cloud turtle; return an (SKY_N, SKY_N) density map.
+
+    Deposits a soft radial puff per F. Because the turtle BRANCHES, the union of
+    those puffs has concave, ragged outline — the thing summed sine octaves
+    cannot produce. The map wraps in x so it can scroll forever without a seam.
+    """
+    field = np.zeros((SKY_N, SKY_N), dtype=np.float32)
+    gy, gx = np.mgrid[0:SKY_N, 0:SKY_N].astype(np.float32)
+
+    x, y = rng.uniform(0.25, 0.75) * SKY_N, rng.uniform(0.3, 0.7) * SKY_N
+    head = rng.uniform(0.0, 360.0)
+    step, puff, depth = CLOUD_STEP0, CLOUD_PUFF0, 0
+    stack = []
+    todo = list(CLOUD_AXIOM)
+    guard = 0
+    while todo and guard < 6000:
+        guard += 1
+        c = todo.pop(0)
+        if c == "F":
+            x += step * math.cos(math.radians(head))
+            y += step * math.sin(math.radians(head))
+            # Wrap in x (the scroll axis) and clamp in y.
+            x %= SKY_N
+            y = min(max(y, 0.0), float(SKY_N - 1))
+            # Nearest image in x, so a puff near the seam deposits on both sides.
+            dx = np.abs(gx - x)
+            dx = np.minimum(dx, SKY_N - dx)
+            d2 = dx * dx + (gy - y) ** 2
+            field += np.exp(-d2 / (2.0 * puff * puff)).astype(np.float32)
+        elif c == "+":
+            head += CLOUD_TURN
+        elif c == "-":
+            head -= CLOUD_TURN
+        elif c == "<":
+            puff *= CLOUD_PUFF_DECAY
+        elif c == "[":
+            stack.append((x, y, head, step, puff, depth))
+        elif c == "]":
+            if stack:
+                x, y, head, step, puff, depth = stack.pop()
+        elif c in CLOUD_RULES and depth < CLOUD_DEPTH:
+            depth += 1
+            step *= CLOUD_STEP_DECAY
+            todo = list(CLOUD_RULES[c]) + todo
+    # Normalise on a high PERCENTILE, not the max: a single spot where several
+    # branches overlap would otherwise set the scale and push the rest of the
+    # sky under the threshold, leaving two lonely puffs.
+    m = float(np.percentile(field, 99.0))
+    return np.clip(field / m, 0.0, 1.0).astype(np.float32) if m > 0 else field
+
+
 _rng = np.random.default_rng(SEED)
-_cloud2d = np.zeros((SKY_N, SKY_N), dtype=np.float32)
-for _oct in (1.0, 2.3, 4.7, 9.1):  # enough octaves that the edges are ragged
-    _px, _py = _rng.uniform(0, 2 * math.pi, 2)
-    _cloud2d += (1.0 / _oct) * np.sin(_oct * _cx + _px) * np.cos(_oct * _cy * 1.3 + _py)
-_cloud2d = (_cloud2d - _cloud2d.min()) / (np.ptp(_cloud2d) or 1.0)
+# Several independent skies. One would only ever translate; crossfading between
+# them is what makes the cloud EVOLVE — puffs grow and dissolve in place rather
+# than sliding past like a painted backdrop.
+_cloud_maps = [walk_clouds(_rng) for _ in range(CLOUD_MAPS)]
 _taper = np.sin(np.linspace(0, math.pi, SKY_NZ)).astype(np.float32)[:, None, None]
 # The z faces are tapered above, but the x/y faces were a hard cut: cloud density
 # ran right up to the slab boundary, so the volume ended in a straight vertical
@@ -549,11 +620,31 @@ _edge_fade = np.minimum.outer(_w, _w)[None, :, :]
 # A high threshold is what makes this read as CLOUD rather than as overcast: only
 # the top third of the noise becomes anything at all, so the slab is mostly holes
 # and you can see the sky (and the island) through the gaps.
-CLOUD_FLOOR = 0.62
+CLOUD_FLOOR = 0.22
 
 
-def _sky_raw(shift_cols):
-    base = np.roll(_cloud2d, int(shift_cols) % SKY_N, axis=1)
+def _sky_raw(shift, morph):
+    """Density at a CONTINUOUS scroll offset and crossfade position.
+
+    Two things make this fluid rather than steppy. The scroll is sub-cell: the
+    slab used to jump a whole column at a time (np.roll takes an integer), which
+    is exactly the snapping — here adjacent integer shifts are blended by the
+    fractional part, so the drift is smooth at any speed. And the map itself is a
+    crossfade between independent grammar-grown skies, so the cloud changes SHAPE
+    as it travels instead of being a rigid pattern sliding past.
+    """
+    i = int(math.floor(morph)) % CLOUD_MAPS
+    a = _cloud_maps[i]
+    b = _cloud_maps[(i + 1) % CLOUD_MAPS]
+    # Smoothstep the blend so the crossfade has no visible kick at either end.
+    u = morph - math.floor(morph)
+    u = u * u * (3.0 - 2.0 * u)
+    base2d = (1.0 - u) * a + u * b
+
+    c = int(math.floor(shift))
+    f = shift - c
+    base = (1.0 - f) * np.roll(base2d, c, axis=1) + f * np.roll(base2d, c + 1, axis=1)
+
     lumps = np.clip((base[None, :, :] - CLOUD_FLOOR) / (1.0 - CLOUD_FLOOR), 0.0, 1.0)
     # Square it: a linear ramp out of the threshold spreads thin haze over
     # everything above the floor, which reads as overcast. Squaring keeps the
@@ -562,25 +653,21 @@ def _sky_raw(shift_cols):
     return lumps * lumps * _taper * _edge_fade
 
 
-# Squaring and the two fades leave the peak well under 1, so without this the
-# field would only ever reach ~0.43 and every transfer-function scalar above
-# that would be dead — the ramp would be read at half its intended height and
-# the clouds would come out far fainter than the table says. Normalise once,
-# from a fixed offset, so the mapping stays stable as the slab scrolls.
-# Sampled across offsets, not just offset 0: the pattern rolls underneath a
-# FIXED edge window, so which lumps get faded — and therefore the peak — changes
-# as the slab scrolls. Normalising on one offset let the field drift past 1.0
-# later and silently saturate against the top of the ramp.
-_SKY_NORM = max(float(_sky_raw(c).max()) for c in range(0, SKY_N, 4)) or 1.0
+# Sampled across BOTH axes of variation — scroll offset and crossfade position —
+# because the pattern rolls under a fixed edge window and blends between maps, so
+# the peak moves on both. Normalising on one sample let the field drift past 1.0
+# later and saturate silently against the top of the ramp.
+_SKY_NORM = max(float(_sky_raw(c, m).max())
+                for c in range(0, SKY_N, 8) for m in (0.0, 0.5, 1.0)) or 1.0
 
 
-def sky_field(shift_cols):
-    return (_sky_raw(shift_cols) / _SKY_NORM).astype(np.float32)
+def sky_field(shift, morph):
+    return (_sky_raw(shift, morph) / _SKY_NORM).astype(np.float32)
 
 
 # Same ordering rule as the sea: real voxels first, then the node, then the TF.
 _sky_vol = pycvc.volume(_app)
-_sky_vol.set_float_grid(sky_field(0).ravel().tolist(), SKY_N, SKY_N, SKY_NZ,
+_sky_vol.set_float_grid(sky_field(0.0, 0.0).ravel().tolist(), SKY_N, SKY_N, SKY_NZ,
                         -SKY_HALF, -SKY_HALF, SKY_BASE, SKY_HALF, SKY_HALF, SKY_TOP)
 _sky_grid = _sky_vol.grid()
 _sg.addGraphics("forest_sky", _sky_vol)
@@ -641,7 +728,6 @@ _t = 0.0
 _primed = False
 _stalled = False
 _TREE_AXIS = (0.0, 1.0, 0.0)
-_sky_col = -1  # last cloud column offset uploaded (see step)
 _bucket = 0  # which slice of the forest gets re-posed this frame
 TREE_STAGGER = 3
 
@@ -657,7 +743,7 @@ def _state_float(key, default):
 
 
 def step(dt):
-    global _t, _primed, _stalled, _sky_col, _bucket
+    global _t, _primed, _stalled, _bucket
 
     if not _primed:
         # Scene setup (meshes, 2 volumes, node creation) blocks for seconds and
@@ -686,21 +772,16 @@ def step(dt):
         _sea_node.setTransferFunction(*sea_transfer(_t))
 
     if _state_float("clouds", 1.0):
-        # The slab scrolls under a whole column per second, so re-uploading it
-        # every frame would push identical voxels 60 times a second. Only when
-        # the integer offset actually changes is there anything new to send.
-        col = int(_t * CLOUD_DRIFT * SKY_N / (2 * SKY_HALF))
-        if col != _sky_col:
-            _sky_col = col
-            _sky_grid[:] = sky_field(col)
-            _sky_node.setVolume(_sky_vol)
-            # setVolume RESETS the transfer function to VolumeNode's default
-            # grayscale ramp, so it has to be re-applied after every upload.
-            # Miss this and the clouds silently revert to black-at-zero with a
-            # 0->1 opacity ramp the moment the slab first scrolls — which looks
-            # like a lighting or colour bug and is neither. The sea only avoids
-            # it by re-applying its own transfer function every frame anyway.
-            _sky_node.setTransferFunction(*sky_transfer())
+        # Continuous now, so this runs every frame rather than only when an
+        # integer column ticked over. That gating is precisely what made the
+        # drift snap; paying for it every frame is the cost of fluid motion.
+        shift = _t * CLOUD_DRIFT * SKY_N / (2 * SKY_HALF)
+        morph = _t / CLOUD_MORPH_S * CLOUD_MAPS
+        _sky_grid[:] = sky_field(shift, morph)
+        _sky_node.setVolume(_sky_vol)
+        # setVolume RESETS the transfer function to VolumeNode's default
+        # grayscale ramp, so it must be re-applied after every upload.
+        _sky_node.setTransferFunction(*sky_transfer())
 
     if _state_float("wind", 1.0):
         # Pose only the upper modules; the rest of each tree follows through the
