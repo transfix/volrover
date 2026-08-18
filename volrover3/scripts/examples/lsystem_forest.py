@@ -150,10 +150,16 @@ WAVE_SPEED = 7.0
 # walk, deposited into a 2-D density map instead of onto the ground:
 #   F  drift forward, depositing a puff        + -  turn
 #   [ ]  push/pop        <  shrink the puff radius       A B  non-terminals
+#   ^ v  raise / lower the billow height deposited by the puffs that follow
+#   C    a turret: a compact vertical stack, which is what gives cumulus its
+#        cauliflower top rather than a smooth dome
 CLOUD_AXIOM = "[A][+++++A][-----A][++++++++++A][----------A][+++++++++++++++A]"
 CLOUD_RULES = {
-    "A": "FF[+<B]F[-<B]<FA",
-    "B": "F[+<F]F<[-<F]B",
+    # A is the anvil-ward drift; it throws off B fringes and C turrets, and the
+    # ^/v keep the profile from being uniform along the run.
+    "A": "FF[+<B]^F[-<C]<F[+<C]vFA",
+    "B": "F[+<F]F<[-<F]vB",
+    "C": "^<F[+<F][-<F]^<FC",
 }
 CLOUD_DEPTH = 6
 CLOUD_TURN = 32.0     # degrees per + / -
@@ -548,6 +554,15 @@ _sea_grid = _sea_vol.grid()  # zero-copy (nz, ny, nx) view for the per-frame wri
 _sg.addGraphics("forest_sea", _sea_vol)
 _sea_node = _sg.volume_node("forest_sea")
 _sea_node.setTransferFunction(*sea_transfer(0.0))
+# Water is a lit surface, unlike cloud: volume shading uses the scalar gradient
+# as a normal, and the sea's gradient is strongest exactly at the wave surface,
+# which is where a highlight belongs. A tight, bright specular turns a
+# directional light into a sun glint that travels across the swell.
+_sea_node.setShading(True)
+_sea_node.setAmbient(0.18)
+_sea_node.setDiffuse(0.72)
+_sea_node.setSpecular(0.85)
+_sea_node.setSpecularPower(70.0)
 
 # ── the sky: a noise slab, scrolled by the wind ──────────────────────────────
 
@@ -561,7 +576,9 @@ def walk_clouds(rng):
     cannot produce. The map wraps in x so it can scroll forever without a seam.
     """
     field = np.zeros((SKY_N, SKY_N), dtype=np.float32)
+    top = np.zeros((SKY_N, SKY_N), dtype=np.float32)  # billow height per column
     gy, gx = np.mgrid[0:SKY_N, 0:SKY_N].astype(np.float32)
+    lift = 0.55
 
     x, y = rng.uniform(0.25, 0.75) * SKY_N, rng.uniform(0.3, 0.7) * SKY_N
     head = rng.uniform(0.0, 360.0)
@@ -582,18 +599,26 @@ def walk_clouds(rng):
             dx = np.abs(gx - x)
             dx = np.minimum(dx, SKY_N - dx)
             d2 = dx * dx + (gy - y) ** 2
-            field += np.exp(-d2 / (2.0 * puff * puff)).astype(np.float32)
+            blob = np.exp(-d2 / (2.0 * puff * puff)).astype(np.float32)
+            field += blob
+            # Taller where the grammar has lifted and where puffs are fat: a
+            # turret stacks height, a fringe stays flat.
+            top = np.maximum(top, blob * lift * (0.45 + 0.55 * puff / CLOUD_PUFF0))
         elif c == "+":
             head += CLOUD_TURN
         elif c == "-":
             head -= CLOUD_TURN
         elif c == "<":
             puff *= CLOUD_PUFF_DECAY
+        elif c == "^":
+            lift = min(lift * 1.5, 1.0)
+        elif c == "v":
+            lift = max(lift * 0.62, 0.12)
         elif c == "[":
-            stack.append((x, y, head, step, puff, depth))
+            stack.append((x, y, head, step, puff, depth, lift))
         elif c == "]":
             if stack:
-                x, y, head, step, puff, depth = stack.pop()
+                x, y, head, step, puff, depth, lift = stack.pop()
         elif c in CLOUD_RULES and depth < CLOUD_DEPTH:
             depth += 1
             step *= CLOUD_STEP_DECAY
@@ -602,15 +627,21 @@ def walk_clouds(rng):
     # branches overlap would otherwise set the scale and push the rest of the
     # sky under the threshold, leaving two lonely puffs.
     m = float(np.percentile(field, 99.0))
-    return np.clip(field / m, 0.0, 1.0).astype(np.float32) if m > 0 else field
+    field = np.clip(field / m, 0.0, 1.0).astype(np.float32) if m > 0 else field
+    tm = float(top.max())
+    return field, (top / tm).astype(np.float32) if tm > 0 else top
 
 
 _rng = np.random.default_rng(SEED)
 # Several independent skies. One would only ever translate; crossfading between
 # them is what makes the cloud EVOLVE — puffs grow and dissolve in place rather
 # than sliding past like a painted backdrop.
-_cloud_maps = [walk_clouds(_rng) for _ in range(CLOUD_MAPS)]
-_taper = np.sin(np.linspace(0, math.pi, SKY_NZ)).astype(np.float32)[:, None, None]
+_cloud_pairs = [walk_clouds(_rng) for _ in range(CLOUD_MAPS)]
+_cloud_maps = [d for d, _t in _cloud_pairs]
+_cloud_tops = [t for _d, t in _cloud_pairs]
+# Normalised height through the slab (0 at the base, 1 at the top). The old
+# fixed sine taper is gone: height now comes from the per-column billow.
+_zn = np.linspace(0.0, 1.0, SKY_NZ).astype(np.float32)[:, None, None]
 # The z faces are tapered above, but the x/y faces were a hard cut: cloud density
 # ran right up to the slab boundary, so the volume ended in a straight vertical
 # wall hanging in the sky. Fade to zero at every face instead.
@@ -620,7 +651,7 @@ _edge_fade = np.minimum.outer(_w, _w)[None, :, :]
 # A high threshold is what makes this read as CLOUD rather than as overcast: only
 # the top third of the noise becomes anything at all, so the slab is mostly holes
 # and you can see the sky (and the island) through the gaps.
-CLOUD_FLOOR = 0.22
+CLOUD_FLOOR = 0.15
 
 
 def _sky_raw(shift, morph):
@@ -634,23 +665,31 @@ def _sky_raw(shift, morph):
     as it travels instead of being a rigid pattern sliding past.
     """
     i = int(math.floor(morph)) % CLOUD_MAPS
-    a = _cloud_maps[i]
-    b = _cloud_maps[(i + 1) % CLOUD_MAPS]
+    j = (i + 1) % CLOUD_MAPS
     # Smoothstep the blend so the crossfade has no visible kick at either end.
     u = morph - math.floor(morph)
     u = u * u * (3.0 - 2.0 * u)
-    base2d = (1.0 - u) * a + u * b
+    base2d = (1.0 - u) * _cloud_maps[i] + u * _cloud_maps[j]
+    top2d = (1.0 - u) * _cloud_tops[i] + u * _cloud_tops[j]
 
     c = int(math.floor(shift))
     f = shift - c
     base = (1.0 - f) * np.roll(base2d, c, axis=1) + f * np.roll(base2d, c + 1, axis=1)
+    top = (1.0 - f) * np.roll(top2d, c, axis=1) + f * np.roll(top2d, c + 1, axis=1)
 
     lumps = np.clip((base[None, :, :] - CLOUD_FLOOR) / (1.0 - CLOUD_FLOOR), 0.0, 1.0)
     # Square it: a linear ramp out of the threshold spreads thin haze over
     # everything above the floor, which reads as overcast. Squaring keeps the
     # dense cores and pushes the fringes towards the transparent band, so the
     # clouds have edges and the sky between them is genuinely empty.
-    return lumps * lumps * _taper * _edge_fade
+    # BILLOW. The slab used to be a 2-D map extruded through a fixed vertical
+    # taper, so every cloud was the same height and the whole thing read as a
+    # sheet. Each column now gets its own ceiling from the grammar's turrets, so
+    # the field domes: dense columns tower, fringes stay flat, and the resulting
+    # gradients are what the directional light has to bite on.
+    ceiling = 0.28 + 0.72 * top[None, :, :]
+    profile = np.clip(1.0 - (_zn / np.maximum(ceiling, 1e-3)) ** 2, 0.0, 1.0)
+    return lumps * lumps * profile * _edge_fade
 
 
 # Sampled across BOTH axes of variation — scroll offset and crossfade position —
@@ -678,9 +717,15 @@ _sky_node = _sg.volume_node("forest_sky")
 # its brightness to the 0.3 ambient term. Absorption/emission only, full
 # brightness. (This is NOT why the clouds looked dark; see the opacity note
 # below. It is just the right mode for cloud.)
-_sky_node.setShading(False)
-_sky_node.setAmbient(1.0)
-_sky_node.setDiffuse(0.0)
+# Cloud shading was off while the field was a flat extruded slab — there were no
+# gradients worth lighting, only noise. Now that the grammar gives each column a
+# billow height the field HAS shape, so a directional light picks out the tops
+# and leaves the undersides dim, which is most of what makes cloud read as
+# volume rather than as fog. Ambient stays high so the shadowed side is grey-blue
+# rather than black.
+_sky_node.setShading(True)
+_sky_node.setAmbient(0.55)
+_sky_node.setDiffuse(0.85)
 _sky_node.setSpecular(0.0)
 # Opacity has to be MINUTE here, and the reason is easy to get wrong: VTK applies
 # the opacity function once per ScalarOpacityUnitDistance, which it derives from
