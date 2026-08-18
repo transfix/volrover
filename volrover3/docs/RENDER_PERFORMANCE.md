@@ -204,10 +204,13 @@ At 3776 actors the per-frame re-bake — every actor, every light, every frame �
 question, which is the whole point: **shadows are affordable because the actor count came down**,
 and the stride then makes them nearly free.
 
-Routes B (glyph instancing) and A (shader skinning) remain documented alternatives below. B was
-spiked and confirmed to drop the source's per-vertex colours, so it needs a custom wood shader
-to match route C's look — which runs straight into the VTK glyph-shader fragility the review
-predicted. Route C reaches the same actor-count number, keeps the colour for free, and shipped.
+Routes B (glyph instancing) and A (shader skinning) remain documented alternatives below. B has
+since been **prototyped end-to-end** (2026-08-18) — the wood-colour loss is recovered with a
+custom shader, shadows are safe, and it is measured against route C. The verdict is *do not build
+it yet*: it optimises tree render, which route C already made a non-bottleneck. See **"Route B:
+executed spike results"** below for the numbers; the source-read reasoning that follows is left
+intact as the pre-spike record. Route C reaches the same actor-count number, keeps the colour for
+free, and shipped.
 
 ## Design detail: the three routes (route C shipped; B/A for reference)
 
@@ -290,7 +293,7 @@ the safe, already-feasible number and is still a ~27× cut; do not quote 70 as i
 | route | actors | wind | draw calls | new surface | headline risk |
 |---|---|---|---|---|---|
 | A. shader skinning | ~70 | yes | ~70 | large (GLSL + `vtkShaderProperty` + director node) | silent substitution; shadow baker; inverse-transpose normals |
-| B. glyph instancing | 2–70 | yes | 2 | moderate (`GlyphNode` + arrays) | per-vertex wood color lost |
+| B. glyph instancing | 2–70 | yes | 2 | moderate (`GlyphNode` + arrays) | ~~per-vertex wood color lost~~ **recovered by shader (spiked)**; wood *lighting* ~15% off (glyph normals under non-uniform scale) |
 | C. CPU-repose merge | 70–140 | yes | 70–140 | small (points-only update) | full-VBO re-upload; mixed tris+lines |
 
 ### Recommendation: stage it, do not lead with the shader
@@ -300,7 +303,10 @@ the safe, already-feasible number and is still a ~27× cut; do not quote 70 as i
    and a per-frame cost below concern. It is the change most in proportion to the evidence.
 2. **Escalate to B** only if draw-call count or upload ever becomes the real bottleneck (it is
    not today). B collapses the forest to ~2 draw calls and gets the GPU-side skinning fix #3
-   imagined *for free from stock VTK*, at the cost of a `GlyphNode` and the accepted wood-color loss.
+   imagined *for free from stock VTK*, at the cost of a `GlyphNode` and — now that it is spiked —
+   a ~15% wood-lighting delta rather than an outright colour loss (the gradient is recovered by a
+   shader; see "Route B: executed spike results"). The spike confirms this escalation is not needed
+   today: B's render win is real but redundant while the per-frame pose dominates.
 3. **Keep A as a documented fallback, not the first build.** It is plausibly feasible, but it is
    the most code and the most fragile and buys nothing over B on the GPU.
 
@@ -340,11 +346,15 @@ risk against #194's shadow passes.
 
 ### Effort, and the spike that must come first
 
+*(The B spike below has since been executed — see "Route B: executed spike results". The checklist
+here was written for it and for A; B's items 3–4 came back: normals under non-uniform scale ARE off
+under glyph instancing, shadows move correctly with data-driven sway. A remains un-spiked.)*
+
 Rough order of magnitude, explicitly *pre-spike* and optimistic: C ~1–2 days (for the 140-actor
 version with a full-VBO re-upload deemed acceptable), B ~3–5 days (if the wood-color loss is
-pre-accepted and the quaternion convention lands first try), A ~1–2+ weeks with the residual risk
-concentrated in the shadow pass and substitution fragility. **Do not trust the A estimate until
-the shadow spike lands.**
+pre-accepted and the quaternion convention lands first try) — **now ~1–2 days post-spike, both
+unknowns resolved**, A ~1–2+ weeks with the residual risk concentrated in the shadow pass and
+substitution fragility. **Do not trust the A estimate until the shadow spike lands.**
 
 Because C needs none of A's unknowns, it can land in parallel. The spike exists to prove the
 things source-reading cannot, and it must use geometry representative on every risky axis at once
@@ -367,6 +377,125 @@ things source-reading cannot, and it must use geometry representative on every r
    depth-only program variant received the vertex replacements *and* the current palette. This is
    the single most likely silent break (canopy sways, shadow baked from rest pose). If it fails,
    that is the signal to commit to C+B rather than fight the baker.
+
+## Route B: executed spike results (2026-08-18)
+
+Everything above about route B is a source read. This section is the **executed spike** —
+`scripts/bench/glyph_route_b/` — run against real VTK 9.5 on an NVIDIA GTX 1650. It is a pure-VTK
+harness (no cvcGL): the forest tree grammar and per-module wind cascade are reproduced in numpy and
+**verified against the exact `lsystem_forest.py` math to 7e-15** (`geom_check.py`), so every
+route-B-vs-C difference below is *rendering*, not geometry. Re-run it rather than trusting these
+numbers; the doc's own rule still applies.
+
+**Verdict: B is real and de-risked, but not worth a cvcGL `GlyphNode` today.** It reproduces route
+C's look almost exactly and slashes render cost, but the cost it slashes — tree *render* — is one
+route C already brought under budget, while the cost that actually dominates now (the per-frame CPU
+pose) is untouched by B. Build it only if the forest grows several-fold or a scene becomes
+draw-call bound.
+
+### The wood-colour loss is recoverable (the blocker is gone)
+
+The glyph drops the source's per-vertex colours, as predicted. It is recovered with a custom shader
+on the **actor** (`vtkGlyph3DMapper` has no `GetShaderProperty`; the glyph helper reads the actor's),
+and the fix hinges on an anchor the first attempt got wrong:
+
+* Injecting the wood colour at `//VTK::Color::Impl` **fails to compile** ("undefined variable
+  ambientColor"). Actor shader-property replacements are applied *before* the mapper's own colour
+  substitution, so replacing `//VTK::Color::Impl` deletes the very block that *declares*
+  `ambientColor`/`diffuseColor`. Inject instead at **`//VTK::Normal::Impl`** — after the colour
+  declarations, before the light math — where those variables are in scope. (Dump the real generated
+  shader with `dump_glyph_shaders.py`; do not guess anchors.)
+* The radial light-core/dark-rim gradient is recomputed in-shader from the glyph-local radius
+  `length(vertexMC.xz)` (unit-cylinder radius 1), so it is independent of source tessellation.
+* The glyph **source must be the forest's `_CYL`** (explicit cap-*centre* vertices at radius 0 + a
+  triangle-fan cap). `vtkCylinderSource`'s cap is one n-gon over the rim with no centre vertex, so it
+  renders *no* light core at all — an easy false negative when spiking.
+
+`test_wood_gradient.py`: flat glyph shows 0 % light-core pixels; the shader recovers 23.5 %, matching
+route C's 22.2 %. Under flat lighting the wood albedo matches route C to <1/255.
+
+Orientation convention (nailed in `orient_test.py`, previously an open risk): `vtkGlyph3DMapper`
+quaternion array order is **(w, x, y, z)**; per instance `pos = (W·m)[:3,3]`, `R = (W·m)[:3,:3]`
+(column-vector), `scale = (seg_rad, seg_len, seg_rad)`.
+
+### Shadows are safe — the doc's "single most likely silent break" does not apply to B
+
+The feared failure (canopy sways, shadow baked from rest pose) is a *route A* risk, because A moves
+vertices with a shader palette the depth pass might not receive. **B animates via the instance
+arrays (data), so the same glyph input drives the baker's depth pass for free** — a swayed instance's
+cast shadow moves (`shadow_test.py`: ~13.7k ground-shadow px change between two sway phases, on par
+with route C). And the custom wood shader **compiles and renders correctly under `vtkShadowMapPass`**
+(`shadow_isolate.py`: 0 compile failures for the wood glyph). The needle *lines* do throw shadow-pass
+shader errors — but so do route C's needle-line polydata (more, in fact) — so that is a VTK
+lines-under-shadow quirk, not a route-B problem.
+
+### Quality: needles perfect, wood colour perfect, wood *lighting* ~15 % off
+
+Same forest, same camera/lights, route B vs route C (`compare_quality.py`): silhouettes are
+pixel-identical (foreground IoU 1.000), overall image diff 3.9/255. Needles are effectively perfect
+(0.9/255). The one real gap is **wood lighting**: route B's lit trunks come out ~15 % darker in
+aggregate. The albedo/gradient is identical (matches under flat light); the difference is normals.
+`vtkGlyph3DMapper`'s per-instance normal matrix mishandles the beveled cap/ring normals under
+**non-uniform per-axis scale** (rad ≠ len) — the same inverse-transpose subtlety flagged for route A,
+here inside the glyph helper with **no clean knob** (hard/split normals make it worse, not better;
+`normal_test.py`). Acceptable for a demo, but it is a genuine fidelity cost route C does not pay.
+
+### Performance: B's render is O(1) in actors; but the per-frame *pose* dominates and B doesn't touch it
+
+`bench.py`, 70 trees (140 actors) → collapsed to 2 glyph draw calls, 900×600, GPU-synced. Trees only
+(no terrain/volumes), so absolute fps is higher than the whole-scene figures earlier — the point is
+B-vs-C on one identical harness.
+
+| | route C (140 actors) | route B (2 glyphs) |
+|---|---:|---:|
+| per-frame CPU pose (`update`) | ~68 ms | ~66 ms |
+| render (GPU-inclusive) | ~48 ms | ~18 ms |
+| sustained | ~9.3 fps | ~14.7 fps |
+
+Two things the numbers say plainly:
+
+* **B's render advantage is real and grows with scene size.** Route B's render is ~flat in actor
+  count (2 draw calls): 16→19 ms as trees go 70→210. Route C's scales with actors: 49→143 ms. So the
+  render speedup grows **3.0× → 7.6×** over that range. This is exactly fix #3's draw-call argument,
+  now measured.
+* **But render is no longer the bottleneck — the CPU pose is.** The per-frame wind cascade is ~66 ms
+  for *both* routes (it is the same numpy either way), so it dominates the frame and route B does not
+  reduce it. Net sustained gain is only ~1.6×, not the ~11× the raw draw-call collapse suggests. Once
+  actor count is down, the next real target is the pose, not the draw path — and that is a shared
+  cost neither B nor the actor-count fix addresses.
+
+The honest reading: route C already took tree render from ~194 ms to ~0.4 ms of the *scene*. B would
+take that ~0.4 ms to ~0.2 ms — a real multiple, an irrelevant absolute — while adding the wood-lighting
+regression above and a new `GlyphNode` + instance-array binding surface. **Escalate to B only when
+draw calls actually bite: a forest of several hundred trees, or a genuinely draw-call-bound scene.**
+The spike removes B's unknowns (colour recovered, shadows safe, quaternion nailed), so if that day
+comes it is ~1–2 days, not the pre-spike 3–5.
+
+### Bonus finding: procedural bark is a route-B-native capability
+
+Because B already renders the wood through a custom shader, bark (fragment **bump** and/or vertex
+**displacement**) is a shader edit, and it is cheap — `bench_bark.py`, wood-only, 70 trees, vsync
+disabled (offscreen renders otherwise floor at 1/60 s):
+
+| variant | source verts/seg | wood render |
+|---|---:|---:|
+| base (pentagon) | 12 | 0.56 ms |
+| + fragment bump | 12 | 0.45 ms |
+| tessellated (24×12), no bark | 314 | 3.56 ms |
+| + vertex displacement | 314 | 3.14 ms |
+| bark: displacement + bump | 314 | 3.47 ms |
+
+* **Fragment bump mapping is essentially free** (per-fragment ALU; ~0 ms here) — bark *texture* for
+  nothing. Done with the surface-gradient method (`dFdx`/`dFdy` of a procedural height and view
+  position), so no precomputed tangents.
+* **Vertex displacement is also free — but it needs tessellation** (a pentagon has nothing to
+  displace). Going 12→314 verts/segment costs +3 ms of GPU render — the whole cost is the extra
+  vertices, not the displacement. On the pose-dominated ~68 ms frame that is **+4 %**.
+* Crucially the tessellated source is uploaded **once** and the per-frame instance arrays are
+  **unchanged**, so bark adds **zero** per-frame CPU cost. The equivalent on route C would bake a
+  ~25× denser mesh into every tree's merged buffer and re-upload all of it every frame (route C's
+  cost *is* that per-frame vertex upload) — so bark is a natural fit for B and a poor one for C. If
+  bark ever becomes a requirement, that flips the B-vs-C calculus toward B.
 
 ## How the offline films hid all of this
 
