@@ -1,3 +1,9 @@
+// MSVC's <cmath> does not define M_PI etc. unless _USE_MATH_DEFINES is
+// defined before the header is included.
+#ifndef _USE_MATH_DEFINES
+#  define _USE_MATH_DEFINES
+#endif
+
 #include <Qt>
 #include <cmath>
 #include <cvc/core/state.h>
