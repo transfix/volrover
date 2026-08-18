@@ -247,7 +247,7 @@ Once a script holds the `QMainWindow`, it can do **anything Qt exposes** — on 
   widget (Qt semantics), invalidating any wrapper of it.
 - **Reverse handoff:** `shiboken6.getCppPointer(pyWidget)[0]` (returns a tuple — take element 0).
 
-**Gating dependency — DONE.** Hermetic **`shiboken6` + `pyside6` 6.8.2 cvcpkg recipes** (libcvc-deps #373),
+**Gating dependency — DONE.** Hermetic **`shiboken6-cp311` + `pyside6-cp311` 6.8.2 cvcpkg recipes** (libcvc-deps #373; renamed to explicit -cp311 columns by the python -cpXX matrix change),
 built via direct CMake against the cvcpkg `qt6` 6.8.2 (non-standalone → single `libQt6Core` in-process) and a
 hermetic **`llvm18`** recipe for libclang (no system `libclang-18-dev`). One `std::uintptr_t`→64-bit SWIG fix
 in `vrhost.i` was load-bearing (SWIG defaulted it to 32-bit, truncating the `QWidget*`). Optionally a
@@ -300,7 +300,7 @@ Two binding families in **one** interpreter, sharing SWIG's runtime type table:
   **same libcvc** (`cvc::cvc`) so `cvc::app` ABI matches. Ensure VTK-python matches the app's VTK.
 - Ship a `scripts/` dir the console enumerates.
 - **cvcpkg recipe:** volrover3 gains build deps `swig` + `python3-dev`; runtime deps `python3` + `pycvc` +
-  `pycvc_gl` (+ transitive numpy/vtk-python); later `pyside6` + `shiboken6` (§7). Validate with `cvcpkg validate`.
+  `pycvc_gl` (+ transitive numpy/vtk-python); later `pyside6-cp311` + `shiboken6-cp311` (§7). Validate with `cvcpkg validate`.
 
 ## 10. Phased plan
 
