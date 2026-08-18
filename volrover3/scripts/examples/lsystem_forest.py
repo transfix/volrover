@@ -268,6 +268,10 @@ def build_terrain(patches):
     h = PEAK * np.exp(-r2 / (0.34 * HALF * HALF)) + SHELF
     h += 4.5 * np.sin(gx * 0.045) * np.cos(gy * 0.041)
     h += 2.2 * np.sin(gx * 0.11 + 1.3) * np.sin(gy * 0.097)  # finer relief
+    # Fine surface texture (the "grass/dirt isn't smooth plastic" look) is added at
+    # RENDER time by a procedural bump-map shader on the terrain node (see
+    # add_terrain_bump below), not baked into the geometry — bump mapping proper:
+    # per-fragment detail with no extra triangles and no change to the macro shape.
 
     # Each patch lifts or carves within its radius, with a smooth falloff, and
     # stains the ground its material colour by the same weight.
@@ -316,6 +320,58 @@ def height_at(h, x, y):
     i = min(max(i, 0), TERRAIN_N - 1)
     j = min(max(j, 0), TERRAIN_N - 1)
     return float(h[j, i])
+
+
+# ── procedural bump map for the ground ───────────────────────────────────────
+# Grass, dirt and rock scatter light off a rough micro-surface. A normal map would
+# carry that, but we have no texture and no UVs to sample one — so the bump is
+# PROCEDURAL, computed in the fragment shader from value-noise of world position.
+# The normal is perturbed per fragment by the surface GRADIENT of that noise height
+# (Mikkelsen's tangent-free method: screen-space derivatives of the height and of
+# the view position), so the ground catches the sun unevenly and reads as terrain
+# rather than moulded vinyl. No extra geometry, ~free, and it self-LODs (the
+# screen-space derivative shrinks with distance). Needs world-space vertexMC, hence
+# disableCoordinateShiftScale() — VTK otherwise stores a precision-shifted frame.
+BUMP_SCALE = 0.35      # world units -> noise cells (higher = finer grain)
+BUMP_STRENGTH = 1.4    # how hard the noise gradient tilts the normal
+
+_GROUND_GLSL = (
+    "float ghash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n"
+    "float gnoise(vec2 p){\n"
+    "  vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);\n"
+    "  float a=ghash(i), b=ghash(i+vec2(1.,0.)), c=ghash(i+vec2(0.,1.)), d=ghash(i+vec2(1.,1.));\n"
+    "  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);\n"
+    "}\n"
+    "float groundH(vec3 p){\n"
+    "  vec2 q = p.xy * %f;\n"
+    "  float f = 0.0, a = 0.5, fr = 1.0;\n"
+    "  for (int i = 0; i < 5; i++){ f += a*gnoise(q*fr); a *= 0.5; fr *= 2.03; }\n"
+    "  return f;\n"
+    "}\n" % BUMP_SCALE
+)
+
+
+def add_terrain_bump(node):
+    """Install the procedural fragment bump-map on the terrain GeometryNode."""
+    node.disableCoordinateShiftScale()  # vertexMC in the shader becomes world xy
+    node.addVertexShaderReplacement("//VTK::Normal::Dec", "//VTK::Normal::Dec\nout vec3 gCoord;")
+    node.addVertexShaderReplacement(
+        "//VTK::PositionVC::Impl", "//VTK::PositionVC::Impl\n  gCoord = vertexMC.xyz;")
+    node.addFragmentShaderReplacement(
+        "//VTK::Normal::Dec", "//VTK::Normal::Dec\nin vec3 gCoord;\n" + _GROUND_GLSL)
+    node.addFragmentShaderReplacement(
+        "//VTK::Normal::Impl",
+        "//VTK::Normal::Impl\n"
+        "  {\n"
+        "    float h = groundH(gCoord);\n"
+        "    vec3 sS = dFdx(vertexVC.xyz);\n"
+        "    vec3 sT = dFdy(vertexVC.xyz);\n"
+        "    vec3 vn = normalVCVSOutput;\n"
+        "    vec3 R1 = cross(sT, vn), R2 = cross(vn, sS);\n"
+        "    float det = dot(sS, R1);\n"
+        "    vec3 sg = sign(det) * (dFdx(h)*R1 + dFdy(h)*R2);\n"
+        "    normalVCVSOutput = normalize(abs(det)*vn - %f*sg);\n"
+        "  }\n" % BUMP_STRENGTH)
 
 
 # ── bake one tree (the whole grammar flattened into two meshes) ──────────────
@@ -541,6 +597,14 @@ _gx, _gy, _H, _C = build_terrain(_patches)
 _sg.addGraphics("forest_terrain", terrain_mesh(_app, _gx, _gy, _H, _C))
 _terrain_node = _sg.geometry_node("forest_terrain")
 _terrain_node.setUseSingleColor(False)
+# Grass, dirt and rock are MATTE. GeometryNode defaults to specular 0.3, so the
+# afternoon sun was throwing a plastic sheen across the slopes — the wrong material
+# for ground. Kill the specular; a little ambient keeps the shaded faces from going
+# black under the low sun. (The sea keeps its specular — water SHOULD glint.)
+_terrain_node.setSpecular(0.0)
+_terrain_node.setDiffuse(0.95)
+_terrain_node.setAmbient(0.22)
+add_terrain_bump(_terrain_node)  # procedural fine grass/dirt surface texture
 
 # Plant a tree at every seed that came down on dry land, each at its own maturity.
 _dry = [(x, y) for (x, y) in _seeds if height_at(_H, x, y) >= SEA_LEVEL + 1.0]
