@@ -56,7 +56,40 @@ find_package(OpenGL REQUIRED)
 # volrover3 hosts a first-class CPython interpreter: Development.Embed links
 # libpython so the app IS the interpreter; SWIG generates the `vrhost`
 # host-control module. See EmbeddedInterpreter + PyHost.
+# HERMETICITY: the embedded interpreter must be the one the dependency prefix
+# ships, never a system/registry install. CMake's default Windows search
+# consults the registry FIRST, so a bare find_package() here picked up
+# C:\...\Programs\Python\Python312 and volrover3 linked that python312.dll —
+# a different interpreter from the cvcpkg one pycvc/pycvc-gl were built
+# against. The app then missed the prefix's site-packages and, because it also
+# missed the prefix's DLL-directory .pth, `import pycvc_gl` failed with
+# "DLL load failed" until the caller added the directory by hand. Pin the
+# search to the prefix and refuse to silently fall back to a system Python.
+if(CMAKE_PREFIX_PATH)
+  list(GET CMAKE_PREFIX_PATH 0 _vr3_deps_prefix)
+  set(Python3_ROOT_DIR "${_vr3_deps_prefix}")
+  set(Python3_FIND_REGISTRY NEVER)
+  set(Python3_FIND_FRAMEWORK NEVER)
+  set(Python3_FIND_STRATEGY LOCATION)
+endif()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Embed)
+
+if(_vr3_deps_prefix)
+  file(REAL_PATH "${_vr3_deps_prefix}" _vr3_prefix_real)
+  file(REAL_PATH "${Python3_EXECUTABLE}" _vr3_python_real)
+  string(FIND "${_vr3_python_real}" "${_vr3_prefix_real}" _vr3_python_in_prefix)
+  if(NOT _vr3_python_in_prefix EQUAL 0)
+    message(FATAL_ERROR
+      "volrover3: embedded Python escaped the dependency prefix.\n"
+      "  found:  ${Python3_EXECUTABLE}\n"
+      "  prefix: ${_vr3_deps_prefix}\n"
+      "Linking a system interpreter breaks hermeticity: the app would embed a "
+      "different python3XX.dll than the prefix's pycvc/pycvc-gl were built "
+      "against. Install the python3XX cvcpkg package into the prefix.")
+  endif()
+  message(STATUS "volrover3: embedded Python (hermetic): ${Python3_EXECUTABLE}")
+endif()
 # NOTE: volrover3 no longer builds any SWIG module — vrhost is a pure-Python shim
 # that delivers the app via pycvc.app_from_capsule (no SWIG, no pycvc.i).
 
@@ -346,9 +379,39 @@ if(WIN32)
         [[api-ms-.*]]
         [[ext-ms-.*]]
       POST_EXCLUDE_REGEXES
-        [[.*/system32/.*\\.dll]]
-        [[.*/SysWOW64/.*\\.dll]]
-        [[.*/[Ww]indows/.*\\.dll]]
+        # These must be separator- AND case-agnostic, and the previous patterns
+        # were neither, so they matched NOTHING.
+        # GET_RUNTIME_DEPENDENCIES returns mixed separators --
+        # C:\\WINDOWS\\system32/opengl32.dll -- so \".*/system32/.*\" failed on
+        # the backslash before system32, and CMake regexes have no
+        # case-insensitive flag so \"[Ww]indows\" never matched \"WINDOWS\".
+        #
+        # The consequence was not cosmetic. opengl32.dll is the ICD LOADER that
+        # dispatches to the installed GPU driver; bundling a copy and loading it
+        # from bin/ breaks that handoff, and every VTK render then dies with
+        #   wglMakeCurrent failed ... The handle is invalid
+        #   Unable to find a valid OpenGL 3.2 or later implementation
+        # on a machine whose driver is perfectly fine.
+        #
+        # Quoted [=[ ]=], NOT [[ ]]. A character class is the last thing in most
+        # of these patterns, so the plain form ends in ]]] -- and CMake's scanner
+        # takes the FIRST ]] it sees, which is the class's own ] plus one of the
+        # terminator's. The argument is cut a character short, the stray ] is
+        # left dangling, and the generated cmake_install.cmake fails to parse:
+        #   Syntax Error ... Argument not separated from preceding token
+        # It builds and links fine and only dies at install time, pointing at
+        # generated code rather than at this list.
+        # (Backslashes stay doubled: this whole block is an install(CODE \"...\")
+        # quoted argument, so \\\\ here is the \\\\ the generated file needs to
+        # express one literal backslash in a regex character class.)
+        [=[[/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\]]=]
+        [=[[/\\\\][Ss][Yy][Ss][Ww][Oo][Ww]64[/\\\\]]=]
+        [=[[/\\\\][Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\]]=]
+        # Driver-owned regardless of where they resolved from. Never bundle.
+        [=[[Oo][Pp][Ee][Nn][Gg][Ll]32\\.dll]=]
+        [=[[Gg][Ll][Uu]32\\.dll]=]
+        [=[[Dd][Xx][Gg][Ii]\\.dll]=]
+        [=[[Dd]3[Dd][0-9].*\\.dll]=]
     )
 
     foreach(_dll IN LISTS _resolved)
