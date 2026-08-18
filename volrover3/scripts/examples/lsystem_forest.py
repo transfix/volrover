@@ -16,13 +16,17 @@
 #     lsystem_tree.py, at a maturity drawn per tree. A `1` is a seedling, a `4` is
 #     a full canopy, so the forest reads as a population rather than a stamp.
 #
-# WHY THE TREES ARE FLAT HERE
-#   lsystem_tree.py gives every L-system module its own GeometryNode so wind can
-#   accumulate down the hierarchy. That costs ~422 nodes for ONE tree, and node
-#   count is what the frame budget actually goes on (setTransform cascades to
-#   every descendant). A forest cannot afford it, so each tree here is BAKED into
-#   one wood mesh + one needle mesh and sways as a whole from its root node. Same
-#   grammar, opposite end of the granularity trade — that contrast is the point.
+# THE TREES ARE FULL HIERARCHIES
+#   Every L-system module gets its own GeometryNode, exactly as lsystem_tree.py
+#   does, so wind ACCUMULATES down each tree and the tips move more than the
+#   trunk — the original demo's motion, not a rigid whole-tree lean.
+#
+#   This was not affordable until recently: posing a node was ~80% state-tree
+#   write, and the write came back through handleStateChanged and ran the whole
+#   transform cascade a second time, so 70 hierarchical trees cost ~300 ms/frame.
+#   With cvc::gl::state_publisher batching those writes off the render path
+#   (libcvc #193) the same scene poses in ~24 ms. REQUIRES that fix; against an
+#   older cvcGL this example will crawl.
 #
 # THE TWO VOLUMES
 #   * SEA — a cvc::volume over the island's footprint, filling the space between
@@ -124,6 +128,7 @@ LEAF_LEN, LEAF_RAD = 4.0, 1.0
 MATURITY = (1, 2, 2, 3, 3, 3, 4)  # drawn per tree — a population, not a stamp
 TREE_SIZE = (0.32, 0.75)  # extra per-tree scale range
 MAX_TREES = 70  # the grammar yields ~200 dry seeds; plant a sample of them
+SWAY_LEVELS = 2  # pose modules this deep; sway accumulates below them for free
 C_WOOD_LIGHT = (0.6549, 0.4901, 0.2392)
 C_WOOD_DARK = (0.3607, 0.2510, 0.2000)
 C_NEEDLE = (0.1373, 0.5568, 0.1373)
@@ -304,35 +309,55 @@ _TURN_TILT = mat_rotate(TILT, 0.0, 0.0, 1.0)
 _TURN_ROLL = mat_rotate(YROTATE, 0.0, 1.0, 0.0)
 
 
-def bake_tree(rule, depth, scale, radscale, m, segs, leaves):
-    """Recursively flatten the tree grammar into segment/leaf placements."""
+class TreeModule(object):
+    """One rule expansion: its own geometry, and where it hangs off its parent."""
+
+    __slots__ = ("name", "parent", "level", "hang", "segs", "leaves", "node", "needles",
+                 "phase", "sway")
+
+    def __init__(self, name, parent, level, hang):
+        self.name, self.parent, self.level, self.hang = name, parent, level, hang
+        self.segs, self.leaves, self.node, self.needles = [], [], None, None
+        self.phase = self.sway = 0.0
+
+
+def expand_tree(rule, depth, scale, radscale, name, parent, level, out):
+    """Walk one rule; the module keeps only ITS OWN segments, in its local frame.
+
+    Children record the turtle pose where they attach, which becomes their node
+    transform — so the graph composes what a flattened bake would have baked in,
+    and moving a module moves everything below it.
+    """
+    mod = TreeModule(name, parent, level, np.identity(4))
+    out.append(mod)
+    cur = np.identity(4)
     stack = []
     seg_len, seg_rad = T_LENGTH * scale, T_RADIUS * radscale
     step = mat_translate(0.0, seg_len, 0.0)
     for ch in rule:
         if ch == "F":
-            m = m @ _TURN_MICRO
-            segs.append((m, seg_len, seg_rad))
-            m = m @ step
+            cur = cur @ _TURN_MICRO
+            mod.segs.append((cur, seg_len, seg_rad))
+            cur = cur @ step
         elif ch == "[":
-            stack.append(m)
+            stack.append(cur)
         elif ch == "]":
-            m = stack.pop()
+            cur = stack.pop()
         elif ch == "L":
-            leaves.append((m, scale))
+            mod.leaves.append((cur, scale))
         elif ch == "R":
-            m = m @ _TURN_ROLL
+            cur = cur @ _TURN_ROLL
         elif ch == "T":
-            m = m @ _TURN_TILT
+            cur = cur @ _TURN_TILT
         elif ch.isdigit() and depth > 1:
-            bake_tree(TREE_RULES[int(ch)], depth - 1, scale * T_SCALE,
-                      radscale * T_RADSCALE, m, segs, leaves)
-    return m
+            child = expand_tree(TREE_RULES[int(ch)], depth - 1, scale * T_SCALE,
+                                radscale * T_RADSCALE, "%s_%d" % (name, len(out)),
+                                name, level + 1, out)
+            child.hang = cur.copy()
+    return mod
 
 
-def tree_meshes(app, maturity, size):
-    segs, leaves = [], []
-    bake_tree(TREE_RULES[0], maturity, size, size, TREE_UP, segs, leaves)
+def module_meshes(app, segs, leaves):
 
     pts = np.empty((len(segs) * _CYL_V, 3))
     local = np.zeros((_CYL_V, 3))
@@ -386,25 +411,47 @@ if len(_dry) > MAX_TREES:
 print("lsystem_forest: %d seeds, %d on dry land, planting %d." %
       (len(_seeds), sum(1 for x, y in _seeds if height_at(_H, x, y) >= SEA_LEVEL + 1.0), len(_dry)))
 
-_trees = []
+_trees = []      # every module of every tree, flat, for the per-frame pose
+_tree_roots = []  # the root module of each tree
 for _n, (_sx, _sy) in enumerate(_dry):
     _hz = height_at(_H, _sx, _sy)
-    _mat = random.choice(MATURITY)
     _size = random.uniform(*TREE_SIZE)
-    _wood, _needles = tree_meshes(_app, _mat, _size)
-    _wn, _nn = "forest_tree%d" % _n, "forest_tree%d_needles" % _n
-    _sg.addGraphics(_wn, _wood)
-    _node = _sg.geometry_node(_wn)
-    _node.setUseSingleColor(False)
-    _leaf = _sg.add_child_geometry(_wn, _nn, _needles)
-    _leaf.setRenderMode(pycvc_gl.GeometryRenderMode_LINES)
-    _leaf.setUseSingleColor(True)
-    _leaf.setColor(*C_NEEDLE)
-    _trees.append({"node": _node, "pos": (_sx, _sy, _hz),
-                   "phase": random.uniform(0.0, 2 * math.pi),
-                   "sway": 0.012 + 0.010 * random.random()})
-print("lsystem_forest: %d trees planted, maturities %s." %
-      (len(_trees), sorted(set(MATURITY))))
+    _mods = []
+    expand_tree(TREE_RULES[0], random.choice(MATURITY), _size, _size,
+                "ftree%d" % _n, None, 1, _mods)
+    # One phase per TREE, not per module: the modules of a tree must lean
+    # together or it reads as a bush in a blender rather than a tree in wind.
+    _ph = random.uniform(0.0, 2 * math.pi)
+    _sw = 0.010 + 0.008 * random.random()
+    for _m in _mods:
+        if not _m.segs:
+            continue
+        _wood, _needles = module_meshes(_app, _m.segs, _m.leaves)
+        if _m.parent is None:
+            _sg.addGraphics(_m.name, _wood)
+            _m.node = _sg.geometry_node(_m.name)
+            # The root carries the tree out to its seed and stands it upright;
+            # every module below is expressed in its parent's frame.
+            _m.hang = mat_translate(_sx, _sy, _hz) @ TREE_UP
+            _tree_roots.append(_m)
+        else:
+            _m.node = _sg.add_child_geometry(_m.parent, _m.name, _wood)
+        _m.node.setUseSingleColor(False)
+        _m.phase, _m.sway = _ph, _sw
+        _m.node.setTransform(_m.hang.ravel().tolist())
+        if _m.leaves:
+            _m.needles = _sg.add_child_geometry(_m.name, _m.name + "_n", _needles)
+            _m.needles.setRenderMode(pycvc_gl.GeometryRenderMode_LINES)
+            _m.needles.setUseSingleColor(True)
+            _m.needles.setColor(*C_NEEDLE)
+        _trees.append(_m)
+
+# Only the top SWAY_LEVELS are re-posed each frame. Everything below inherits
+# the motion through the graph, which is the whole point of the hierarchy — and
+# it keeps the per-frame cost proportional to the trunks, not to the twigs.
+_swayers = [m for m in _trees if m.level <= SWAY_LEVELS]
+print("lsystem_forest: %d trees planted as %d modules (%d posed/frame), maturities %s." %
+      (len(_tree_roots), len(_trees), len(_swayers), sorted(set(MATURITY))))
 
 
 # ── the sea: a volume whose field is depth under a travelling wave ───────────
@@ -656,14 +703,13 @@ def step(dt):
             _sky_node.setTransferFunction(*sky_transfer())
 
     if _state_float("wind", 1.0):
-        # Each tree leans on its own phase. One transform per tree — the forest's
-        # counterpart to lsystem_tree.py's per-module sway. Spread over
-        # TREE_STAGGER frames: the sway is a ~5 s cycle, so a two-frame lag on
-        # part of the forest is invisible and it keeps setTransform (which
-        # cascades into each tree's needle child) off the critical path.
+        # Pose only the upper modules; the rest of each tree follows through the
+        # graph, so the sway ACCUMULATES and the tips travel further than the
+        # trunk — the original demo's motion rather than a rigid lean. Spread
+        # over TREE_STAGGER frames: the sway is a ~5 s cycle, so a two-frame lag
+        # on part of the forest is invisible.
         _bucket = (_bucket + 1) % TREE_STAGGER
-        for i in range(_bucket, len(_trees), TREE_STAGGER):
-            tr = _trees[i]
-            a = tr["sway"] * math.sin(1.3 * _t + tr["phase"])
-            m = mat_translate(*tr["pos"]) @ mat_rotate(a, *_TREE_AXIS)
-            tr["node"].setTransform(m.ravel().tolist())
+        for i in range(_bucket, len(_swayers), TREE_STAGGER):
+            m = _swayers[i]
+            a = m.sway * math.sin(1.3 * _t + m.phase)
+            m.node.setTransform((m.hang @ mat_rotate(a, *_TREE_AXIS)).ravel().tolist())
