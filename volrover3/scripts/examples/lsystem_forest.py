@@ -374,6 +374,55 @@ def add_terrain_bump(node):
         "  }\n" % BUMP_STRENGTH)
 
 
+# ── procedural bark on the trunks/branches ───────────────────────────────────
+# The same surface-gradient bump as the ground, but the height field is BARK:
+# vertical furrows plus a little breakup. The trick is the material coordinate:
+# atan(n.y, n.x) of the BIND-POSE normal is the angle AROUND the branch (so furrows
+# run along it), and world z carries the axial variation. updateVertices leaves the
+# normals at bind pose as the tree sways, so the furrows are pinned to the wood and
+# do not swim in the wind. Applied to each tree's merged wood actor; needles are
+# left alone. Keeps the per-vertex light/dark wood colour — only the normal moves.
+BARK_STRENGTH = 1.2
+_BARK_GLSL = (
+    "float bhash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }\n"
+    "float bnoise(vec2 p){\n"
+    "  vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);\n"
+    "  return mix(mix(bhash(i), bhash(i+vec2(1,0)), f.x),\n"
+    "             mix(bhash(i+vec2(0,1)), bhash(i+vec2(1,1)), f.x), f.y);\n"
+    "}\n"
+    "float barkH(vec3 nrm, float z){\n"
+    "  float ang = atan(nrm.y, nrm.x);\n"
+    "  float f = 0.0;\n"
+    "  f += 0.6*sin(ang*10.0 + 1.5*sin(z*0.7));\n"   # vertical furrows around the branch
+    "  f += 0.3*sin(ang*23.0 + z*0.4);\n"            # finer furrows
+    "  f += 0.3*bnoise(vec2(ang*4.0, z*1.2));\n"     # irregular breakup
+    "  return f;\n"
+    "}\n"
+)
+
+
+def add_bark(node):
+    """Install the procedural bark bump on a tree's wood node."""
+    node.disableCoordinateShiftScale()
+    node.addVertexShaderReplacement(
+        "//VTK::Normal::Dec", "//VTK::Normal::Dec\nout vec3 bNrm;\nout vec3 bPos;")
+    node.addVertexShaderReplacement(
+        "//VTK::PositionVC::Impl", "//VTK::PositionVC::Impl\n  bNrm = normalMC; bPos = vertexMC.xyz;")
+    node.addFragmentShaderReplacement(
+        "//VTK::Normal::Dec", "//VTK::Normal::Dec\nin vec3 bNrm;\nin vec3 bPos;\n" + _BARK_GLSL)
+    node.addFragmentShaderReplacement(
+        "//VTK::Normal::Impl",
+        "//VTK::Normal::Impl\n"
+        "  {\n"
+        "    float h = barkH(normalize(bNrm), bPos.z);\n"
+        "    vec3 sS = dFdx(vertexVC.xyz), sT = dFdy(vertexVC.xyz), vn = normalVCVSOutput;\n"
+        "    vec3 R1 = cross(sT, vn), R2 = cross(vn, sS);\n"
+        "    float det = dot(sS, R1);\n"
+        "    vec3 sg = sign(det) * (dFdx(h)*R1 + dFdy(h)*R2);\n"
+        "    normalVCVSOutput = normalize(abs(det)*vn - %f*sg);\n"
+        "  }\n" % BARK_STRENGTH)
+
+
 # ── bake one tree (the whole grammar flattened into two meshes) ──────────────
 _RING = np.column_stack((np.cos(np.arange(BASE_TRI) * 2 * math.pi / BASE_TRI),
                          np.sin(np.arange(BASE_TRI) * 2 * math.pi / BASE_TRI)))
@@ -538,6 +587,7 @@ def build_tree(app, sg, name, sx, sy, hz, mods):
     sg.addGraphics(name, wg)
     tree.wood_node = sg.geometry_node(name)
     tree.wood_node.setUseSingleColor(False)
+    add_bark(tree.wood_node)  # procedural bark furrows on the trunk/branches
     tree.wood_buf = merged_wood.copy()
 
     if npts_all:
