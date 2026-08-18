@@ -750,11 +750,39 @@ def sky_transfer():
 
 _sky_node.setTransferFunction(*sky_transfer())
 
+# -- the afternoon sun -------------------------------------------------------
+# The SCENE says what time of day it is, instead of inheriting whatever light
+# the host window happened to configure. That matters here because VTK's default
+# is a HEADLIGHT: it rides the camera, so it lights every surface head-on and
+# flattens exactly what this scene is made of -- the billow of a cloud, the roll
+# of a swell, the depth of a canopy. Fly around with a headlight and nothing
+# changes; fly around with a fixed sun and the island turns in the light.
+#
+# Elevation 34 degrees reads as mid-afternoon: high enough to catch the cloud
+# tops, low enough that the water throws a specular track back toward the camera
+# and the billows keep a shaded underside. The sun is warmed a little, and a dim
+# COOL fill from the opposite side keeps shadowed faces blue rather than black --
+# that fill stands in for sky light, it is not pretending to be a second sun.
+SUN_AZ = -52.0
+_sun = _sg.addDirectionalLight(SUN_AZ, 34.0, 1.0, 0.94, 0.82, 0.95)
+_fill = _sg.addDirectionalLight(128.0, 52.0, 0.55, 0.66, 0.85, 0.55)
+
+# Shadow mapping installs passes on the RENDER TARGET, so it can only succeed
+# once the scene is attached to one. Under volrover3 that has already happened
+# and this returns True. In a headless harness that builds the scene before any
+# renderer exists it returns False -- in which case the scene is simply lit
+# without shadows, rather than failing to load.
+_shadows = _sg.setShadowsEnabled(True)
+print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows %s"
+      % (SUN_AZ, _sg.numLights(),
+         "on" if _shadows else "unavailable (no render target yet)"))
+
 # Bounds over everything, so the grid resizes and the camera's orbit centre lands
 # on the island. This is the only thing the script does to the view.
 vrhost.set_world_bounds(*_sg.compute_graphics_bounds())
 
-for _k, _v in (("speed", 1), ("waves", 1), ("clouds", 1), ("wind", 1)):
+for _k, _v in (("speed", 1), ("waves", 1), ("clouds", 1), ("wind", 1),
+               ("sun", 34)):
     pycvc.state_set(_app, STATE + "." + _k, str(_v))
 
 _clock = pycvc.world_clock(SIM_DT)
@@ -762,10 +790,11 @@ _t = 0.0
 _primed = False
 _stalled = False
 _TREE_AXIS = (0.0, 1.0, 0.0)
+_sun_el = 34.0  # last elevation pushed, so we only re-aim when it moves
 _bucket = 0  # which slice of the forest gets re-posed this frame
 TREE_STAGGER = 3
 
-print("lsystem_forest: running — %d nodes. Set %s.speed / .waves / .clouds / .wind."
+print("lsystem_forest: running — %d nodes. Set %s.speed / .waves / .clouds / .wind / .sun."
       % (_sg.num_graphics(), STATE))
 
 
@@ -777,7 +806,7 @@ def _state_float(key, default):
 
 
 def step(dt):
-    global _t, _primed, _stalled, _bucket
+    global _t, _primed, _stalled, _bucket, _sun_el
 
     if not _primed:
         # Scene setup (meshes, 2 volumes, node creation) blocks for seconds and
@@ -787,6 +816,13 @@ def step(dt):
             dt = SIM_DT
         else:
             _primed = True
+
+    el = _state_float("sun", 34.0)
+    if abs(el - _sun_el) > 1e-3:
+        # Sweep this down toward the horizon for evening light: the specular
+        # track on the water stretches and the cloud undersides catch the warm.
+        _sun_el = el
+        _sg.setLightDirection(_sun, SUN_AZ, el)
 
     _clock.set_scale(_state_float("speed", 1.0))
     r = _clock.advance(dt)
