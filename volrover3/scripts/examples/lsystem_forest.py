@@ -16,22 +16,31 @@
 #     lsystem_tree.py, at a maturity drawn per tree. A `1` is a seedling, a `4` is
 #     a full canopy, so the forest reads as a population rather than a stamp.
 #
-# WHY THE TREES ARE FLAT HERE
-#   lsystem_tree.py gives every L-system module its own GeometryNode so wind can
-#   accumulate down the hierarchy. That costs ~422 nodes for ONE tree, and node
-#   count is what the frame budget actually goes on (setTransform cascades to
-#   every descendant). A forest cannot afford it, so each tree here is BAKED into
-#   one wood mesh + one needle mesh and sways as a whole from its root node. Same
-#   grammar, opposite end of the granularity trade — that contrast is the point.
+# THE TREES ARE FULL HIERARCHIES
+#   Every L-system module gets its own GeometryNode, exactly as lsystem_tree.py
+#   does, so wind ACCUMULATES down each tree and the tips move more than the
+#   trunk — the original demo's motion, not a rigid whole-tree lean.
+#
+#   This was not affordable until recently: posing a node was ~80% state-tree
+#   write, and the write came back through handleStateChanged and ran the whole
+#   transform cascade a second time, so 70 hierarchical trees cost ~300 ms/frame.
+#   With cvc::gl::state_publisher batching those writes off the render path
+#   (libcvc #193) the same scene poses in ~24 ms. REQUIRES that fix; against an
+#   older cvcGL this example will crawl.
 #
 # THE TWO VOLUMES
-#   * SEA — a cvc::volume over the island's footprint. Its scalar field is depth
-#     below a travelling wave surface, and it is zeroed anywhere the terrain
-#     stands above sea level, so water appears exactly in the hollows the dirt
-#     patches carved. Both the field AND the transfer function animate: the field
-#     carries the swell, the transfer function breathes the surface highlight.
+#   * SEA — a cvc::volume over the island's footprint, filling the space between
+#     the seabed and a travelling wave surface, so water sits exactly in the
+#     hollows the dirt patches carved AND is only as thick as the water actually
+#     is. That thickness is what sells it: the transfer function is translucent
+#     enough that a knee-deep column barely tints the sand while open water
+#     stacks up to solid navy, so the shallows show their bottom and the deeps do
+#     not. Both the field and the transfer function animate — the field carries
+#     the swell, the transfer function breathes the surface.
 #   * SKY — a second volume slab overhead holding a band-limited noise field,
-#     scrolled by the wind. A soft ramp transfer function turns it into cloud.
+#     scrolled by the wind. Its transfer function pins alpha to exactly zero
+#     below a threshold, so empty sky is empty rather than a faint grey box, and
+#     the clouds read as discrete puffs.
 #
 # The script never touches the camera. It sets the world bounds once so volrover3
 # frames the island; orbit, pan and zoom stay yours.
@@ -119,6 +128,7 @@ LEAF_LEN, LEAF_RAD = 4.0, 1.0
 MATURITY = (1, 2, 2, 3, 3, 3, 4)  # drawn per tree — a population, not a stamp
 TREE_SIZE = (0.32, 0.75)  # extra per-tree scale range
 MAX_TREES = 70  # the grammar yields ~200 dry seeds; plant a sample of them
+SWAY_LEVELS = 2  # pose modules this deep; sway accumulates below them for free
 C_WOOD_LIGHT = (0.6549, 0.4901, 0.2392)
 C_WOOD_DARK = (0.3607, 0.2510, 0.2000)
 C_NEEDLE = (0.1373, 0.5568, 0.1373)
@@ -132,10 +142,38 @@ WAVE_AMP = 1.6
 WAVE_LEN = 46.0
 WAVE_SPEED = 7.0
 
+# ── the cloud grammar ────────────────────────────────────────────────────────
+# The clouds were sums of sine octaves, which is why they came out as round
+# blobs: every octave is separable and axis-aligned, so its level sets are
+# ellipses and no amount of stacking them makes an edge that turns a corner.
+# A grammar does, because a turtle can branch. Same symbols as the terrain
+# walk, deposited into a 2-D density map instead of onto the ground:
+#   F  drift forward, depositing a puff        + -  turn
+#   [ ]  push/pop        <  shrink the puff radius       A B  non-terminals
+#   ^ v  raise / lower the billow height deposited by the puffs that follow
+#   C    a turret: a compact vertical stack, which is what gives cumulus its
+#        cauliflower top rather than a smooth dome
+CLOUD_AXIOM = "[A][+++++A][-----A][++++++++++A][----------A][+++++++++++++++A]"
+CLOUD_RULES = {
+    # A is the anvil-ward drift; it throws off B fringes and C turrets, and the
+    # ^/v keep the profile from being uniform along the run.
+    "A": "FF[+<B]^F[-<C]<F[+<C]vFA",
+    "B": "F[+<F]F<[-<F]vB",
+    "C": "^<F[+<F][-<F]^<FC",
+}
+CLOUD_DEPTH = 6
+CLOUD_TURN = 32.0     # degrees per + / -
+CLOUD_STEP0 = 6.5     # first drift, in map cells
+CLOUD_STEP_DECAY = 0.9
+CLOUD_PUFF0 = 7.0     # first puff radius, in map cells
+CLOUD_PUFF_DECAY = 0.88
+CLOUD_MAPS = 2        # independent skies, crossfaded so cloud EVOLVES
+CLOUD_MORPH_S = 26.0  # seconds for a full crossfade cycle
+
 # ── the sky volume ───────────────────────────────────────────────────────────
-SKY_N = 64
-SKY_NZ = 14
-SKY_BASE, SKY_TOP = 82.0, 104.0
+SKY_N = 48
+SKY_NZ = 22
+SKY_BASE, SKY_TOP = 74.0, 122.0  # a deep slab, so a puff can be round rather than a disc
 CLOUD_DRIFT = 5.0  # world units per second
 SKY_HALF = 150.0  # the cloud slab overhangs the island a little
 
@@ -299,35 +337,55 @@ _TURN_TILT = mat_rotate(TILT, 0.0, 0.0, 1.0)
 _TURN_ROLL = mat_rotate(YROTATE, 0.0, 1.0, 0.0)
 
 
-def bake_tree(rule, depth, scale, radscale, m, segs, leaves):
-    """Recursively flatten the tree grammar into segment/leaf placements."""
+class TreeModule(object):
+    """One rule expansion: its own geometry, and where it hangs off its parent."""
+
+    __slots__ = ("name", "parent", "level", "hang", "segs", "leaves", "node", "needles",
+                 "phase", "sway")
+
+    def __init__(self, name, parent, level, hang):
+        self.name, self.parent, self.level, self.hang = name, parent, level, hang
+        self.segs, self.leaves, self.node, self.needles = [], [], None, None
+        self.phase = self.sway = 0.0
+
+
+def expand_tree(rule, depth, scale, radscale, name, parent, level, out):
+    """Walk one rule; the module keeps only ITS OWN segments, in its local frame.
+
+    Children record the turtle pose where they attach, which becomes their node
+    transform — so the graph composes what a flattened bake would have baked in,
+    and moving a module moves everything below it.
+    """
+    mod = TreeModule(name, parent, level, np.identity(4))
+    out.append(mod)
+    cur = np.identity(4)
     stack = []
     seg_len, seg_rad = T_LENGTH * scale, T_RADIUS * radscale
     step = mat_translate(0.0, seg_len, 0.0)
     for ch in rule:
         if ch == "F":
-            m = m @ _TURN_MICRO
-            segs.append((m, seg_len, seg_rad))
-            m = m @ step
+            cur = cur @ _TURN_MICRO
+            mod.segs.append((cur, seg_len, seg_rad))
+            cur = cur @ step
         elif ch == "[":
-            stack.append(m)
+            stack.append(cur)
         elif ch == "]":
-            m = stack.pop()
+            cur = stack.pop()
         elif ch == "L":
-            leaves.append((m, scale))
+            mod.leaves.append((cur, scale))
         elif ch == "R":
-            m = m @ _TURN_ROLL
+            cur = cur @ _TURN_ROLL
         elif ch == "T":
-            m = m @ _TURN_TILT
+            cur = cur @ _TURN_TILT
         elif ch.isdigit() and depth > 1:
-            bake_tree(TREE_RULES[int(ch)], depth - 1, scale * T_SCALE,
-                      radscale * T_RADSCALE, m, segs, leaves)
-    return m
+            child = expand_tree(TREE_RULES[int(ch)], depth - 1, scale * T_SCALE,
+                                radscale * T_RADSCALE, "%s_%d" % (name, len(out)),
+                                name, level + 1, out)
+            child.hang = cur.copy()
+    return mod
 
 
-def tree_meshes(app, maturity, size):
-    segs, leaves = [], []
-    bake_tree(TREE_RULES[0], maturity, size, size, TREE_UP, segs, leaves)
+def module_meshes(app, segs, leaves):
 
     pts = np.empty((len(segs) * _CYL_V, 3))
     local = np.zeros((_CYL_V, 3))
@@ -381,25 +439,47 @@ if len(_dry) > MAX_TREES:
 print("lsystem_forest: %d seeds, %d on dry land, planting %d." %
       (len(_seeds), sum(1 for x, y in _seeds if height_at(_H, x, y) >= SEA_LEVEL + 1.0), len(_dry)))
 
-_trees = []
+_trees = []      # every module of every tree, flat, for the per-frame pose
+_tree_roots = []  # the root module of each tree
 for _n, (_sx, _sy) in enumerate(_dry):
     _hz = height_at(_H, _sx, _sy)
-    _mat = random.choice(MATURITY)
     _size = random.uniform(*TREE_SIZE)
-    _wood, _needles = tree_meshes(_app, _mat, _size)
-    _wn, _nn = "forest_tree%d" % _n, "forest_tree%d_needles" % _n
-    _sg.addGraphics(_wn, _wood)
-    _node = _sg.geometry_node(_wn)
-    _node.setUseSingleColor(False)
-    _leaf = _sg.add_child_geometry(_wn, _nn, _needles)
-    _leaf.setRenderMode(pycvc_gl.GeometryRenderMode_LINES)
-    _leaf.setUseSingleColor(True)
-    _leaf.setColor(*C_NEEDLE)
-    _trees.append({"node": _node, "pos": (_sx, _sy, _hz),
-                   "phase": random.uniform(0.0, 2 * math.pi),
-                   "sway": 0.012 + 0.010 * random.random()})
-print("lsystem_forest: %d trees planted, maturities %s." %
-      (len(_trees), sorted(set(MATURITY))))
+    _mods = []
+    expand_tree(TREE_RULES[0], random.choice(MATURITY), _size, _size,
+                "ftree%d" % _n, None, 1, _mods)
+    # One phase per TREE, not per module: the modules of a tree must lean
+    # together or it reads as a bush in a blender rather than a tree in wind.
+    _ph = random.uniform(0.0, 2 * math.pi)
+    _sw = 0.020 + 0.016 * random.random()  # ~1-2 deg per level; accumulates down the tree
+    for _m in _mods:
+        if not _m.segs:
+            continue
+        _wood, _needles = module_meshes(_app, _m.segs, _m.leaves)
+        if _m.parent is None:
+            _sg.addGraphics(_m.name, _wood)
+            _m.node = _sg.geometry_node(_m.name)
+            # The root carries the tree out to its seed and stands it upright;
+            # every module below is expressed in its parent's frame.
+            _m.hang = mat_translate(_sx, _sy, _hz) @ TREE_UP
+            _tree_roots.append(_m)
+        else:
+            _m.node = _sg.add_child_geometry(_m.parent, _m.name, _wood)
+        _m.node.setUseSingleColor(False)
+        _m.phase, _m.sway = _ph, _sw
+        _m.node.setTransform(_m.hang.ravel().tolist())
+        if _m.leaves:
+            _m.needles = _sg.add_child_geometry(_m.name, _m.name + "_n", _needles)
+            _m.needles.setRenderMode(pycvc_gl.GeometryRenderMode_LINES)
+            _m.needles.setUseSingleColor(True)
+            _m.needles.setColor(*C_NEEDLE)
+        _trees.append(_m)
+
+# Only the top SWAY_LEVELS are re-posed each frame. Everything below inherits
+# the motion through the graph, which is the whole point of the hierarchy — and
+# it keeps the per-frame cost proportional to the trunks, not to the twigs.
+_swayers = [m for m in _trees if m.level <= SWAY_LEVELS]
+print("lsystem_forest: %d trees planted as %d modules (%d posed/frame), maturities %s." %
+      (len(_tree_roots), len(_trees), len(_swayers), sorted(set(MATURITY))))
 
 
 # ── the sea: a volume whose field is depth under a travelling wave ───────────
@@ -411,7 +491,6 @@ _sgx, _sgy = np.meshgrid(_sea_ax, _sea_ax, indexing="xy")
 _idx = np.clip(((_sea_ax + HALF) / (2 * HALF) * (TERRAIN_N - 1)).round().astype(int),
                0, TERRAIN_N - 1)
 _sea_terrain = _H[np.ix_(_idx, _idx)]
-_wet = (_sea_terrain < SEA_LEVEL).astype(np.float32)  # 1 where there is sea floor
 
 _sea_vol = pycvc.volume(_app)
 # Phase of the swell at each column, precomputed — only the time term changes.
@@ -420,23 +499,48 @@ _zcol = _sea_z[:, None, None].astype(np.float32)
 
 
 def sea_field(t):
-    """Depth below the wave surface, 0 on land — the sea's scalar field."""
+    """Depth below the wave surface, bounded by the seabed — the sea's field.
+
+    The seabed clip is what makes shallow water actually look shallow. Masking
+    per COLUMN (is there sea floor here at all?) is not enough: without the
+    per-voxel bound, every wet column is filled from SEA_FLOOR up, so a sandbar
+    under a foot of water carries the same 20-unit slab of water as open ocean
+    and no transfer function can make the bottom show through it. Water only
+    exists between the bed and the surface.
+    """
     surf = SEA_LEVEL + WAVE_AMP * (np.sin(_wave_phase - WAVE_SPEED * t * 0.1)
                                    + 0.45 * np.sin(1.7 * _wave_phase + WAVE_SPEED * t * 0.13))
-    depth = np.clip((surf[None, :, :] - _zcol) / 6.0, 0.0, 1.0)
-    return (depth * _wet[None, :, :]).astype(np.float32)
+    below_surface = surf[None, :, :] - _zcol
+    above_bed = _zcol - _sea_terrain[None, :, :]
+    wet = (below_surface > 0.0) & (above_bed > 0.0)
+    depth = np.clip(below_surface / 6.0, 0.0, 1.0)
+    return (depth * wet).astype(np.float32)
 
 
 def sea_transfer(t):
-    """Transfer function for the sea. The knee where opacity climbs is what reads
-    as the surface, so drifting it slightly makes the water look alive even
-    between field updates."""
-    k = 0.16 + 0.05 * math.sin(t * 0.9)
-    color = [0.00, 0.02, 0.10, 0.22,
-             0.35, 0.05, 0.28, 0.48,
-             0.70, 0.10, 0.45, 0.62,
-             1.00, 0.55, 0.80, 0.85]  # foam-ish at the very top
-    opacity = [0.00, 0.00, max(k - 0.10, 0.001), 0.00, k, 0.32, 0.75, 0.72, 1.00, 0.90]
+    """Transfer function for the sea: translucent in the shallows, opaque offshore.
+
+    The scalar is depth below the surface, so 0 is the waterline and 1 is 6 m
+    down. Colour therefore runs LIGHT at 0 and dark at 1 — the reverse looks
+    like an X-ray of the sea.
+
+    The alphas are in thousandths for the same reason the sky's are: VTK applies
+    the opacity function once per ScalarOpacityUnitDistance, which it derives
+    from the voxel spacing (~0.06 world units here), so a ray crossing 6 m of
+    water applies it ~100 times. At the 0.3-per-sample this used to carry, a
+    puddle was as opaque as the deep ocean. At ~0.01 a knee-deep column
+    accumulates to roughly 0.15 and the sand reads straight through it, while
+    open water still stacks to effectively solid.
+
+    `k` drifts the mid alpha slightly so the surface keeps breathing between
+    field updates.
+    """
+    k = 0.0100 + 0.0015 * math.sin(t * 0.9)
+    color = [0.00, 0.42, 0.78, 0.74,   # waterline: pale turquoise over the sand
+             0.25, 0.14, 0.55, 0.66,
+             0.60, 0.04, 0.26, 0.46,
+             1.00, 0.01, 0.09, 0.22]   # deep water: near-black navy
+    opacity = [0.00, 0.0, 0.12, k * 0.45, 0.55, k, 1.00, k * 2.0]
     return color, opacity
 
 
@@ -450,55 +554,313 @@ _sea_grid = _sea_vol.grid()  # zero-copy (nz, ny, nx) view for the per-frame wri
 _sg.addGraphics("forest_sea", _sea_vol)
 _sea_node = _sg.volume_node("forest_sea")
 _sea_node.setTransferFunction(*sea_transfer(0.0))
+# Water is a lit surface, unlike cloud: volume shading uses the scalar gradient
+# as a normal, and the sea's gradient is strongest exactly at the wave surface,
+# which is where a highlight belongs. A tight, bright specular turns a
+# directional light into a sun glint that travels across the swell.
+_sea_node.setShading(True)
+_sea_node.setAmbient(0.18)
+_sea_node.setDiffuse(0.72)
+_sea_node.setSpecular(0.85)
+_sea_node.setSpecularPower(70.0)
 
 # ── the sky: a noise slab, scrolled by the wind ──────────────────────────────
 
 # Band-limited noise: a few octaves of sine in x/y, tapered top and bottom so the
 # slab has soft faces rather than a hard cut.
-_kx = np.linspace(-3.0, 3.0, SKY_N)
-_cx, _cy = np.meshgrid(_kx, _kx, indexing="xy")
+# Soft fades at the slab faces so a puff drifting against one is not sliced
+# off square. Shape itself comes from the 3-D deposits, not from these.
+_w = np.hanning(SKY_N).astype(np.float32) ** 0.5
+_edge_fade = np.minimum.outer(_w, _w)[None, :, :]
+_zfade = np.sin(np.linspace(0.12, math.pi - 0.12, SKY_NZ)).astype(np.float32)[:, None, None]
+
+
+def walk_clouds(rng):
+    """Run the cloud turtle; return a full 3-D (nz, ny, nx) density field.
+
+    The turtle moves in 3-D and deposits a 3-D Gaussian per F, so a puff is a
+    BALL, not a column. This is what rounds the undersides: the previous version
+    built a 2-D map and extruded it under a per-column ceiling, which domes the
+    top but leaves every cloud sitting on the slab floor with a flat bottom, and
+    no amount of shading hides that. Branching in 3-D is also what lets a turret
+    genuinely sit above and behind its parent rather than merely being taller.
+
+    Wraps in x (the scroll axis) so the sky can drift forever without a seam.
+    """
+    field = np.zeros((SKY_NZ, SKY_N, SKY_N), dtype=np.float32)
+    gz, gy, gx = np.mgrid[0:SKY_NZ, 0:SKY_N, 0:SKY_N].astype(np.float32)
+    # z is squashed relative to x/y: the slab is much thinner than it is wide, so
+    # a puff that is round in world units spans far fewer cells vertically.
+    zscale = (SKY_N / float(SKY_NZ)) * ((SKY_TOP - SKY_BASE) / (2.0 * SKY_HALF))
+
+    x, y = rng.uniform(0.25, 0.75) * SKY_N, rng.uniform(0.3, 0.7) * SKY_N
+    z = SKY_NZ * 0.42
+    head = rng.uniform(0.0, 360.0)
+    step, puff, depth = CLOUD_STEP0, CLOUD_PUFF0, 0
+    climb = 0.0
+    stack = []
+    todo = list(CLOUD_AXIOM)
+    guard = 0
+    while todo and guard < 4000:
+        guard += 1
+        c = todo.pop(0)
+        if c == "F":
+            x = (x + step * math.cos(math.radians(head))) % SKY_N
+            y = min(max(y + step * math.sin(math.radians(head)), 0.0), float(SKY_N - 1))
+            z = min(max(z + climb, 1.0), float(SKY_NZ - 2))
+            dx = np.abs(gx - x)
+            dx = np.minimum(dx, SKY_N - dx)  # nearest image across the seam
+            dz = (gz - z) * zscale
+            d2 = dx * dx + (gy - y) ** 2 + dz * dz
+            field += np.exp(-d2 / (2.0 * puff * puff)).astype(np.float32)
+        elif c == "+":
+            head += CLOUD_TURN
+        elif c == "-":
+            head -= CLOUD_TURN
+        elif c == "<":
+            puff *= CLOUD_PUFF_DECAY
+        elif c == "^":
+            climb += 0.55          # a turret climbs as it goes
+        elif c == "v":
+            climb -= 0.45          # a fringe sags away underneath
+        elif c == "[":
+            stack.append((x, y, z, head, step, puff, depth, climb))
+        elif c == "]":
+            if stack:
+                x, y, z, head, step, puff, depth, climb = stack.pop()
+        elif c in CLOUD_RULES and depth < CLOUD_DEPTH:
+            depth += 1
+            step *= CLOUD_STEP_DECAY
+            todo = list(CLOUD_RULES[c]) + todo
+
+    # Normalise on a high percentile, not the max: one spot where several
+    # branches overlap would otherwise set the scale and push the rest of the
+    # sky under the threshold.
+    m = float(np.percentile(field, 99.9))
+    if m > 0:
+        field = np.clip(field / m, 0.0, 1.0).astype(np.float32)
+    # Fade at the slab faces so nothing is cut off square.
+    return (field * _edge_fade * _zfade).astype(np.float32)
+
+
 _rng = np.random.default_rng(SEED)
-_cloud2d = np.zeros((SKY_N, SKY_N), dtype=np.float32)
-for _oct in (1.0, 2.3, 4.7, 9.1):  # enough octaves that the edges are ragged
-    _px, _py = _rng.uniform(0, 2 * math.pi, 2)
-    _cloud2d += (1.0 / _oct) * np.sin(_oct * _cx + _px) * np.cos(_oct * _cy * 1.3 + _py)
-_cloud2d = (_cloud2d - _cloud2d.min()) / (np.ptp(_cloud2d) or 1.0)
-_taper = np.sin(np.linspace(0, math.pi, SKY_NZ)).astype(np.float32)[:, None, None]
+# Several independent skies. One would only ever translate; crossfading between
+# them is what makes the cloud EVOLVE — puffs grow and dissolve in place rather
+# than sliding past like a painted backdrop.
+_cloud_maps = [walk_clouds(_rng) for _ in range(CLOUD_MAPS)]
+# Soft fade at the top and bottom faces of the slab, so a puff that drifts
+# against them is not sliced off square. Shape is now carried by the 3-D
+# deposits themselves, not by this.
+# The z faces are tapered above, but the x/y faces were a hard cut: cloud density
+# ran right up to the slab boundary, so the volume ended in a straight vertical
+# wall hanging in the sky. Fade to zero at every face instead.
 
 # A high threshold is what makes this read as CLOUD rather than as overcast: only
 # the top third of the noise becomes anything at all, so the slab is mostly holes
 # and you can see the sky (and the island) through the gaps.
-CLOUD_FLOOR = 0.62
+CLOUD_FLOOR = 0.10
 
 
-def sky_field(shift_cols):
-    base = np.roll(_cloud2d, int(shift_cols) % SKY_N, axis=1)
-    lumps = np.clip((base[None, :, :] - CLOUD_FLOOR) / (1.0 - CLOUD_FLOOR), 0.0, 1.0)
-    return (lumps * _taper).astype(np.float32)
+def _sky_raw(shift, morph):
+    """Density at a CONTINUOUS scroll offset and crossfade position.
+
+    Sub-cell scroll (adjacent integer shifts blended by the fractional part, so
+    the drift is smooth at any speed rather than jumping a whole column), and a
+    smoothstepped crossfade between independently grown 3-D skies so the cloud
+    changes SHAPE as it travels instead of sliding past rigidly.
+    """
+    i = int(math.floor(morph)) % CLOUD_MAPS
+    j = (i + 1) % CLOUD_MAPS
+    u = morph - math.floor(morph)
+    u = u * u * (3.0 - 2.0 * u)
+    vol = (1.0 - u) * _cloud_maps[i] + u * _cloud_maps[j]
+
+    k = int(math.floor(shift))
+    f = shift - k
+    vol = (1.0 - f) * np.roll(vol, k, axis=2) + f * np.roll(vol, k + 1, axis=2)
+
+    lumps = np.clip((vol - CLOUD_FLOOR) / (1.0 - CLOUD_FLOOR), 0.0, 1.0)
+    # Squaring keeps dense cores and pushes fringes into the transparent band,
+    # so clouds have edges and the sky between them is genuinely empty.
+    return lumps * lumps
+
+
+_SKY_NORM = max(float(_sky_raw(c, m).max())
+                for c in range(0, SKY_N, 8) for m in (0.0, 0.5, 1.0)) or 1.0
+
+
+def sky_field(shift, morph):
+    return (_sky_raw(shift, morph) / _SKY_NORM).astype(np.float32)
 
 
 # Same ordering rule as the sea: real voxels first, then the node, then the TF.
 _sky_vol = pycvc.volume(_app)
-_sky_vol.set_float_grid(sky_field(0).ravel().tolist(), SKY_N, SKY_N, SKY_NZ,
+_sky_vol.set_float_grid(sky_field(0.0, 0.0).ravel().tolist(), SKY_N, SKY_N, SKY_NZ,
                         -SKY_HALF, -SKY_HALF, SKY_BASE, SKY_HALF, SKY_HALF, SKY_TOP)
 _sky_grid = _sky_vol.grid()
 _sg.addGraphics("forest_sky", _sky_vol)
 _sky_node = _sg.volume_node("forest_sky")
+# Cloud is not a lit surface. VolumeNode defaults to SetShade(1), and volume
+# shading uses the scalar GRADIENT as its normal — on a soft noise field those
+# gradients are weak and noisy, so it buys nothing and costs the colour 70% of
+# its brightness to the 0.3 ambient term. Absorption/emission only, full
+# brightness. (This is NOT why the clouds looked dark; see the opacity note
+# below. It is just the right mode for cloud.)
+# Cloud shading was off while the field was a flat extruded slab — there were no
+# gradients worth lighting, only noise. Now that the grammar gives each column a
+# billow height the field HAS shape, so a directional light picks out the tops
+# and leaves the undersides dim, which is most of what makes cloud read as
+# volume rather than as fog. Ambient stays high so the shadowed side is grey-blue
+# rather than black.
+_sky_node.setShading(True)
+_sky_node.setAmbient(0.55)
+_sky_node.setDiffuse(0.85)
+_sky_node.setSpecular(0.0)
 # Opacity has to be MINUTE here, and the reason is easy to get wrong: VTK applies
 # the opacity function once per ScalarOpacityUnitDistance, which it derives from
 # the voxel spacing — about 0.12 world units for this slab. A ray crossing 22
 # units of sky therefore compounds the alpha ~180 times, so an innocent-looking
 # 0.085 saturates to a solid grey lid. These values are chosen so a ray through
 # the densest cloud lands near 0.6 total, and empty sky stays empty.
-_sky_node.setTransferFunction(
-    [0.0, 0.55, 0.60, 0.70, 0.5, 0.85, 0.88, 0.93, 1.0, 1.00, 1.00, 1.00],
-    [0.0, 0.0, 0.30, 0.0, 0.65, 0.0035, 1.0, 0.0110])
+# Empty sky must be EXACTLY invisible, so the transparent band is wide and flat:
+# alpha is pinned to 0 from 0 up to CLOUD_EMPTY, not ramped down towards it. A
+# ramp that merely approaches zero still accumulates over the ~180 samples a ray
+# takes through the slab, which is what turned clear sky into grey haze and made
+# the volume read as a box.
+CLOUD_EMPTY = 0.22
+
+
+def sky_transfer():
+    """Transfer function for the cloud slab.
+
+    Two things have to hold at once. Empty sky must be EXACTLY invisible, so the
+    transparent band is pinned flat at 0 rather than ramped down towards it — a
+    ramp that merely approaches zero still accumulates over the ~180 samples a
+    ray takes through the slab, which is what turned clear sky into grey haze
+    and made the volume read as a box. And cloud must be OPAQUE where it does
+    exist: composited over the sky, a puff that only reaches alpha 0.3 is 30%
+    of the background, which reads as dirty smoke. The cores have to reach
+    alpha ~1 to composite as white, which is only safe because the zeros are
+    pinned and the field is sparse.
+    """
+    color = [0.0, 0.72, 0.76, 0.82, 0.45, 0.92, 0.94, 0.97, 1.0, 1.00, 1.00, 1.00]
+    opacity = [0.0, 0.0, CLOUD_EMPTY, 0.0, 0.60, 0.075, 1.0, 0.200]
+    return color, opacity
+
+
+_sky_node.setTransferFunction(*sky_transfer())
+
+# -- the afternoon sun -------------------------------------------------------
+# The SCENE says what time of day it is, instead of inheriting whatever light
+# the host window happened to configure. That matters here because VTK's default
+# is a HEADLIGHT: it rides the camera, so it lights every surface head-on and
+# flattens exactly what this scene is made of -- the billow of a cloud, the roll
+# of a swell, the depth of a canopy. Fly around with a headlight and nothing
+# changes; fly around with a fixed sun and the island turns in the light.
+#
+# Elevation 34 degrees reads as mid-afternoon: high enough to catch the cloud
+# tops, low enough that the water throws a specular track back toward the camera
+# and the billows keep a shaded underside. The sun is warmed a little, and a dim
+# COOL fill from the opposite side keeps shadowed faces blue rather than black --
+# that fill stands in for sky light, it is not pretending to be a second sun.
+SUN_AZ = -52.0
+_sun = _sg.addDirectionalLight(SUN_AZ, 34.0, 1.0, 0.94, 0.82, 0.95)
+_fill = _sg.addDirectionalLight(128.0, 52.0, 0.55, 0.66, 0.85, 0.55)
+
+# Shadow mapping installs passes on the RENDER TARGET, so it can only succeed
+# once the scene is attached to one. Under volrover3 that has already happened
+# and this returns True. In a headless harness that builds the scene before any
+# renderer exists it returns False -- in which case the scene is simply lit
+# without shadows, rather than failing to load.
+_shadows = _sg.setShadowsEnabled(True)
+print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows %s"
+      % (SUN_AZ, _sg.numLights(),
+         "on" if _shadows else "unavailable (no render target yet)"))
 
 # Bounds over everything, so the grid resizes and the camera's orbit centre lands
 # on the island. This is the only thing the script does to the view.
 vrhost.set_world_bounds(*_sg.compute_graphics_bounds())
 
-for _k, _v in (("speed", 1), ("waves", 1), ("clouds", 1), ("wind", 1)):
+# -- the sun itself, and an honest half of a lens flare -----------------------
+# Added AFTER set_world_bounds deliberately. The disc sits ~430 units out, and
+# folding that into compute_graphics_bounds would push the camera reset back far
+# enough to turn the island into a speck. The sun is scenery, not world.
+#
+# Flat-lit rather than shaded: ambient 1, no diffuse, no specular. A shaded ball
+# out there would be lit from BEHIND -- by its own light -- and render as a dark
+# disc, which is the one thing a sun must not be.
+SUN_DIST = 430.0
+SUN_R = 13.0
+
+
+def sun_dir(az_deg, el_deg):
+    """Unit vector toward the sun, matching addDirectionalLight's az/el convention."""
+    az, el = math.radians(az_deg), math.radians(el_deg)
+    return np.array([math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)])
+
+
+def disc_mesh(app, centre, normal, radius, seg=48):
+    """A triangle-fan disc facing `normal`, built in the plane perpendicular to it."""
+    n = np.asarray(normal, dtype=float)
+    n = n / np.linalg.norm(n)
+    # Any vector not parallel to n works to start the basis; swap near the poles.
+    up = np.array([0.0, 0.0, 1.0]) if abs(n[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(n, up)
+    u /= np.linalg.norm(u)
+    v = np.cross(n, u)
+    th = np.linspace(0.0, 2.0 * math.pi, seg, endpoint=False)
+    c = np.asarray(centre, dtype=float)
+    rim = c[None, :] + radius * (np.cos(th)[:, None] * u[None, :] + np.sin(th)[:, None] * v[None, :])
+    pts = np.vstack((c[None, :], rim))
+    i = np.arange(seg)
+    tris = np.column_stack((np.zeros(seg, dtype=int), 1 + i, 1 + (i + 1) % seg)).ravel()
+    g = pycvc.geometry(app)
+    g.add_vertices(pts.ravel().tolist())
+    g.add_triangles(tris.tolist())
+    return g
+
+
+def _sun_geoms(el_deg):
+    d = sun_dir(SUN_AZ, el_deg)
+    c = d * SUN_DIST
+    face = -d  # face the origin, which is where the camera orbits
+    # The halo sits fractionally FARTHER out so the disc always wins the depth test.
+    return (disc_mesh(_app, c, face, SUN_R),
+            disc_mesh(_app, c * 1.02, face, SUN_R * 3.2))
+
+
+_disc_g, _halo_g = _sun_geoms(34.0)
+_sun_disc = _sg.addGraphics("forest_sun", _disc_g)
+_sun_disc.setColor(1.0, 0.97, 0.88)
+_sun_disc.setAmbient(1.0)
+_sun_disc.setDiffuse(0.0)
+_sun_disc.setSpecular(0.0)
+
+# A wider, fainter disc behind it: the corona/bloom you actually see around a
+# bright source. This is the half of "lens flare" that can be done honestly in
+# world space. The ghosts -- the chain of coloured discs along the axis from the
+# sun through screen centre -- are a SCREEN-space effect: their positions depend
+# on where the sun projects in the image, so they need a post-processing pass
+# over the rendered frame, which cvcGL does not expose yet. Faking them with
+# world-space quads would put them at fixed 3-D points that only line up from
+# one camera angle, and this scene is meant to be flown around.
+_sun_halo = _sg.addGraphics("forest_sun_halo", _halo_g)
+_sun_halo.setColor(1.0, 0.90, 0.72)
+_sun_halo.setAmbient(1.0)
+_sun_halo.setDiffuse(0.0)
+_sun_halo.setSpecular(0.0)
+_sun_halo.setOpacity(0.22)
+
+
+def place_sun(el_deg):
+    """Aim the light and move the disc together, so they cannot disagree."""
+    _sg.setLightDirection(_sun, SUN_AZ, el_deg)
+    dg, hg = _sun_geoms(el_deg)
+    _sun_disc.setGeometry(dg)
+    _sun_halo.setGeometry(hg)
+
+for _k, _v in (("speed", 1), ("waves", 1), ("clouds", 1), ("wind", 1),
+               ("sun", 34)):
     pycvc.state_set(_app, STATE + "." + _k, str(_v))
 
 _clock = pycvc.world_clock(SIM_DT)
@@ -506,11 +868,11 @@ _t = 0.0
 _primed = False
 _stalled = False
 _TREE_AXIS = (0.0, 1.0, 0.0)
-_sky_col = -1  # last cloud column offset uploaded (see step)
+_sun_el = 34.0  # last elevation pushed, so we only re-aim when it moves
 _bucket = 0  # which slice of the forest gets re-posed this frame
 TREE_STAGGER = 3
 
-print("lsystem_forest: running — %d nodes. Set %s.speed / .waves / .clouds / .wind."
+print("lsystem_forest: running — %d nodes. Set %s.speed / .waves / .clouds / .wind / .sun."
       % (_sg.num_graphics(), STATE))
 
 
@@ -522,7 +884,7 @@ def _state_float(key, default):
 
 
 def step(dt):
-    global _t, _primed, _stalled, _sky_col, _bucket
+    global _t, _primed, _stalled, _bucket, _sun_el
 
     if not _primed:
         # Scene setup (meshes, 2 volumes, node creation) blocks for seconds and
@@ -532,6 +894,13 @@ def step(dt):
             dt = SIM_DT
         else:
             _primed = True
+
+    el = _state_float("sun", 34.0)
+    if abs(el - _sun_el) > 1e-3:
+        # Sweep this down toward the horizon for evening light: the specular
+        # track on the water stretches and the cloud undersides catch the warm.
+        _sun_el = el
+        place_sun(el)
 
     _clock.set_scale(_state_float("speed", 1.0))
     r = _clock.advance(dt)
@@ -551,24 +920,25 @@ def step(dt):
         _sea_node.setTransferFunction(*sea_transfer(_t))
 
     if _state_float("clouds", 1.0):
-        # The slab scrolls under a whole column per second, so re-uploading it
-        # every frame would push identical voxels 60 times a second. Only when
-        # the integer offset actually changes is there anything new to send.
-        col = int(_t * CLOUD_DRIFT * SKY_N / (2 * SKY_HALF))
-        if col != _sky_col:
-            _sky_col = col
-            _sky_grid[:] = sky_field(col)
-            _sky_node.setVolume(_sky_vol)
+        # Continuous now, so this runs every frame rather than only when an
+        # integer column ticked over. That gating is precisely what made the
+        # drift snap; paying for it every frame is the cost of fluid motion.
+        shift = _t * CLOUD_DRIFT * SKY_N / (2 * SKY_HALF)
+        morph = _t / CLOUD_MORPH_S * CLOUD_MAPS
+        _sky_grid[:] = sky_field(shift, morph)
+        _sky_node.setVolume(_sky_vol)
+        # setVolume RESETS the transfer function to VolumeNode's default
+        # grayscale ramp, so it must be re-applied after every upload.
+        _sky_node.setTransferFunction(*sky_transfer())
 
     if _state_float("wind", 1.0):
-        # Each tree leans on its own phase. One transform per tree — the forest's
-        # counterpart to lsystem_tree.py's per-module sway. Spread over
-        # TREE_STAGGER frames: the sway is a ~5 s cycle, so a two-frame lag on
-        # part of the forest is invisible and it keeps setTransform (which
-        # cascades into each tree's needle child) off the critical path.
+        # Pose only the upper modules; the rest of each tree follows through the
+        # graph, so the sway ACCUMULATES and the tips travel further than the
+        # trunk — the original demo's motion rather than a rigid lean. Spread
+        # over TREE_STAGGER frames: the sway is a ~5 s cycle, so a two-frame lag
+        # on part of the forest is invisible.
         _bucket = (_bucket + 1) % TREE_STAGGER
-        for i in range(_bucket, len(_trees), TREE_STAGGER):
-            tr = _trees[i]
-            a = tr["sway"] * math.sin(1.3 * _t + tr["phase"])
-            m = mat_translate(*tr["pos"]) @ mat_rotate(a, *_TREE_AXIS)
-            tr["node"].setTransform(m.ravel().tolist())
+        for i in range(_bucket, len(_swayers), TREE_STAGGER):
+            m = _swayers[i]
+            a = m.sway * math.sin(1.3 * _t + m.phase)
+            m.node.setTransform((m.hang @ mat_rotate(a, *_TREE_AXIS)).ravel().tolist())
