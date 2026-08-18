@@ -444,7 +444,7 @@ for _n, (_sx, _sy) in enumerate(_dry):
     # One phase per TREE, not per module: the modules of a tree must lean
     # together or it reads as a bush in a blender rather than a tree in wind.
     _ph = random.uniform(0.0, 2 * math.pi)
-    _sw = 0.010 + 0.008 * random.random()
+    _sw = 0.020 + 0.016 * random.random()  # ~1-2 deg per level; accumulates down the tree
     for _m in _mods:
         if not _m.segs:
             continue
