@@ -165,15 +165,15 @@ CLOUD_DEPTH = 6
 CLOUD_TURN = 32.0     # degrees per + / -
 CLOUD_STEP0 = 6.5     # first drift, in map cells
 CLOUD_STEP_DECAY = 0.9
-CLOUD_PUFF0 = 4.0     # first puff radius, in map cells
+CLOUD_PUFF0 = 7.0     # first puff radius, in map cells
 CLOUD_PUFF_DECAY = 0.88
 CLOUD_MAPS = 2        # independent skies, crossfaded so cloud EVOLVES
 CLOUD_MORPH_S = 26.0  # seconds for a full crossfade cycle
 
 # ── the sky volume ───────────────────────────────────────────────────────────
-SKY_N = 64
-SKY_NZ = 14
-SKY_BASE, SKY_TOP = 82.0, 104.0
+SKY_N = 48
+SKY_NZ = 22
+SKY_BASE, SKY_TOP = 74.0, 122.0  # a deep slab, so a puff can be round rather than a disc
 CLOUD_DRIFT = 5.0  # world units per second
 SKY_HALF = 150.0  # the cloud slab overhangs the island a little
 
@@ -568,42 +568,51 @@ _sea_node.setSpecularPower(70.0)
 
 # Band-limited noise: a few octaves of sine in x/y, tapered top and bottom so the
 # slab has soft faces rather than a hard cut.
-def walk_clouds(rng):
-    """Run the cloud turtle; return an (SKY_N, SKY_N) density map.
+# Soft fades at the slab faces so a puff drifting against one is not sliced
+# off square. Shape itself comes from the 3-D deposits, not from these.
+_w = np.hanning(SKY_N).astype(np.float32) ** 0.5
+_edge_fade = np.minimum.outer(_w, _w)[None, :, :]
+_zfade = np.sin(np.linspace(0.12, math.pi - 0.12, SKY_NZ)).astype(np.float32)[:, None, None]
 
-    Deposits a soft radial puff per F. Because the turtle BRANCHES, the union of
-    those puffs has concave, ragged outline — the thing summed sine octaves
-    cannot produce. The map wraps in x so it can scroll forever without a seam.
+
+def walk_clouds(rng):
+    """Run the cloud turtle; return a full 3-D (nz, ny, nx) density field.
+
+    The turtle moves in 3-D and deposits a 3-D Gaussian per F, so a puff is a
+    BALL, not a column. This is what rounds the undersides: the previous version
+    built a 2-D map and extruded it under a per-column ceiling, which domes the
+    top but leaves every cloud sitting on the slab floor with a flat bottom, and
+    no amount of shading hides that. Branching in 3-D is also what lets a turret
+    genuinely sit above and behind its parent rather than merely being taller.
+
+    Wraps in x (the scroll axis) so the sky can drift forever without a seam.
     """
-    field = np.zeros((SKY_N, SKY_N), dtype=np.float32)
-    top = np.zeros((SKY_N, SKY_N), dtype=np.float32)  # billow height per column
-    gy, gx = np.mgrid[0:SKY_N, 0:SKY_N].astype(np.float32)
-    lift = 0.55
+    field = np.zeros((SKY_NZ, SKY_N, SKY_N), dtype=np.float32)
+    gz, gy, gx = np.mgrid[0:SKY_NZ, 0:SKY_N, 0:SKY_N].astype(np.float32)
+    # z is squashed relative to x/y: the slab is much thinner than it is wide, so
+    # a puff that is round in world units spans far fewer cells vertically.
+    zscale = (SKY_N / float(SKY_NZ)) * ((SKY_TOP - SKY_BASE) / (2.0 * SKY_HALF))
 
     x, y = rng.uniform(0.25, 0.75) * SKY_N, rng.uniform(0.3, 0.7) * SKY_N
+    z = SKY_NZ * 0.42
     head = rng.uniform(0.0, 360.0)
     step, puff, depth = CLOUD_STEP0, CLOUD_PUFF0, 0
+    climb = 0.0
     stack = []
     todo = list(CLOUD_AXIOM)
     guard = 0
-    while todo and guard < 6000:
+    while todo and guard < 4000:
         guard += 1
         c = todo.pop(0)
         if c == "F":
-            x += step * math.cos(math.radians(head))
-            y += step * math.sin(math.radians(head))
-            # Wrap in x (the scroll axis) and clamp in y.
-            x %= SKY_N
-            y = min(max(y, 0.0), float(SKY_N - 1))
-            # Nearest image in x, so a puff near the seam deposits on both sides.
+            x = (x + step * math.cos(math.radians(head))) % SKY_N
+            y = min(max(y + step * math.sin(math.radians(head)), 0.0), float(SKY_N - 1))
+            z = min(max(z + climb, 1.0), float(SKY_NZ - 2))
             dx = np.abs(gx - x)
-            dx = np.minimum(dx, SKY_N - dx)
-            d2 = dx * dx + (gy - y) ** 2
-            blob = np.exp(-d2 / (2.0 * puff * puff)).astype(np.float32)
-            field += blob
-            # Taller where the grammar has lifted and where puffs are fat: a
-            # turret stacks height, a fringe stays flat.
-            top = np.maximum(top, blob * lift * (0.45 + 0.55 * puff / CLOUD_PUFF0))
+            dx = np.minimum(dx, SKY_N - dx)  # nearest image across the seam
+            dz = (gz - z) * zscale
+            d2 = dx * dx + (gy - y) ** 2 + dz * dz
+            field += np.exp(-d2 / (2.0 * puff * puff)).astype(np.float32)
         elif c == "+":
             head += CLOUD_TURN
         elif c == "-":
@@ -611,91 +620,71 @@ def walk_clouds(rng):
         elif c == "<":
             puff *= CLOUD_PUFF_DECAY
         elif c == "^":
-            lift = min(lift * 1.5, 1.0)
+            climb += 0.55          # a turret climbs as it goes
         elif c == "v":
-            lift = max(lift * 0.62, 0.12)
+            climb -= 0.45          # a fringe sags away underneath
         elif c == "[":
-            stack.append((x, y, head, step, puff, depth, lift))
+            stack.append((x, y, z, head, step, puff, depth, climb))
         elif c == "]":
             if stack:
-                x, y, head, step, puff, depth, lift = stack.pop()
+                x, y, z, head, step, puff, depth, climb = stack.pop()
         elif c in CLOUD_RULES and depth < CLOUD_DEPTH:
             depth += 1
             step *= CLOUD_STEP_DECAY
             todo = list(CLOUD_RULES[c]) + todo
-    # Normalise on a high PERCENTILE, not the max: a single spot where several
+
+    # Normalise on a high percentile, not the max: one spot where several
     # branches overlap would otherwise set the scale and push the rest of the
-    # sky under the threshold, leaving two lonely puffs.
-    m = float(np.percentile(field, 99.0))
-    field = np.clip(field / m, 0.0, 1.0).astype(np.float32) if m > 0 else field
-    tm = float(top.max())
-    return field, (top / tm).astype(np.float32) if tm > 0 else top
+    # sky under the threshold.
+    m = float(np.percentile(field, 99.9))
+    if m > 0:
+        field = np.clip(field / m, 0.0, 1.0).astype(np.float32)
+    # Fade at the slab faces so nothing is cut off square.
+    return (field * _edge_fade * _zfade).astype(np.float32)
 
 
 _rng = np.random.default_rng(SEED)
 # Several independent skies. One would only ever translate; crossfading between
 # them is what makes the cloud EVOLVE — puffs grow and dissolve in place rather
 # than sliding past like a painted backdrop.
-_cloud_pairs = [walk_clouds(_rng) for _ in range(CLOUD_MAPS)]
-_cloud_maps = [d for d, _t in _cloud_pairs]
-_cloud_tops = [t for _d, t in _cloud_pairs]
-# Normalised height through the slab (0 at the base, 1 at the top). The old
-# fixed sine taper is gone: height now comes from the per-column billow.
-_zn = np.linspace(0.0, 1.0, SKY_NZ).astype(np.float32)[:, None, None]
+_cloud_maps = [walk_clouds(_rng) for _ in range(CLOUD_MAPS)]
+# Soft fade at the top and bottom faces of the slab, so a puff that drifts
+# against them is not sliced off square. Shape is now carried by the 3-D
+# deposits themselves, not by this.
 # The z faces are tapered above, but the x/y faces were a hard cut: cloud density
 # ran right up to the slab boundary, so the volume ended in a straight vertical
 # wall hanging in the sky. Fade to zero at every face instead.
-_w = np.hanning(SKY_N).astype(np.float32) ** 0.5
-_edge_fade = np.minimum.outer(_w, _w)[None, :, :]
 
 # A high threshold is what makes this read as CLOUD rather than as overcast: only
 # the top third of the noise becomes anything at all, so the slab is mostly holes
 # and you can see the sky (and the island) through the gaps.
-CLOUD_FLOOR = 0.15
+CLOUD_FLOOR = 0.10
 
 
 def _sky_raw(shift, morph):
     """Density at a CONTINUOUS scroll offset and crossfade position.
 
-    Two things make this fluid rather than steppy. The scroll is sub-cell: the
-    slab used to jump a whole column at a time (np.roll takes an integer), which
-    is exactly the snapping — here adjacent integer shifts are blended by the
-    fractional part, so the drift is smooth at any speed. And the map itself is a
-    crossfade between independent grammar-grown skies, so the cloud changes SHAPE
-    as it travels instead of being a rigid pattern sliding past.
+    Sub-cell scroll (adjacent integer shifts blended by the fractional part, so
+    the drift is smooth at any speed rather than jumping a whole column), and a
+    smoothstepped crossfade between independently grown 3-D skies so the cloud
+    changes SHAPE as it travels instead of sliding past rigidly.
     """
     i = int(math.floor(morph)) % CLOUD_MAPS
     j = (i + 1) % CLOUD_MAPS
-    # Smoothstep the blend so the crossfade has no visible kick at either end.
     u = morph - math.floor(morph)
     u = u * u * (3.0 - 2.0 * u)
-    base2d = (1.0 - u) * _cloud_maps[i] + u * _cloud_maps[j]
-    top2d = (1.0 - u) * _cloud_tops[i] + u * _cloud_tops[j]
+    vol = (1.0 - u) * _cloud_maps[i] + u * _cloud_maps[j]
 
-    c = int(math.floor(shift))
-    f = shift - c
-    base = (1.0 - f) * np.roll(base2d, c, axis=1) + f * np.roll(base2d, c + 1, axis=1)
-    top = (1.0 - f) * np.roll(top2d, c, axis=1) + f * np.roll(top2d, c + 1, axis=1)
+    k = int(math.floor(shift))
+    f = shift - k
+    vol = (1.0 - f) * np.roll(vol, k, axis=2) + f * np.roll(vol, k + 1, axis=2)
 
-    lumps = np.clip((base[None, :, :] - CLOUD_FLOOR) / (1.0 - CLOUD_FLOOR), 0.0, 1.0)
-    # Square it: a linear ramp out of the threshold spreads thin haze over
-    # everything above the floor, which reads as overcast. Squaring keeps the
-    # dense cores and pushes the fringes towards the transparent band, so the
-    # clouds have edges and the sky between them is genuinely empty.
-    # BILLOW. The slab used to be a 2-D map extruded through a fixed vertical
-    # taper, so every cloud was the same height and the whole thing read as a
-    # sheet. Each column now gets its own ceiling from the grammar's turrets, so
-    # the field domes: dense columns tower, fringes stay flat, and the resulting
-    # gradients are what the directional light has to bite on.
-    ceiling = 0.28 + 0.72 * top[None, :, :]
-    profile = np.clip(1.0 - (_zn / np.maximum(ceiling, 1e-3)) ** 2, 0.0, 1.0)
-    return lumps * lumps * profile * _edge_fade
+    lumps = np.clip((vol - CLOUD_FLOOR) / (1.0 - CLOUD_FLOOR), 0.0, 1.0)
+    # Squaring keeps dense cores and pushes fringes into the transparent band,
+    # so clouds have edges and the sky between them is genuinely empty.
+    return lumps * lumps
 
 
-# Sampled across BOTH axes of variation — scroll offset and crossfade position —
-# because the pattern rolls under a fixed edge window and blends between maps, so
-# the peak moves on both. Normalising on one sample let the field drift past 1.0
-# later and saturate silently against the top of the ramp.
 _SKY_NORM = max(float(_sky_raw(c, m).max())
                 for c in range(0, SKY_N, 8) for m in (0.0, 0.5, 1.0)) or 1.0
 
