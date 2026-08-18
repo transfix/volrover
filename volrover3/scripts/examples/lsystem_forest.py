@@ -781,6 +781,84 @@ print("lsystem_forest: sun at az %.0f el 34 (%d lights); shadows %s"
 # on the island. This is the only thing the script does to the view.
 vrhost.set_world_bounds(*_sg.compute_graphics_bounds())
 
+# -- the sun itself, and an honest half of a lens flare -----------------------
+# Added AFTER set_world_bounds deliberately. The disc sits ~430 units out, and
+# folding that into compute_graphics_bounds would push the camera reset back far
+# enough to turn the island into a speck. The sun is scenery, not world.
+#
+# Flat-lit rather than shaded: ambient 1, no diffuse, no specular. A shaded ball
+# out there would be lit from BEHIND -- by its own light -- and render as a dark
+# disc, which is the one thing a sun must not be.
+SUN_DIST = 430.0
+SUN_R = 13.0
+
+
+def sun_dir(az_deg, el_deg):
+    """Unit vector toward the sun, matching addDirectionalLight's az/el convention."""
+    az, el = math.radians(az_deg), math.radians(el_deg)
+    return np.array([math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)])
+
+
+def disc_mesh(app, centre, normal, radius, seg=48):
+    """A triangle-fan disc facing `normal`, built in the plane perpendicular to it."""
+    n = np.asarray(normal, dtype=float)
+    n = n / np.linalg.norm(n)
+    # Any vector not parallel to n works to start the basis; swap near the poles.
+    up = np.array([0.0, 0.0, 1.0]) if abs(n[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(n, up)
+    u /= np.linalg.norm(u)
+    v = np.cross(n, u)
+    th = np.linspace(0.0, 2.0 * math.pi, seg, endpoint=False)
+    c = np.asarray(centre, dtype=float)
+    rim = c[None, :] + radius * (np.cos(th)[:, None] * u[None, :] + np.sin(th)[:, None] * v[None, :])
+    pts = np.vstack((c[None, :], rim))
+    i = np.arange(seg)
+    tris = np.column_stack((np.zeros(seg, dtype=int), 1 + i, 1 + (i + 1) % seg)).ravel()
+    g = pycvc.geometry(app)
+    g.add_vertices(pts.ravel().tolist())
+    g.add_triangles(tris.tolist())
+    return g
+
+
+def _sun_geoms(el_deg):
+    d = sun_dir(SUN_AZ, el_deg)
+    c = d * SUN_DIST
+    face = -d  # face the origin, which is where the camera orbits
+    # The halo sits fractionally FARTHER out so the disc always wins the depth test.
+    return (disc_mesh(_app, c, face, SUN_R),
+            disc_mesh(_app, c * 1.02, face, SUN_R * 3.2))
+
+
+_disc_g, _halo_g = _sun_geoms(34.0)
+_sun_disc = _sg.addGraphics("forest_sun", _disc_g)
+_sun_disc.setColor(1.0, 0.97, 0.88)
+_sun_disc.setAmbient(1.0)
+_sun_disc.setDiffuse(0.0)
+_sun_disc.setSpecular(0.0)
+
+# A wider, fainter disc behind it: the corona/bloom you actually see around a
+# bright source. This is the half of "lens flare" that can be done honestly in
+# world space. The ghosts -- the chain of coloured discs along the axis from the
+# sun through screen centre -- are a SCREEN-space effect: their positions depend
+# on where the sun projects in the image, so they need a post-processing pass
+# over the rendered frame, which cvcGL does not expose yet. Faking them with
+# world-space quads would put them at fixed 3-D points that only line up from
+# one camera angle, and this scene is meant to be flown around.
+_sun_halo = _sg.addGraphics("forest_sun_halo", _halo_g)
+_sun_halo.setColor(1.0, 0.90, 0.72)
+_sun_halo.setAmbient(1.0)
+_sun_halo.setDiffuse(0.0)
+_sun_halo.setSpecular(0.0)
+_sun_halo.setOpacity(0.22)
+
+
+def place_sun(el_deg):
+    """Aim the light and move the disc together, so they cannot disagree."""
+    _sg.setLightDirection(_sun, SUN_AZ, el_deg)
+    dg, hg = _sun_geoms(el_deg)
+    _sun_disc.setGeometry(dg)
+    _sun_halo.setGeometry(hg)
+
 for _k, _v in (("speed", 1), ("waves", 1), ("clouds", 1), ("wind", 1),
                ("sun", 34)):
     pycvc.state_set(_app, STATE + "." + _k, str(_v))
@@ -822,7 +900,7 @@ def step(dt):
         # Sweep this down toward the horizon for evening light: the specular
         # track on the water stretches and the cloud undersides catch the warm.
         _sun_el = el
-        _sg.setLightDirection(_sun, SUN_AZ, el)
+        place_sun(el)
 
     _clock.set_scale(_state_float("speed", 1.0))
     r = _clock.advance(dt)
