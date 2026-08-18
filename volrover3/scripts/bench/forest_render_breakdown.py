@@ -66,9 +66,15 @@ def load_scene():
 def main():
     app, sg, mod, quiet = load_scene()
 
-    trees = mod.__dict__.get("_trees", [])
-    needles = [m.needles for m in trees if getattr(m, "needles", None) is not None]
-    wood = [m.node for m in trees if getattr(m, "node", None) is not None]
+    # Route C merges each tree to ONE wood actor (+ ONE needle actor); older
+    # revisions of the example exposed a per-module `_trees` list instead.
+    forest = mod.__dict__.get("_forest", [])
+    wood = [t.wood_node for t in forest if getattr(t, "wood_node", None) is not None]
+    needles = [t.needle_node for t in forest if getattr(t, "needle_node", None) is not None]
+    if not forest:  # legacy per-module structure
+        trees = mod.__dict__.get("_trees", [])
+        needles = [m.needles for m in trees if getattr(m, "needles", None) is not None]
+        wood = [m.node for m in trees if getattr(m, "node", None) is not None]
     vols = [n for n in (mod.__dict__.get("_sea_node"), mod.__dict__.get("_sky_node")) if n]
 
     print("scene: %d nodes  (%d needle actors, %d wood actors, %d volumes)"
@@ -130,6 +136,40 @@ def main():
     print("  step() + processEvents        %8.1f ms" % sim)
     print("  render                        %8.1f ms" % base)
     print("  => a live frame is about      %8.1f ms  (%.1f fps)" % (sim + base, 1000.0 / (sim + base)))
+
+    # What INSIDE step() costs? The commit that added this scene attributed step() to
+    # "the volume field rebuild in numpy". Time the pieces directly and let the numbers
+    # settle it: the numpy is cheap; setVolume() is what costs, because it re-imports the
+    # whole volume into VTK every call (deep-copies the cvc::volume, reallocates the
+    # vtkImageData, memcpys every voxel, resets the transfer function) even though the
+    # grid was already written in place. See fix #1 in docs/RENDER_PERFORMANCE.md.
+    d = mod.__dict__
+
+    def _ms(fn, reps=20):
+        fn()  # warm
+        t0 = time.time()
+        for _ in range(reps):
+            fn()
+        return (time.time() - t0) / reps * 1000.0
+
+    print("\nSTEP BREAKDOWN (what step() spends its time on):")
+    if "sea_field" in d:
+        tt = 7.3  # a nonzero sim time
+        sea_np = _ms(lambda: d["sea_field"](tt))
+        sea_sv = _ms(lambda: d["_sea_node"].setVolume(d["_sea_vol"]))
+        print("  sea_field(t)  [numpy]         %8.2f ms" % sea_np)
+        print("  sea setVolume() [re-import]   %8.2f ms" % sea_sv)
+    if "sky_field" in d:
+        SKY_N, SKY_HALF = d["SKY_N"], d["SKY_HALF"]
+        CD, CM, CMAPS = d["CLOUD_DRIFT"], d["CLOUD_MORPH_S"], d["CLOUD_MAPS"]
+        shift, morph = 7.3 * CD * SKY_N / (2 * SKY_HALF), 7.3 / CM * CMAPS
+        sky_np = _ms(lambda: d["sky_field"](shift, morph))
+        sky_sv = _ms(lambda: d["_sky_node"].setVolume(d["_sky_vol"]))
+        print("  sky_field(shift,morph) [numpy]%8.2f ms" % sky_np)
+        print("  sky setVolume() [re-import]   %8.2f ms" % sky_sv)
+    print("  NOTE: setVolume's GPU re-upload happens at render, so its full per-frame cost")
+    print("        is higher live than this CPU-side re-import shows. The numpy is the floor,")
+    print("        and it is small -- the field rebuild is NOT where step() goes.")
 
     # Shadows: affordable or not, at this actor count?
     #
