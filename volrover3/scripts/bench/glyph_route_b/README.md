@@ -53,6 +53,12 @@ export __GL_SYNC_TO_VBLANK=0 vblank_mode=0    # required for bench_bark.py to be
 - `compare_quality.py` — route B vs C side-by-side (needles pixel-perfect, IoU 1.0).
 - `bench.py [n_trees]` — fps/cost B vs C; render is O(1) in actors for B, O(actors)
   for C. The per-frame CPU pose dominates both and B doesn't reduce it.
+- `scaling_bench.py [trees...]` — B vs C from 70→300 trees (needs vsync off,
+  `__GL_SYNC_TO_VBLANK=0`): B's render stays flat, C's grows O(actors), and the
+  shared pose is the wall — render is never the bottleneck even at 300 trees.
+- `profile_pose.py [n_trees]` — breaks the pose into cascade / numpy instances /
+  marshal; shows ~80 % is per-instance numpy overhead (<1 ms arithmetic floor), i.e.
+  a C++/cvcGL pose would be ~20–50× cheaper. See RENDER_PERFORMANCE.md.
 - `bench_bark.py [n_trees]` — cost of bark: fragment bump ≈ free; vertex
   displacement free but needs tessellation (+~3 ms GPU, +~4 % of the frame).
 - `shadow_test.py` / `shadow_isolate.py` — the wood shader survives the shadow

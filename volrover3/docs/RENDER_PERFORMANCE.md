@@ -390,8 +390,12 @@ numbers; the doc's own rule still applies.
 **Verdict: B is real and de-risked, but not worth a cvcGL `GlyphNode` today.** It reproduces route
 C's look almost exactly and slashes render cost, but the cost it slashes — tree *render* — is one
 route C already brought under budget, while the cost that actually dominates now (the per-frame CPU
-pose) is untouched by B. Build it only if the forest grows several-fold or a scene becomes
-draw-call bound.
+pose) is untouched by B. The scaling and profiling below sharpen this: B pulls *further* ahead as the
+forest grows (never a crossover to C), yet even at 300 trees the render is not the bottleneck — the
+**Python pose is** (~89 % of the frame, and almost all of it numpy/Python overhead, not arithmetic).
+So the ordered plan is: **move the pose to C++/cvcGL first** (a ~20–50× win, route-agnostic, the only
+thing that makes 200–300 trees viable) — and *that* is what promotes route B from redundant to the
+clear win, because it uncovers the O(actors)-vs-O(1) render difference the pose was masking.
 
 ### The wood-colour loss is recoverable (the blocker is gone)
 
@@ -467,9 +471,81 @@ Two things the numbers say plainly:
 The honest reading: route C already took tree render from ~194 ms to ~0.4 ms of the *scene*. B would
 take that ~0.4 ms to ~0.2 ms — a real multiple, an irrelevant absolute — while adding the wood-lighting
 regression above and a new `GlyphNode` + instance-array binding surface. **Escalate to B only when
-draw calls actually bite: a forest of several hundred trees, or a genuinely draw-call-bound scene.**
+draw calls actually bite** — and the scaling data below shows that condition is *not* a tree count.
 The spike removes B's unknowns (colour recovered, shadows safe, quaternion nailed), so if that day
 comes it is ~1–2 days, not the pre-spike 3–5.
+
+### Scaling to 200–300 trees: B pulls *further* ahead — but the pose is the wall (`scaling_bench.py`)
+
+The natural test of "escalate at N trees" is to grow the forest. Same harness, vsync disabled so the
+render is not floored at 1/60 s (`update` is the shared CPU pose, ~equal for both; render is the pure
+back-to-back GPU cost):
+
+| trees | C actors | pose | C render | B render | render C/B | C fps | B fps | B/C fps |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 70  | 140 | ~70 ms  | 7.0 ms  | 3.1 ms | 2.3× | 9.0 | 13.3 | 1.48× |
+| 140 | 280 | ~132 ms | 13.8 ms | 1.2 ms | 11.9× | 4.6 | 7.2 | 1.56× |
+| 200 | 400 | ~207 ms | 28.7 ms | 4.8 ms | 6.0× | 2.7 | 5.0 | **1.83×** |
+| 250 | 500 | ~265 ms | 27.7 ms | 5.6 ms | 5.0× | 2.4 | 4.0 | 1.67× |
+| 300 | 600 | ~307 ms | 36.6 ms | 4.7 ms | 7.8× | 1.9 | 3.3 | 1.74× |
+
+Two conclusions, one of them a correction to the "escalate at several hundred trees" line above:
+
+* **There is no crossover. B renders cheaper at every scale and the gap widens** — C's render grows
+  ~linearly with actors (7→14→29→28→37 ms) while B's stays flat (~1–6 ms, noisy because it is
+  single-digit-ms async GPU). B is even marginally cheaper on the pose, so C is *never* the faster
+  route. If anyone expected C to overtake B at scale, the mechanism forbids it: O(actors) vs O(1).
+* **But render is *never the bottleneck* in this range — the pose is.** Even at 300 trees, C's render
+  is 37 ms against a **307 ms pose**: the draw path is ~11 % of the frame, the Python wind cascade is
+  ~89 %. Growing the forest makes *both* routes slow via the shared pose, not via draw calls, so B's
+  structural render win only buys ~1.7–1.8× (≈2→3 fps) — real, but nowhere near realtime.
+
+So the trigger for building route B is **not a headcount** — it is "the frame is actually draw-call
+bound," and at 300 trees it is not, because the pose dominates. That condition is reached only *after*
+the pose is made cheap. Attack the pose first (next section); it helps both routes equally, and only
+then does C's O(actors) render become the dominant remaining cost that B's flat render erases.
+
+### The pose is a Python-overhead problem: what a C++/cvcGL rewrite would buy (`profile_pose.py`)
+
+The pose is not expensive because the math is expensive. Broken into phases at 200 trees (~5 300
+modules, ~43 500 instances):
+
+| phase | ms | share |
+|---|---:|---:|
+| cascade — per-module Python loop of 4×4 matmuls | 30 | 16 % |
+| instances — batched numpy matmul + quaternion | 153 | 81 % |
+| marshal — `np.concatenate` + `numpy_to_vtk` | 5 | 3 % |
+
+The 81 % is the surprise: it is not the wind cascade, it is the per-instance transform→quaternion
+math, and it is **almost all numpy/Python overhead, not arithmetic**:
+
+* The measured **arithmetic floor is <1 ms** — ~6.6 M FLOPs for 43 500 instances (a 4×4 matmul + a
+  matrix→quaternion each). At memory bandwidth the ~1.7 MB of instance output is also sub-ms.
+* Simply doing the *same numpy* all-at-once instead of per-tree drops that 153 ms to **24.6 ms** (a
+  7.6× win from removing 200× per-tree dispatch), of which the masked-fancy-index quaternion is 15 ms.
+  Everything above the <1 ms floor is Python dispatch, temporary allocation, and boolean-mask copies.
+
+A pure **C++ pose against cvcGL** pays none of that. cvcGL already runs this exact cascade natively
+(`GraphicsNode::updateTransform` → `vtkMatrix4x4::Multiply4x4`, the very code that posed the original
+3 776-node scene); a `GlyphNode` would compute each instance's position/quaternion/scale in a tight
+loop and write **straight into the mapper's instance arrays** — no `numpy_to_vtk`, no per-tree
+dispatch, no temporaries. Bounded by the arithmetic + memory floor, that is **single-digit ms at
+200–300 trees**, i.e. roughly a **20–50× cut** of the pose (≈190 ms → ~4–8 ms; the FLOP floor says
+even 100× is physically on the table, and the loop is embarrassingly parallel on top of that).
+
+That is the move that changes the regime. With the pose at ~5 ms, the frame becomes render-bound, and
+the routes diverge exactly as the scaling table's render column predicts:
+
+* **C++ pose + route C** (300 trees): ~5 ms pose + ~37 ms render ≈ **~24 fps** — now draw-call bound,
+  the O(actors) render is the ceiling.
+* **C++ pose + route B** (300 trees): ~5 ms pose + ~5 ms render ≈ **~100 fps** — realtime, because B's
+  render does not scale with the forest.
+
+So the two optimisations are complementary and ordered: **the C++ pose is the bigger, route-agnostic
+win and should come first** (it is the only thing that makes 300 trees viable at all), and it is
+precisely what *promotes route B from "redundant" to "the clear win,"* because it removes the shared
+cost that was masking B's render advantage. Until the pose is in C++, neither route is realtime at
+these counts and B's edge stays a modest ~1.7×.
 
 ### Bonus finding: procedural bark is a route-B-native capability
 
