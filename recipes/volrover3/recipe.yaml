@@ -2,7 +2,16 @@ schema_version: 1
 recipe:
   name: volrover3
   upstream_version: "3.2.4"
-  cvc_revision: 1
+  # Bumped 1 -> 2: republish against current master. The +cvc.1 artifact on the
+  # catalog is the stale pre-embedded-python July build; a re-publish from master
+  # no-ops on the immutable revision, so the app on cvcpkg.org never advanced.
+  # Since +cvc.1 the app gained a first-class embedded CPython interpreter (vrhost
+  # + PySide6, find_package(Python3 Development.Embed)), the realtime lsystem_forest
+  # example (route-C actor merge, strided shadow rebake, matte + bump terrain, bark
+  # trunks), and the #40 publish-lane fix that installs python311 into the build
+  # prefix so CMake links the cvcpkg interpreter rather than the system one. A real
+  # rebuild — the binary differs.
+  cvc_revision: 2
   maintainer: "cvcpkg group"
   maintainer_email: "info@cvcpkg.org"
   maintainer_url: "https://cvcpkg.org"
