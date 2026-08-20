@@ -447,19 +447,26 @@ jobs:
       - name: Configure (Windows)
         if: matrix.platform == 'windows'
         run: |
+          # Use FORWARD-SLASH paths. github.workspace is D:\a\volrover\volrover on
+          # Windows; a backslash path baked into a generated cmake string (e.g. the
+          # install-time DLL-dir set() list) breaks parsing — "\a"/"\v" are invalid
+          # CMake escapes (build failed at cmake_install.cmake:858 'Invalid character
+          # escape \a'). cmake accepts forward slashes on Windows.
+          $ws   = "${{ github.workspace }}".Replace('\','/')
+          $deps = "$ws/cvc-deps"
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
             -DVOLROVER_RELEASE=ON `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}\cvc-deps;$env:Qt6_DIR" `
-            -DPython3_EXECUTABLE="${{ github.workspace }}\cvc-deps\python.exe" `
-            -DPython3_ROOT_DIR="${{ github.workspace }}\cvc-deps" `
+            -DCMAKE_PREFIX_PATH="$deps;$env:Qt6_DIR" `
+            -DPython3_EXECUTABLE="$deps/python.exe" `
+            -DPython3_ROOT_DIR="$deps" `
             -DPython3_FIND_STRATEGY=LOCATION `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DBUILD_VOLROVER3=ON `
             -DVOLROVER3_BUILD_TESTS=OFF `
-            -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/stage"
+            -DCMAKE_INSTALL_PREFIX="$ws/stage"
 
       # Build only the volrover3 target; stage only its install
       # component so the packed prefix is exactly the volrover3 app
