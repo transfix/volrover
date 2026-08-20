@@ -75,15 +75,27 @@ endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Embed)
 
-if(_vr3_deps_prefix)
-  file(REAL_PATH "${_vr3_deps_prefix}" _vr3_prefix_real)
+if(CMAKE_PREFIX_PATH)
+  # Accept the interpreter if it resolves under ANY CMAKE_PREFIX_PATH entry, not
+  # just the first. A toolchain can PREPEND its own prefix (vcpkg puts
+  # C:/vcpkg/installed/<triplet> at index 0), so a `list(GET ... 0)` check would
+  # false-fail even when the cvcpkg python is correctly under a later entry. A
+  # system/registry python is under none of them, so this still rejects it.
   file(REAL_PATH "${Python3_EXECUTABLE}" _vr3_python_real)
-  string(FIND "${_vr3_python_real}" "${_vr3_prefix_real}" _vr3_python_in_prefix)
-  if(NOT _vr3_python_in_prefix EQUAL 0)
+  set(_vr3_python_hermetic FALSE)
+  foreach(_vr3_p IN LISTS CMAKE_PREFIX_PATH)
+    file(REAL_PATH "${_vr3_p}" _vr3_p_real)
+    string(FIND "${_vr3_python_real}" "${_vr3_p_real}" _vr3_idx)
+    if(_vr3_idx EQUAL 0)
+      set(_vr3_python_hermetic TRUE)
+      break()
+    endif()
+  endforeach()
+  if(NOT _vr3_python_hermetic)
     message(FATAL_ERROR
-      "volrover3: embedded Python escaped the dependency prefix.\n"
-      "  found:  ${Python3_EXECUTABLE}\n"
-      "  prefix: ${_vr3_deps_prefix}\n"
+      "volrover3: embedded Python escaped the dependency prefix(es).\n"
+      "  found:    ${Python3_EXECUTABLE}\n"
+      "  prefixes: ${CMAKE_PREFIX_PATH}\n"
       "Linking a system interpreter breaks hermeticity: the app would embed a "
       "different python3XX.dll than the prefix's pycvc/pycvc-gl were built "
       "against. Install the python3XX cvcpkg package into the prefix.")

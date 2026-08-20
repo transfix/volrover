@@ -418,14 +418,12 @@ jobs:
           # so install it explicitly. (It was dropped when the python packages moved
           # to per-interpreter -cp3XX columns; the SDK closure no longer carries it.)
           #
-          # python311 is published for linux + macos but NOT windows (windows python
-          # packaging is still experimental — see the windows_pycvc input). Request it
-          # only where it exists; windows volrover3 stays blocked at the hermeticity
-          # guard until a windows python3XX is published, which is fine — the whole
-          # build-volrover3 job is continue-on-error.
-          py_dep=()
-          if [ "${{ matrix.platform }}" != "windows" ]; then py_dep=(python311); fi
-          cvcpkg install libcvc vtk cvcgl yaml-cpp "${py_dep[@]}" \
+          # python311 is now published on every platform including windows (the
+          # windows_pycvc binding stack landed 2026-08-19), so install the embedded
+          # interpreter everywhere — the CMakeLists hermeticity guard requires the
+          # app to embed the SAME python3XX the prefix's pycvc/pycvc-gl were built
+          # against, not the runner's system python.
+          cvcpkg install libcvc vtk cvcgl yaml-cpp python311 \
             --prefix "$GITHUB_WORKSPACE/cvc-deps" \
             --platform "${{ matrix.platform }}" \
             --config release \
@@ -454,6 +452,9 @@ jobs:
             -DVOLROVER_RELEASE=ON `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}\cvc-deps;$env:Qt6_DIR" `
+            -DPython3_EXECUTABLE="${{ github.workspace }}\cvc-deps\python.exe" `
+            -DPython3_ROOT_DIR="${{ github.workspace }}\cvc-deps" `
+            -DPython3_FIND_STRATEGY=LOCATION `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DBUILD_VOLROVER3=ON `
