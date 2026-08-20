@@ -2,16 +2,17 @@ schema_version: 1
 recipe:
   name: volrover3
   upstream_version: "3.2.4"
-  # Bumped 1 -> 2: republish against current master. The +cvc.1 artifact on the
-  # catalog is the stale pre-embedded-python July build; a re-publish from master
-  # no-ops on the immutable revision, so the app on cvcpkg.org never advanced.
-  # Since +cvc.1 the app gained a first-class embedded CPython interpreter (vrhost
-  # + PySide6, find_package(Python3 Development.Embed)), the realtime lsystem_forest
-  # example (route-C actor merge, strided shadow rebake, matte + bump terrain, bark
-  # trunks), and the #40 publish-lane fix that installs python311 into the build
-  # prefix so CMake links the cvcpkg interpreter rather than the system one. A real
-  # rebuild — the binary differs.
-  cvc_revision: 2
+  # Bumped 2 -> 3: rebuild against the new cvcgl (libcvc SDK). cvcGL removed its
+  # process-wide cvc::gl::context() singleton — each SceneGraph now owns its state
+  # publisher under the injected app, on the publisher's own joined thread — and
+  # re-levelled its per-frame VolumeNode logging so a host's console is quiet by
+  # default. volrover3 already constructs the SceneGraph with the injected-app ctor
+  # (MainWindow: make_shared<SceneGraph>(*m_app, "volrover3")), so no source change
+  # is needed; this is purely a rebuild against the fixed cvcgl (the deps below are
+  # unpinned, so the build picks up the latest cvcgl/libcvc). A re-publish from
+  # master no-ops on the immutable +cvc.2 revision, so the bump is required for the
+  # app on cvcpkg.org to advance.
+  cvc_revision: 3
   maintainer: "cvcpkg group"
   maintainer_email: "info@cvcpkg.org"
   maintainer_url: "https://cvcpkg.org"
