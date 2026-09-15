@@ -392,38 +392,29 @@ jobs:
         env:
           VCPKG_MAX_CONCURRENCY: 4
 
-      # The activation dependency: pull the libcvc SDK (and VTK) from
-      # the cvcpkg.org catalog. Fails until @cvc/libcvc is published.
-      - name: Install libcvc SDK + VTK from cvcpkg.org
+      # The activation dependency: install volrover3's DECLARED dependency
+      # closure straight from its recipe. Fails until @cvc/libcvc + the closure
+      # are published.
+      - name: Install volrover3's dependency closure from its recipe
         shell: bash
         run: |
           set -euo pipefail
           export CVCPKG_SERVER_URL="$CVCPKG_SERVER"
-          # `cvcpkg install` component specs are bare names, not org/name —
-          # "cvc/libcvc" is silently dropped by the resolver (no error, no
-          # install) rather than rejected, so `find_package(cvc CONFIG)`
-          # failed downstream with no obvious cause. `libcvc` alone resolves
-          # correctly regardless of which org publishes it.
-          # cvcgl (find_package(cvcGL CONFIG REQUIRED), volrover3/CMakeLists.txt)
-          # and yaml-cpp (find_package(yaml-cpp CONFIG REQUIRED), for
-          # volrover3::Settings) landed as separate cvcpkg packages after this
-          # install line was first written — add them explicitly rather than
-          # relying on them riding in transitively.
-          # python311: volrover3 embeds a first-class CPython
-          # (find_package(Python3 Development.Embed)) and CMakeLists.txt PINS the
-          # search to this prefix and HARD-FAILS on a system interpreter (hermeticity
-          # — the app must embed the same python3XX the prefix's pycvc/pycvc-gl were
-          # built against). Without the cvcpkg python in the prefix the configure
-          # found the runner's /usr/bin/python3.12 and errored. It is not transitive,
-          # so install it explicitly. (It was dropped when the python packages moved
-          # to per-interpreter -cp3XX columns; the SDK closure no longer carries it.)
-          #
-          # python311 is now published on every platform including windows (the
-          # windows_pycvc binding stack landed 2026-08-19), so install the embedded
-          # interpreter everywhere — the CMakeLists hermeticity guard requires the
-          # app to embed the SAME python3XX the prefix's pycvc/pycvc-gl were built
-          # against, not the runner's system python.
-          cvcpkg install libcvc vtk cvcgl yaml-cpp python311 \
+          # Drive the install from recipes/volrover3 instead of a hand-maintained
+          # parallel `cvcpkg install <list>` that drifts from it — that drift is
+          # exactly how cvcgl, yaml-cpp, python311 and imgui each went missing here
+          # in turn. `install-deps` reads the recipe's build + runtime deps and
+          # installs them transitively, so the recipe is the single source of truth:
+          #   - cvcgl -> pulls imgui in (cvcGL's config does find_dependency(imgui
+          #              CONFIG) now that the overlay is compiled into libcvcGL.a,
+          #              libcvc#370) with no explicit imgui line to forget
+          #   - libcvc / vtk / qt6 / yaml-cpp / glew, plus python311 (the embedded
+          #     CPython the CMakeLists hermeticity guard pins to this prefix) and
+          #     the pycvc-gl / pyside6 / shiboken6 runtime closure
+          # Host tools (cmake/ninja) are excluded by default — the CI image and the
+          # system-deps step above provide the top-level VolumeRover2 configure-gate
+          # packages (Boost/FFTW/GSL/log4cplus) that are not volrover3's own deps.
+          cvcpkg install-deps recipes/volrover3 \
             --prefix "$GITHUB_WORKSPACE/cvc-deps" \
             --platform "${{ matrix.platform }}" \
             --config release \
