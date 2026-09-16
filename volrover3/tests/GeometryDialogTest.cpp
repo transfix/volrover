@@ -154,7 +154,7 @@ TEST_F(GeometryDialogTest, RenderModeChange) {
   QCoreApplication::processEvents();
 
   // Verify the node's render mode changed
-  EXPECT_EQ(geomNode->getRenderMode(), GeometryRenderMode::LINES);
+  EXPECT_EQ(geomNode->getRenderMode(), cvc::gl::GeometryRenderMode::LINES);
 }
 
 TEST_F(GeometryDialogTest, ColorPropertyChange) {

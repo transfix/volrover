@@ -89,10 +89,10 @@ void GeometryDialog::setupUI() {
   m_renderModeComboBox = new QComboBox(this);
   m_renderModeComboBox->setObjectName("renderModeComboBox");
   m_renderModeComboBox->addItem(tr("Surface (Triangles)"),
-                                static_cast<int>(GeometryRenderMode::TRIS));
-  m_renderModeComboBox->addItem(tr("Surface (Quads)"), static_cast<int>(GeometryRenderMode::QUADS));
-  m_renderModeComboBox->addItem(tr("Wireframe"), static_cast<int>(GeometryRenderMode::LINES));
-  m_renderModeComboBox->addItem(tr("Points"), static_cast<int>(GeometryRenderMode::POINTS));
+                                static_cast<int>(cvc::gl::GeometryRenderMode::TRIS));
+  m_renderModeComboBox->addItem(tr("Surface (Quads)"), static_cast<int>(cvc::gl::GeometryRenderMode::QUADS));
+  m_renderModeComboBox->addItem(tr("Wireframe"), static_cast<int>(cvc::gl::GeometryRenderMode::LINES));
+  m_renderModeComboBox->addItem(tr("Points"), static_cast<int>(cvc::gl::GeometryRenderMode::POINTS));
   renderLayout->addRow(tr("Mode:"), m_renderModeComboBox);
 
   appearanceLayout->addWidget(renderGroup);
@@ -596,7 +596,7 @@ void GeometryDialog::updatePropertiesFromNode() {
   m_updating = true;
 
   // Update render mode
-  GeometryRenderMode mode = geomNode->getRenderMode();
+  cvc::gl::GeometryRenderMode mode = geomNode->getRenderMode();
   int modeIndex = m_renderModeComboBox->findData(static_cast<int>(mode));
   if (modeIndex >= 0) {
     m_renderModeComboBox->setCurrentIndex(modeIndex);
@@ -770,8 +770,8 @@ void GeometryDialog::onRenderModeChanged(int index) {
   if (!geomNode)
     return;
 
-  GeometryRenderMode mode =
-      static_cast<GeometryRenderMode>(m_renderModeComboBox->currentData().toInt());
+  cvc::gl::GeometryRenderMode mode =
+      static_cast<cvc::gl::GeometryRenderMode>(m_renderModeComboBox->currentData().toInt());
   geomNode->setRenderMode(mode);
 }
 
