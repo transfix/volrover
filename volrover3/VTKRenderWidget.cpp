@@ -82,7 +82,7 @@ void VTKRenderWidget::initializeVTK() {
   setMouseTracking(true);
 }
 
-void VTKRenderWidget::setSceneGraph(std::shared_ptr<SceneGraph> sceneGraph) {
+void VTKRenderWidget::setSceneGraph(std::shared_ptr<cvc::gl::SceneGraph> sceneGraph) {
   m_sceneGraph = sceneGraph;
   if (m_sceneGraph) {
     m_sceneGraph->setRenderer(m_renderer);

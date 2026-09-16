@@ -11,7 +11,7 @@ class QLabel;
 class QDialogButtonBox;
 class QVBoxLayout;
 class QFormLayout;
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 class AppState;
 
 // Enum for procedural geometry types
@@ -22,7 +22,7 @@ class ProceduralGeometryDialog : public QDialog {
 
 public:
   explicit ProceduralGeometryDialog(AppState &appState, ProceduralGeometryType type,
-                                    std::shared_ptr<SceneGraph> sceneGraph,
+                                    std::shared_ptr<cvc::gl::SceneGraph> sceneGraph,
                                     QWidget *parent = nullptr);
   ~ProceduralGeometryDialog() override = default;
 
@@ -45,7 +45,7 @@ private:
 
   AppState &m_appState;
   ProceduralGeometryType m_type;
-  std::shared_ptr<SceneGraph> m_sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
 
   // Common parameters
   QDoubleSpinBox *m_centerXSpinBox;

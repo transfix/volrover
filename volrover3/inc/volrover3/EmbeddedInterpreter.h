@@ -22,7 +22,7 @@
 #include <memory>
 #include <string>
 
-class SceneGraph; // cvcGL (global namespace)
+namespace cvc { namespace gl { class SceneGraph; } } // cvcGL (cvc::gl namespace)
 
 namespace volrover3 {
 
@@ -50,8 +50,8 @@ public:
   // host's LIVE handles — used to build the PyHost that delivers the app to
   // scripts. `scene` may be null (headless/tests). `config` selects the mode +
   // python home; the 2-arg overload uses the defaults (single, no explicit home).
-  EmbeddedInterpreter(std::shared_ptr<cvc::app> app, std::shared_ptr<SceneGraph> scene);
-  EmbeddedInterpreter(std::shared_ptr<cvc::app> app, std::shared_ptr<SceneGraph> scene,
+  EmbeddedInterpreter(std::shared_ptr<cvc::app> app, std::shared_ptr<cvc::gl::SceneGraph> scene);
+  EmbeddedInterpreter(std::shared_ptr<cvc::app> app, std::shared_ptr<cvc::gl::SceneGraph> scene,
                       Config config);
   ~EmbeddedInterpreter();
 

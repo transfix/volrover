@@ -15,7 +15,7 @@ class GeometryDialogTest : public ::testing::Test {
 protected:
   static void SetUpTestSuite() {
     // Disable threading for state_object to avoid race conditions
-    cvc::state_object<SceneNode>::setUseThreading(false);
+    cvc::state_object<cvc::gl::SceneNode>::setUseThreading(false);
 
     // Initialize Qt if not already initialized
     if (!QApplication::instance()) {
@@ -34,7 +34,7 @@ protected:
   void SetUp() override {
     // Own a fresh cvc::app per test and construct the (cvcGL) SceneGraph with
     // the injected-app ctor (Phase-0a/0b: extracted scene graph, no singleton).
-    sceneGraph = std::make_shared<SceneGraph>(ctx, "volrover3");
+    sceneGraph = std::make_shared<cvc::gl::SceneGraph>(ctx, "volrover3");
     dialog = nullptr;
   }
 
@@ -56,7 +56,7 @@ protected:
   }
 
   cvc::app ctx;
-  std::shared_ptr<SceneGraph> sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> sceneGraph;
   GeometryDialog *dialog;
 };
 
@@ -107,7 +107,7 @@ TEST_F(GeometryDialogTest, MultipleGeometries) {
 TEST_F(GeometryDialogTest, GeometrySelectionUpdatesUI) {
   cvc::geometry geom = createTestGeometry();
   auto node = sceneGraph->addGraphics("test_geom", geom);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(node);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(node);
   ASSERT_NE(geomNode, nullptr);
 
   // Set some properties
@@ -137,7 +137,7 @@ TEST_F(GeometryDialogTest, GeometrySelectionUpdatesUI) {
 TEST_F(GeometryDialogTest, RenderModeChange) {
   cvc::geometry geom = createTestGeometry();
   auto node = sceneGraph->addGraphics("test_geom", geom);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(node);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(node);
   ASSERT_NE(geomNode, nullptr);
 
   dialog = new GeometryDialog(ctx, sceneGraph);
@@ -160,7 +160,7 @@ TEST_F(GeometryDialogTest, RenderModeChange) {
 TEST_F(GeometryDialogTest, ColorPropertyChange) {
   cvc::geometry geom = createTestGeometry();
   auto node = sceneGraph->addGraphics("test_geom", geom);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(node);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(node);
   ASSERT_NE(geomNode, nullptr);
 
   dialog = new GeometryDialog(ctx, sceneGraph);
@@ -225,7 +225,7 @@ TEST_F(GeometryDialogTest, DynamicGeometryRemoval) {
 TEST_F(GeometryDialogTest, OpacityChange) {
   cvc::geometry geom = createTestGeometry();
   auto node = sceneGraph->addGraphics("test_geom", geom);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(node);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(node);
   ASSERT_NE(geomNode, nullptr);
 
   dialog = new GeometryDialog(ctx, sceneGraph);
@@ -277,7 +277,7 @@ TEST_F(GeometryDialogTest, NestedGeometries) {
   ASSERT_NE(parent, nullptr);
 
   // Add child geometry
-  auto child = parent->createChild<GeometryNode>("child_geom", geom2);
+  auto child = parent->createChild<cvc::gl::GeometryNode>("child_geom", geom2);
   ASSERT_NE(child, nullptr);
 
   dialog = new GeometryDialog(ctx, sceneGraph);
@@ -299,7 +299,7 @@ TEST_F(GeometryDialogTest, SafeGeometryDeletion) {
   EXPECT_EQ(sceneGraph->getAllGeometryGraphics().size(), 1);
 
   // Get weak pointer to track object lifetime
-  std::weak_ptr<GraphicsNode> weakNode = node;
+  std::weak_ptr<cvc::gl::GraphicsNode> weakNode = node;
   node.reset(); // Release our reference
 
   // Object should still exist (held by scene graph)
@@ -355,7 +355,7 @@ TEST_F(GeometryDialogTest, SafeNestedGeometryDeletion) {
   auto parent = sceneGraph->addGraphics("parent", geom1);
   ASSERT_NE(parent, nullptr);
 
-  auto child = parent->createChild<GeometryNode>("child", geom2);
+  auto child = parent->createChild<cvc::gl::GeometryNode>("child", geom2);
   ASSERT_NE(child, nullptr);
 
   EXPECT_EQ(sceneGraph->getAllGeometryGraphics().size(), 2);

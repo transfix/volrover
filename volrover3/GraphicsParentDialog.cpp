@@ -8,7 +8,7 @@
 #include <cvc/gl/SceneGraph.h>
 #include <cvc/gl/VolumeNode.h>
 
-GraphicsParentDialog::GraphicsParentDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
+GraphicsParentDialog::GraphicsParentDialog(std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent)
     : QDialog(parent), m_sceneGraph(sceneGraph), m_parentComboBox(new QComboBox(this)),
       m_okButton(new QPushButton(tr("OK"), this)),
       m_cancelButton(new QPushButton(tr("Cancel"), this)) {
@@ -67,12 +67,12 @@ void GraphicsParentDialog::populateParentList() {
   m_parentComboBox->setCurrentIndex(0);
 }
 
-void GraphicsParentDialog::addNodeToList(std::shared_ptr<GraphicsNode> node, int depth) {
+void GraphicsParentDialog::addNodeToList(std::shared_ptr<cvc::gl::GraphicsNode> node, int depth) {
   if (!node)
     return;
 
   // Determine if this is a volume or geometry node
-  bool isVolume = (std::dynamic_pointer_cast<VolumeNode>(node) != nullptr);
+  bool isVolume = (std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node) != nullptr);
 
   // Create indented display name with icon
   QString indent(depth * 2, ' ');
@@ -96,7 +96,7 @@ std::string GraphicsParentDialog::getSelectedParentName() const {
   return name.toStdString();
 }
 
-std::shared_ptr<GraphicsNode> GraphicsParentDialog::getSelectedParent() const {
+std::shared_ptr<cvc::gl::GraphicsNode> GraphicsParentDialog::getSelectedParent() const {
   std::string parentName = getSelectedParentName();
   if (parentName.empty()) {
     return nullptr; // Root
@@ -110,13 +110,13 @@ std::shared_ptr<GraphicsNode> GraphicsParentDialog::getSelectedParent() const {
   // Check if it's a volume node (prefixed with "vol:")
   if (parentName.substr(0, 4) == "vol:") {
     // Return the volume node as a GraphicsNode (volumes can parent both geometry and volumes)
-    return std::dynamic_pointer_cast<VolumeNode>(m_sceneGraph->getGraphics(parentName.substr(4)));
+    return std::dynamic_pointer_cast<cvc::gl::VolumeNode>(m_sceneGraph->getGraphics(parentName.substr(4)));
   }
 
   return nullptr;
 }
 
-std::shared_ptr<VolumeNode> GraphicsParentDialog::getSelectedVolumeParent() const {
+std::shared_ptr<cvc::gl::VolumeNode> GraphicsParentDialog::getSelectedVolumeParent() const {
   std::string parentName = getSelectedParentName();
   if (parentName.empty()) {
     return nullptr; // Root
@@ -124,14 +124,14 @@ std::shared_ptr<VolumeNode> GraphicsParentDialog::getSelectedVolumeParent() cons
 
   // Check if it's a volume node (prefixed with "vol:")
   if (parentName.substr(0, 4) == "vol:") {
-    return std::dynamic_pointer_cast<VolumeNode>(m_sceneGraph->getGraphics(parentName.substr(4)));
+    return std::dynamic_pointer_cast<cvc::gl::VolumeNode>(m_sceneGraph->getGraphics(parentName.substr(4)));
   }
 
   // Check if it's a geometry node (prefixed with "geom:") - volumes can be children of geometry
   if (parentName.substr(0, 5) == "geom:") {
     auto geomNode = m_sceneGraph->getGraphics(parentName.substr(5));
     // Try to cast to VolumeNode (in case geometry node is actually a volume)
-    return std::dynamic_pointer_cast<VolumeNode>(geomNode);
+    return std::dynamic_pointer_cast<cvc::gl::VolumeNode>(geomNode);
   }
 
   return nullptr;

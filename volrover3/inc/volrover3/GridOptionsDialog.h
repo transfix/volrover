@@ -10,13 +10,13 @@ class QSpinBox;
 class QDoubleSpinBox;
 class QSlider;
 class QPushButton;
-class GridNode;
+namespace cvc { namespace gl { class GridNode; } }
 
 class GridOptionsDialog : public QWidget {
   Q_OBJECT
 
 public:
-  explicit GridOptionsDialog(std::shared_ptr<GridNode> gridNode, QWidget *parent = nullptr);
+  explicit GridOptionsDialog(std::shared_ptr<cvc::gl::GridNode> gridNode, QWidget *parent = nullptr);
   ~GridOptionsDialog() override;
 
 protected:
@@ -81,7 +81,7 @@ private:
   double m_tickLabelColor[3];
 
   // Grid node reference
-  std::shared_ptr<GridNode> m_gridNode;
+  std::shared_ptr<cvc::gl::GridNode> m_gridNode;
 
   // State change monitoring
   std::vector<boost::signals2::scoped_connection> m_stateConnections;

@@ -22,7 +22,7 @@
 #include <cvc/gl/SceneGraph.h>
 #include <cvc/gl/VolumeNode.h>
 
-SDFDialog::SDFDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
+SDFDialog::SDFDialog(cvc::app &app, std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent)
     : QDialog(parent), m_app(app), m_sceneGraph(sceneGraph), m_geometryComboBox(nullptr),
       m_dimXSpinBox(nullptr), m_dimYSpinBox(nullptr), m_dimZSpinBox(nullptr),
       m_algorithmComboBox(nullptr), m_flipNormalsCheckBox(nullptr), m_useBoundsCheckBox(nullptr),
@@ -283,7 +283,7 @@ void SDFDialog::onGeometrySelected(int index) {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode)
     return;
@@ -326,7 +326,7 @@ void SDFDialog::onComputeClicked() {
 
   const std::string &geomName = m_geometryNames[m_geometryComboBox->currentIndex()];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode) {
     QMessageBox::critical(this, tr("Error"), tr("Failed to get geometry node."));
@@ -419,7 +419,7 @@ void SDFDialog::onComputeClicked() {
               }
 
               // Add SDF volume as child of geometry using the template createChild method
-              auto sdfNode = geomNode->createChild<VolumeNode>(sdfName, sdfVol);
+              auto sdfNode = geomNode->createChild<cvc::gl::VolumeNode>(sdfName, sdfVol);
 
               if (!sdfNode) {
                 throw std::runtime_error("Failed to create SDF volume node");

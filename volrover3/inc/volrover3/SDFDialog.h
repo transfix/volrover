@@ -13,7 +13,7 @@ class QCheckBox;
 class QProgressBar;
 class QPushButton;
 class QLabel;
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 namespace cvc {
 class app;
 }
@@ -22,7 +22,7 @@ class SDFDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit SDFDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph,
+  explicit SDFDialog(cvc::app &app, std::shared_ptr<cvc::gl::SceneGraph> sceneGraph,
                      QWidget *parent = nullptr);
   ~SDFDialog() override = default;
 
@@ -40,7 +40,7 @@ private:
   void setControlsEnabled(bool enabled);
 
   cvc::app &m_app;
-  std::shared_ptr<SceneGraph> m_sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
 
   // UI controls
   QComboBox *m_geometryComboBox;

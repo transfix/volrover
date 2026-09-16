@@ -14,7 +14,7 @@
 #include <volrover3/ViewerOptionsDialog.h>
 
 ViewerOptionsDialog::ViewerOptionsDialog(AppState &appState, VTKRenderWidget *renderWidget,
-                                         std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
+                                         std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent)
     : QWidget(parent, Qt::Window), m_appState(appState), m_renderWidget(renderWidget),
       m_sceneGraph(sceneGraph),
       m_showFPSCheckBox(nullptr), m_graphicsRootComboBox(nullptr), m_refreshRootsButton(nullptr),

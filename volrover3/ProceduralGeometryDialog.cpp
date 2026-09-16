@@ -28,7 +28,7 @@
 #endif
 
 ProceduralGeometryDialog::ProceduralGeometryDialog(AppState &appState, ProceduralGeometryType type,
-                                                   std::shared_ptr<SceneGraph> sceneGraph,
+                                                   std::shared_ptr<cvc::gl::SceneGraph> sceneGraph,
                                                    QWidget *parent)
     : QDialog(parent), m_appState(appState), m_type(type), m_sceneGraph(sceneGraph),
       m_centerXSpinBox(nullptr),
@@ -261,7 +261,7 @@ void ProceduralGeometryDialog::generateSphere() {
 
   // Create geometry node
   std::string name = getUniqueName("Sphere");
-  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<GeometryNode>(name);
+  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<cvc::gl::GeometryNode>(name);
   m_sceneGraph->registerGraphics(name, node);
 
   node->setGeometry(geom);
@@ -287,7 +287,7 @@ void ProceduralGeometryDialog::generateCube() {
 
   // Create geometry node
   std::string name = getUniqueName("Cube");
-  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<GeometryNode>(name);
+  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<cvc::gl::GeometryNode>(name);
   m_sceneGraph->registerGraphics(name, node);
 
   node->setGeometry(geom);
@@ -315,7 +315,7 @@ void ProceduralGeometryDialog::generateTorus() {
 
   // Create geometry node
   std::string name = getUniqueName("Torus");
-  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<GeometryNode>(name);
+  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<cvc::gl::GeometryNode>(name);
   m_sceneGraph->registerGraphics(name, node);
 
   node->setGeometry(geom);
@@ -342,7 +342,7 @@ void ProceduralGeometryDialog::generateCone() {
 
   // Create geometry node
   std::string name = getUniqueName("Cone");
-  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<GeometryNode>(name);
+  auto node = m_sceneGraph->getGraphicsRoot()->addGraphicsChild<cvc::gl::GeometryNode>(name);
   m_sceneGraph->registerGraphics(name, node);
 
   node->setGeometry(geom);

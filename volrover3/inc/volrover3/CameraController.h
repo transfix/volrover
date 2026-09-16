@@ -8,7 +8,7 @@
 
 enum CameraMode { ORBIT_MODE = 0, FLY_MODE = 1 };
 
-class CameraController : public SceneNode {
+class CameraController : public cvc::gl::SceneNode {
 public:
   CameraController(cvc::app &ctx, const std::string &statePath = "volrover3.camera");
   ~CameraController();

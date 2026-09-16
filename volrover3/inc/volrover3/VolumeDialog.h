@@ -11,13 +11,13 @@ class QComboBox;
 class QDoubleSpinBox;
 class QCheckBox;
 class QGroupBox;
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 
 class VolumeDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit VolumeDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent = nullptr);
+  explicit VolumeDialog(std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent = nullptr);
   ~VolumeDialog() = default;
 
 private slots:
@@ -34,7 +34,7 @@ private:
   void updatePropertiesFromNode();
   void setPropertiesEnabled(bool enabled);
 
-  std::shared_ptr<SceneGraph> m_sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
 
   // UI elements
   QComboBox *m_volumeComboBox;

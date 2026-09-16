@@ -14,7 +14,7 @@ class QCheckBox;
 class QPushButton;
 class QProgressBar;
 class QLabel;
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 namespace cvc {
 class app;
 }
@@ -23,7 +23,7 @@ class IsosurfaceDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit IsosurfaceDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph,
+  explicit IsosurfaceDialog(cvc::app &app, std::shared_ptr<cvc::gl::SceneGraph> sceneGraph,
                             QWidget *parent = nullptr);
   ~IsosurfaceDialog() = default;
 
@@ -41,7 +41,7 @@ private:
   void setControlsEnabled(bool enabled);
 
   cvc::app &m_app;
-  std::shared_ptr<SceneGraph> m_sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
 
   // UI elements
   QComboBox *m_volumeComboBox;

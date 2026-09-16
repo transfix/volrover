@@ -325,7 +325,7 @@ void TransferFunctionWidget::createDefaultTransferFunction() {
   }
 }
 
-void TransferFunctionWidget::setSceneGraph(SceneGraph *sceneGraph) {
+void TransferFunctionWidget::setSceneGraph(cvc::gl::SceneGraph *sceneGraph) {
   m_sceneGraph = sceneGraph;
   refreshVolumeList();
 
@@ -412,7 +412,7 @@ void TransferFunctionWidget::refreshVolumeList() {
   }
 }
 
-std::shared_ptr<VolumeNode> TransferFunctionWidget::getSelectedVolume() const {
+std::shared_ptr<cvc::gl::VolumeNode> TransferFunctionWidget::getSelectedVolume() const {
   int index = m_volumeCombo ? m_volumeCombo->currentIndex() : -1;
   if (index >= 0 && index < static_cast<int>(m_volumes.size())) {
     return m_volumes[index];
@@ -431,7 +431,7 @@ void TransferFunctionWidget::onVolumeSelected(int index) {
   }
 }
 
-void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<VolumeNode> volume) {
+void TransferFunctionWidget::loadTransferFunctionFromVolume(std::shared_ptr<cvc::gl::VolumeNode> volume) {
   if (!volume || !volume->hasVolume()) {
     m_app.log(
         0,
@@ -648,7 +648,7 @@ std::vector<double> TransferFunctionWidget::getOpacityTable() const {
   return table;
 }
 
-void TransferFunctionWidget::connectToVolumeState(std::shared_ptr<VolumeNode> volume) {
+void TransferFunctionWidget::connectToVolumeState(std::shared_ptr<cvc::gl::VolumeNode> volume) {
   disconnectFromVolumeState();
 
   if (!volume) {
