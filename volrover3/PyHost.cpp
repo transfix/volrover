@@ -4,7 +4,7 @@
 
 namespace volrover3 {
 
-PyHost::PyHost(std::shared_ptr<cvc::app> app, std::shared_ptr<SceneGraph> scene)
+PyHost::PyHost(std::shared_ptr<cvc::app> app, std::shared_ptr<cvc::gl::SceneGraph> scene)
     : m_app(std::move(app)), m_scene(std::move(scene)) {}
 
 PyHost::~PyHost() = default;

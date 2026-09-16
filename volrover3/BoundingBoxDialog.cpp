@@ -15,7 +15,7 @@
 #include <cvc/gl/GraphicsNode.h>
 #include <cvc/gl/SceneGraph.h>
 
-BoundingBoxDialog::BoundingBoxDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
+BoundingBoxDialog::BoundingBoxDialog(std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent)
     : QDialog(parent), m_sceneGraph(sceneGraph), m_currentGraphics(nullptr) {
   setWindowTitle(tr("Bounding Box Settings"));
   m_bboxColor[0] = m_bboxColor[1] = m_bboxColor[2] = 1.0;

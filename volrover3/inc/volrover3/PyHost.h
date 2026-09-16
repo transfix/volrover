@@ -28,11 +28,11 @@
 #include <string>
 #include <vector>
 
-// cvcGL's scene graph (global namespace), the one pycvc_gl wraps and that
+// cvcGL's scene graph (cvc::gl namespace), the one pycvc_gl wraps and that
 // carries the #136 injected-app ctor SceneGraph(cvc::app&, prefix). volrover3
 // is converging onto cvcGL (dropping its private SceneGraph fork), so the C++
 // app and Python scripts share one scene type over one app/state tree.
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 
 namespace volrover3 {
 
@@ -42,7 +42,7 @@ public:
   // the same app + scene graph the running application uses. `app` is the one
   // volrover3-owned shared_ptr<cvc::app> (no singleton); `scene` may be null in
   // headless/unit-test contexts.
-  PyHost(std::shared_ptr<cvc::app> app, std::shared_ptr<SceneGraph> scene);
+  PyHost(std::shared_ptr<cvc::app> app, std::shared_ptr<cvc::gl::SceneGraph> scene);
   ~PyHost();
 
   PyHost(const PyHost &) = delete;
@@ -69,7 +69,7 @@ public:
   // -- scene / host-loop ---------------------------------------------------
   // The host's live SceneGraph (so a script can bridge it into pycvc_gl rather
   // than spin up a parallel scene).
-  std::shared_ptr<SceneGraph> scene() const { return m_scene; }
+  std::shared_ptr<cvc::gl::SceneGraph> scene() const { return m_scene; }
   // Enqueue a render on the UI thread (via SceneGraph::postEvent, drained by
   // VTKRenderWidget's QTimer). A host-loop action pycvc_gl does not cover;
   // safe to call from Python worker threads.
@@ -86,7 +86,7 @@ public:
 
 private:
   std::shared_ptr<cvc::app> m_app;
-  std::shared_ptr<SceneGraph> m_scene;
+  std::shared_ptr<cvc::gl::SceneGraph> m_scene;
   std::uintptr_t m_mainWindow = 0;
 };
 

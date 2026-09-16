@@ -24,7 +24,7 @@ class vtkRenderer;
 class vtkRenderWindow;
 class vtkGenericOpenGLRenderWindow;
 class vtkCornerAnnotation;
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 class CameraController;
 class InputState;
 namespace volrover3 {
@@ -38,7 +38,7 @@ public:
   explicit VTKRenderWidget(cvc::app &app, AppState &appState, QWidget *parent = nullptr);
   ~VTKRenderWidget();
 
-  void setSceneGraph(std::shared_ptr<SceneGraph> sceneGraph);
+  void setSceneGraph(std::shared_ptr<cvc::gl::SceneGraph> sceneGraph);
   void resetCamera();
   void render(); // Force an immediate render
 
@@ -89,7 +89,7 @@ private:
   AppState &m_appState;
   vtkSmartPointer<vtkGenericOpenGLRenderWindow> m_renderWindow;
   vtkSmartPointer<vtkRenderer> m_renderer;
-  std::shared_ptr<SceneGraph> m_sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
   std::unique_ptr<CameraController> m_cameraController;
   // Mirrors mouse/keyboard into volrover3.input.* so scripts and nodes can
   // react to input through the state tree instead of a wrapped Qt API.

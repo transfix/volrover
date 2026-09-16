@@ -15,7 +15,7 @@
 #include <cvc/gl/GridNode.h>
 #include <volrover3/GridOptionsDialog.h>
 
-GridOptionsDialog::GridOptionsDialog(std::shared_ptr<GridNode> gridNode, QWidget *parent)
+GridOptionsDialog::GridOptionsDialog(std::shared_ptr<cvc::gl::GridNode> gridNode, QWidget *parent)
     : QWidget(parent), m_gridNode(gridNode), m_yzPlaneCheckBox(nullptr), m_xzPlaneCheckBox(nullptr),
       m_xyPlaneCheckBox(nullptr), m_xDivisionsSpinBox(nullptr), m_yDivisionsSpinBox(nullptr),
       m_zDivisionsSpinBox(nullptr), m_xTickIntervalSpinBox(nullptr),

@@ -15,7 +15,7 @@
 #include <volrover3/VolumeDialog.h>
 #include <cvc/gl/VolumeNode.h>
 
-VolumeDialog::VolumeDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent)
+VolumeDialog::VolumeDialog(std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent)
     : QDialog(parent), m_sceneGraph(sceneGraph), m_volumeComboBox(nullptr),
       m_shadingCheckBox(nullptr), m_ambientSpinBox(nullptr), m_diffuseSpinBox(nullptr),
       m_specularSpinBox(nullptr), m_specularPowerSpinBox(nullptr),

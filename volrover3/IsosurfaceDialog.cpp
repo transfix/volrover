@@ -20,7 +20,7 @@
 #include <cvc/gl/SceneGraph.h>
 #include <cvc/gl/VolumeNode.h>
 
-IsosurfaceDialog::IsosurfaceDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph,
+IsosurfaceDialog::IsosurfaceDialog(cvc::app &app, std::shared_ptr<cvc::gl::SceneGraph> sceneGraph,
                                    QWidget *parent)
     : QDialog(parent), m_app(app), m_sceneGraph(sceneGraph), m_volumeComboBox(nullptr),
       m_isovalueSpinBox(nullptr), m_methodComboBox(nullptr), m_improveIterationsSpinBox(nullptr),
@@ -258,7 +258,7 @@ void IsosurfaceDialog::onComputeClicked() {
   const std::string &volumePath = m_volumePaths[currentIndex];
 
   // Find the volume node
-  std::shared_ptr<VolumeNode> volumeNode;
+  std::shared_ptr<cvc::gl::VolumeNode> volumeNode;
   std::string volumeName;
   auto allVolumes = m_sceneGraph->getAllVolumeGraphics();
   for (const auto &volNode : allVolumes) {
@@ -334,7 +334,7 @@ void IsosurfaceDialog::onComputeClicked() {
               }
 
               // Add isosurface as child of volume using the template createChild method
-              auto isoNode = volumeNode->createChild<GeometryNode>(isoName, isoGeom);
+              auto isoNode = volumeNode->createChild<cvc::gl::GeometryNode>(isoName, isoGeom);
 
               if (!isoNode) {
                 throw std::runtime_error("Failed to create isosurface node");

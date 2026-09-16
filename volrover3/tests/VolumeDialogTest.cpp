@@ -15,7 +15,7 @@ class VolumeDialogTest : public ::testing::Test {
 protected:
   static void SetUpTestSuite() {
     // Disable threading for state_object to avoid race conditions
-    cvc::state_object<SceneNode>::setUseThreading(false);
+    cvc::state_object<cvc::gl::SceneNode>::setUseThreading(false);
 
     // Initialize Qt if not already initialized
     if (!QApplication::instance()) {
@@ -34,7 +34,7 @@ protected:
   void SetUp() override {
     // Construct the (cvcGL) SceneGraph with the injected-app ctor against the
     // owned ctx (Phase-0a/0b: extracted scene graph, no singleton).
-    sceneGraph = std::make_shared<SceneGraph>(ctx, "volrover3");
+    sceneGraph = std::make_shared<cvc::gl::SceneGraph>(ctx, "volrover3");
     dialog = nullptr;
   }
 
@@ -52,7 +52,7 @@ protected:
   }
 
   cvc::app ctx;
-  std::shared_ptr<SceneGraph> sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> sceneGraph;
   VolumeDialog *dialog;
 };
 
@@ -103,7 +103,7 @@ TEST_F(VolumeDialogTest, MultipleVolumes) {
 TEST_F(VolumeDialogTest, VolumeSelectionUpdatesUI) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   // Set some properties
@@ -136,7 +136,7 @@ TEST_F(VolumeDialogTest, VolumeSelectionUpdatesUI) {
 TEST_F(VolumeDialogTest, ShadingToggle) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   volNode->setShading(false);
@@ -167,7 +167,7 @@ TEST_F(VolumeDialogTest, ShadingToggle) {
 TEST_F(VolumeDialogTest, AmbientPropertyChange) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   dialog = new VolumeDialog(sceneGraph);
@@ -197,7 +197,7 @@ TEST_F(VolumeDialogTest, AmbientPropertyChange) {
 TEST_F(VolumeDialogTest, DiffusePropertyChange) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   dialog = new VolumeDialog(sceneGraph);
@@ -223,7 +223,7 @@ TEST_F(VolumeDialogTest, DiffusePropertyChange) {
 TEST_F(VolumeDialogTest, SpecularPropertyChange) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   dialog = new VolumeDialog(sceneGraph);
@@ -248,7 +248,7 @@ TEST_F(VolumeDialogTest, SpecularPropertyChange) {
 TEST_F(VolumeDialogTest, SpecularPowerChange) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   dialog = new VolumeDialog(sceneGraph);
@@ -271,7 +271,7 @@ TEST_F(VolumeDialogTest, SpecularPowerChange) {
 TEST_F(VolumeDialogTest, SampleDistanceChange) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   dialog = new VolumeDialog(sceneGraph);
@@ -294,7 +294,7 @@ TEST_F(VolumeDialogTest, SampleDistanceChange) {
 TEST_F(VolumeDialogTest, AutoAdjustSampleDistancesToggle) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   volNode->setAutoAdjustSampleDistances(false);
@@ -367,7 +367,7 @@ TEST_F(VolumeDialogTest, NestedVolumes) {
   ASSERT_NE(parent, nullptr);
 
   // Add child volume
-  auto child = parent->createChild<VolumeNode>("child_vol", vol2);
+  auto child = parent->createChild<cvc::gl::VolumeNode>("child_vol", vol2);
   ASSERT_NE(child, nullptr);
 
   dialog = new VolumeDialog(sceneGraph);
@@ -410,7 +410,7 @@ TEST_F(VolumeDialogTest, SelectionPreservation) {
 TEST_F(VolumeDialogTest, ScalarOpacityUnitDistanceChange) {
   cvc::volume vol = createTestVolume();
   auto node = sceneGraph->addGraphics("test_vol", vol);
-  auto volNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  auto volNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   ASSERT_NE(volNode, nullptr);
 
   dialog = new VolumeDialog(sceneGraph);
@@ -440,7 +440,7 @@ TEST_F(VolumeDialogTest, SafeVolumeDeletion) {
   EXPECT_EQ(sceneGraph->getVolumeGraphicsCount(), 1);
 
   // Get weak pointer to track object lifetime
-  std::weak_ptr<VolumeNode> weakNode = std::dynamic_pointer_cast<VolumeNode>(node);
+  std::weak_ptr<cvc::gl::VolumeNode> weakNode = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node);
   node.reset(); // Release our reference
 
   // Object should still exist (held by scene graph)
@@ -523,7 +523,7 @@ TEST_F(VolumeDialogTest, VolumeReplacementSafety) {
   EXPECT_EQ(sceneGraph->getVolumeGraphicsCount(), 1);
 
   // Get weak pointer to track first object lifetime
-  std::weak_ptr<VolumeNode> weakNode1 = std::dynamic_pointer_cast<VolumeNode>(node1);
+  std::weak_ptr<cvc::gl::VolumeNode> weakNode1 = std::dynamic_pointer_cast<cvc::gl::VolumeNode>(node1);
   node1.reset();
 
   // Replace with new volume (addGraphics should handle removal automatically)

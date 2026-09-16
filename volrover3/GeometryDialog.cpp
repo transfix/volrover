@@ -24,7 +24,7 @@
 #include <cvc/gl/GraphicsNode.h>
 #include <cvc/gl/SceneGraph.h>
 
-GeometryDialog::GeometryDialog(cvc::app &app, std::shared_ptr<SceneGraph> sceneGraph,
+GeometryDialog::GeometryDialog(cvc::app &app, std::shared_ptr<cvc::gl::SceneGraph> sceneGraph,
                                QWidget *parent)
     : QDialog(parent), m_app(app), m_sceneGraph(sceneGraph), m_geometryComboBox(nullptr),
       m_renderModeComboBox(nullptr), m_singleColorCheckBox(nullptr), m_colorRSpinBox(nullptr),
@@ -89,10 +89,10 @@ void GeometryDialog::setupUI() {
   m_renderModeComboBox = new QComboBox(this);
   m_renderModeComboBox->setObjectName("renderModeComboBox");
   m_renderModeComboBox->addItem(tr("Surface (Triangles)"),
-                                static_cast<int>(GeometryRenderMode::TRIS));
-  m_renderModeComboBox->addItem(tr("Surface (Quads)"), static_cast<int>(GeometryRenderMode::QUADS));
-  m_renderModeComboBox->addItem(tr("Wireframe"), static_cast<int>(GeometryRenderMode::LINES));
-  m_renderModeComboBox->addItem(tr("Points"), static_cast<int>(GeometryRenderMode::POINTS));
+                                static_cast<int>(cvc::gl::GeometryRenderMode::TRIS));
+  m_renderModeComboBox->addItem(tr("Surface (Quads)"), static_cast<int>(cvc::gl::GeometryRenderMode::QUADS));
+  m_renderModeComboBox->addItem(tr("Wireframe"), static_cast<int>(cvc::gl::GeometryRenderMode::LINES));
+  m_renderModeComboBox->addItem(tr("Points"), static_cast<int>(cvc::gl::GeometryRenderMode::POINTS));
   renderLayout->addRow(tr("Mode:"), m_renderModeComboBox);
 
   appearanceLayout->addWidget(renderGroup);
@@ -564,7 +564,7 @@ void GeometryDialog::onGeometrySelected(int index) {
   // Connect to selected node's state changes
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (geomNode) {
     // Connect to the node's childChanged signal (fires when any child state changes)
@@ -588,7 +588,7 @@ void GeometryDialog::updatePropertiesFromNode() {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode)
     return;
@@ -596,7 +596,7 @@ void GeometryDialog::updatePropertiesFromNode() {
   m_updating = true;
 
   // Update render mode
-  GeometryRenderMode mode = geomNode->getRenderMode();
+  cvc::gl::GeometryRenderMode mode = geomNode->getRenderMode();
   int modeIndex = m_renderModeComboBox->findData(static_cast<int>(mode));
   if (modeIndex >= 0) {
     m_renderModeComboBox->setCurrentIndex(modeIndex);
@@ -765,13 +765,13 @@ void GeometryDialog::onRenderModeChanged(int index) {
 
   const std::string &geomName = m_geometryNames[geomIndex];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode)
     return;
 
-  GeometryRenderMode mode =
-      static_cast<GeometryRenderMode>(m_renderModeComboBox->currentData().toInt());
+  cvc::gl::GeometryRenderMode mode =
+      static_cast<cvc::gl::GeometryRenderMode>(m_renderModeComboBox->currentData().toInt());
   geomNode->setRenderMode(mode);
 }
 
@@ -785,7 +785,7 @@ void GeometryDialog::onColorChanged() {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode)
     return;
@@ -803,7 +803,7 @@ void GeometryDialog::onSingleColorChanged(bool checked) {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode)
     return;
@@ -821,7 +821,7 @@ void GeometryDialog::onMaterialPropertyChanged() {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode)
     return;
@@ -1057,7 +1057,7 @@ void GeometryDialog::onInvertNormalsClicked() {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode || !geomNode->getGeometry())
     return;
@@ -1091,7 +1091,7 @@ void GeometryDialog::onInvertNormalsClicked() {
           // Post scene update to main thread
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-            auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+            auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
             if (geomNode) {
               geomNode->setGeometry(geom);
@@ -1132,7 +1132,7 @@ void GeometryDialog::onReorientClicked() {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode || !geomNode->getGeometry())
     return;
@@ -1165,7 +1165,7 @@ void GeometryDialog::onReorientClicked() {
           // Post scene update to main thread
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-            auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+            auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
             if (geomNode) {
               geomNode->setGeometry(geom);
@@ -1216,10 +1216,10 @@ void GeometryDialog::onProjectClicked() {
   const std::string &targetName = m_geometryNames[targetIndex];
 
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   auto targetGraphicsNode = m_sceneGraph->getGraphics(targetName);
-  auto targetGeomNode = std::dynamic_pointer_cast<GeometryNode>(targetGraphicsNode);
+  auto targetGeomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(targetGraphicsNode);
 
   if (!geomNode || !geomNode->getGeometry() || !targetGeomNode || !targetGeomNode->getGeometry())
     return;
@@ -1249,7 +1249,7 @@ void GeometryDialog::onProjectClicked() {
 
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-            auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+            auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
             if (geomNode) {
               geomNode->setGeometry(geom);
@@ -1288,7 +1288,7 @@ void GeometryDialog::onSmoothingClicked() {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode || !geomNode->getGeometry())
     return;
@@ -1326,7 +1326,7 @@ void GeometryDialog::onSmoothingClicked() {
 
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-            auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+            auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
             if (geomNode) {
               geomNode->setGeometry(geom);
@@ -1365,7 +1365,7 @@ void GeometryDialog::onQualityImproveClicked() {
 
   const std::string &geomName = m_geometryNames[index];
   auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-  auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+  auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
   if (!geomNode || !geomNode->getGeometry())
     return;
@@ -1398,7 +1398,7 @@ void GeometryDialog::onQualityImproveClicked() {
 
           m_sceneGraph->postEvent([this, geom, geomName, threadKey]() {
             auto graphicsNode = m_sceneGraph->getGraphics(geomName);
-            auto geomNode = std::dynamic_pointer_cast<GeometryNode>(graphicsNode);
+            auto geomNode = std::dynamic_pointer_cast<cvc::gl::GeometryNode>(graphicsNode);
 
             if (geomNode) {
               geomNode->setGeometry(geom);

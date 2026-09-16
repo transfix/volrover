@@ -6,9 +6,27 @@
 #include <vtkCamera.h>
 #include <vtkSmartPointer.h>
 
+// TECH DEBT (2026-09): this is a FORK. cvcGL now ships cvc::gl::CameraController,
+// and the long-term goal is for volrover3 to consume that instead of forking here
+// (the same de-fork that already retired volrover3's Axis/BBox/scene-graph nodes in
+// favour of cvcGL's). It has NOT been done because the two controllers are not
+// drop-in compatible:
+//   * cvc::gl::CameraController is a cvc::state_object; this one is a SceneNode
+//     (owned by, and updated inside, volrover3's scene graph).
+//   * input model differs: this takes Qt int key/mouse events (handleKeyPress(int),
+//     handleMouseMove(dx,dy), handleMouseWheel(int)); cvc::gl's takes keysym strings
+//     + update(double dt) (keyDown(keySym), mouseLook, mouseWheel(double)).
+//   * ~3 of ~15 methods match by name/signature; the rest were renamed/retyped
+//     (resetView->frameBounds, getCameraState(pos,dir,up,fov)->getPose(eye,focal,up)
+//     with no fov, setMovementSpeed->setMoveSpeed, setMode enum differs, ...).
+// Adopting cvc::gl::CameraController therefore means rewriting VTKRenderWidget's
+// input path and this camera's scene-graph ownership, not a swap — deferred. This
+// class was rebased onto cvc::gl::SceneNode (the PR #327 namespace migration) so it
+// still builds. When you do the de-fork, delete this file + volrover3/CameraController.cpp
+// and rewire VTKRenderWidget (VTKRenderWidget.cpp:24) to cvc::gl::CameraController.
 enum CameraMode { ORBIT_MODE = 0, FLY_MODE = 1 };
 
-class CameraController : public SceneNode {
+class CameraController : public cvc::gl::SceneNode {
 public:
   CameraController(cvc::app &ctx, const std::string &statePath = "volrover3.camera");
   ~CameraController();

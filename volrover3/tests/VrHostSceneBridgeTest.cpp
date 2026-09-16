@@ -26,12 +26,12 @@
 class VrHostSceneBridgeTest : public ::testing::Test {
 protected:
   static std::shared_ptr<cvc::app> app;
-  static std::shared_ptr<SceneGraph> scene;
+  static std::shared_ptr<cvc::gl::SceneGraph> scene;
   static std::unique_ptr<volrover3::EmbeddedInterpreter> interp;
   static void SetUpTestSuite() {
     app = std::make_shared<cvc::app>();
     // The live scene the host owns — same ctor MainWindow uses.
-    scene = std::make_shared<SceneGraph>(*app, "volrover3");
+    scene = std::make_shared<cvc::gl::SceneGraph>(*app, "volrover3");
     interp = std::make_unique<volrover3::EmbeddedInterpreter>(app, scene);
     ASSERT_TRUE(interp->ok());
   }
@@ -42,7 +42,7 @@ protected:
   }
 };
 std::shared_ptr<cvc::app> VrHostSceneBridgeTest::app;
-std::shared_ptr<SceneGraph> VrHostSceneBridgeTest::scene;
+std::shared_ptr<cvc::gl::SceneGraph> VrHostSceneBridgeTest::scene;
 std::unique_ptr<volrover3::EmbeddedInterpreter> VrHostSceneBridgeTest::interp;
 
 // vrhost.scene() returns a pycvc_gl.Scene (the bridge is wired + importable).

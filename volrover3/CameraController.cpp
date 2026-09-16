@@ -11,7 +11,7 @@
 #include <volrover3/CameraController.h>
 
 CameraController::CameraController(cvc::app &ctx, const std::string &statePath)
-    : SceneNode(ctx, statePath), m_camera(nullptr), m_mode(ORBIT_MODE), m_orbitDistance(10.0),
+    : cvc::gl::SceneNode(ctx, statePath), m_camera(nullptr), m_mode(ORBIT_MODE), m_orbitDistance(10.0),
       m_orbitAzimuth(0.0), m_orbitElevation(30.0), m_yaw(0.0), m_pitch(0.0),
       m_mouseLeftPressed(false), m_mouseRightPressed(false), m_mouseMiddlePressed(false),
       m_movementSpeed(5.0), m_mouseSensitivity(1.0), m_invertMouse(false), m_keyForward(Qt::Key_W),

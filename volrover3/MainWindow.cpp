@@ -83,7 +83,7 @@ MainWindow::MainWindow(std::shared_ptr<cvc::app> app, QWidget *parent)
   // SceneNode::setMainThreadCallback marshaling is no longer needed. The
   // injected-app ctor roots the scene state under the same owned app's
   // "volrover3" subtree, unifying the state tree with AppState.
-  m_sceneGraph = std::make_shared<SceneGraph>(*m_app, "volrover3");
+  m_sceneGraph = std::make_shared<cvc::gl::SceneGraph>(*m_app, "volrover3");
 
   // Boot the embedded Python interpreter now that the app + scene exist. It
   // captures the live app (delivered to scripts via vrhost.host.app()) and the
@@ -575,13 +575,13 @@ void MainWindow::openFile() {
 
           // Create geometry node using parent's factory method (or root if no parent)
           // This automatically creates the correct state path
-          std::shared_ptr<GeometryNode> graphicsNode;
+          std::shared_ptr<cvc::gl::GeometryNode> graphicsNode;
           if (parentNode) {
-            graphicsNode = parentNode->addGraphicsChild<GeometryNode>(graphicsName);
+            graphicsNode = parentNode->addGraphicsChild<cvc::gl::GeometryNode>(graphicsName);
             m_sceneGraph->registerGraphics(graphicsName, graphicsNode);
           } else {
             graphicsNode =
-                m_sceneGraph->getGraphicsRoot()->addGraphicsChild<GeometryNode>(graphicsName);
+                m_sceneGraph->getGraphicsRoot()->addGraphicsChild<cvc::gl::GeometryNode>(graphicsName);
             m_sceneGraph->registerGraphics(graphicsName, graphicsNode);
           }
 
@@ -615,13 +615,13 @@ void MainWindow::openFile() {
 
           // Create geometry node using parent's factory method (or root if no parent)
           // This automatically creates the correct state path
-          std::shared_ptr<GeometryNode> graphicsNode;
+          std::shared_ptr<cvc::gl::GeometryNode> graphicsNode;
           if (parentNode) {
-            graphicsNode = parentNode->addGraphicsChild<GeometryNode>(graphicsName);
+            graphicsNode = parentNode->addGraphicsChild<cvc::gl::GeometryNode>(graphicsName);
             m_sceneGraph->registerGraphics(graphicsName, graphicsNode);
           } else {
             graphicsNode =
-                m_sceneGraph->getGraphicsRoot()->addGraphicsChild<GeometryNode>(graphicsName);
+                m_sceneGraph->getGraphicsRoot()->addGraphicsChild<cvc::gl::GeometryNode>(graphicsName);
             m_sceneGraph->registerGraphics(graphicsName, graphicsNode);
           }
 
@@ -1024,7 +1024,7 @@ void MainWindow::generateStanfordBunny() {
 
     // Create geometry node under root
     auto graphicsNode =
-        m_sceneGraph->getGraphicsRoot()->addGraphicsChild<GeometryNode>(graphicsName);
+        m_sceneGraph->getGraphicsRoot()->addGraphicsChild<cvc::gl::GeometryNode>(graphicsName);
     m_sceneGraph->registerGraphics(graphicsName, graphicsNode);
 
     // Set geometry and metadata

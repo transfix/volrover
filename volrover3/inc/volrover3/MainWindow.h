@@ -14,7 +14,7 @@
 class AppState;
 class VTKRenderWidget;
 class TransferFunctionWidget;
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 class ThreadMonitorWidget;
 class StateTreeWidget;
 class StateDashboardWidget;
@@ -97,7 +97,7 @@ private:
 
   VTKRenderWidget *m_renderWidget;
   TransferFunctionWidget *m_transferFunctionWidget;
-  std::shared_ptr<SceneGraph> m_sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
   // Embedded Python interpreter — built right after m_sceneGraph so it captures
   // the live app + scene; owns CPython's lifecycle + the injected PyHost.
   std::unique_ptr<volrover3::EmbeddedInterpreter> m_interp;

@@ -14,8 +14,10 @@ class QCustomPlot;
 class QCPGraph;
 class QCPColorMap;
 class QComboBox;
+namespace cvc { namespace gl {
 class SceneGraph;
 class VolumeNode;
+} } // namespace cvc::gl
 
 class TransferFunctionWidget : public QWidget {
   Q_OBJECT
@@ -44,13 +46,13 @@ public:
   void applyPreset(const QString &presetName);
 
   // Volume selection
-  void setSceneGraph(SceneGraph *sceneGraph);
+  void setSceneGraph(cvc::gl::SceneGraph *sceneGraph);
   void refreshVolumeList();
-  std::shared_ptr<VolumeNode> getSelectedVolume() const;
+  std::shared_ptr<cvc::gl::VolumeNode> getSelectedVolume() const;
 
 signals:
   void transferFunctionChanged();
-  void selectedVolumeChanged(std::shared_ptr<VolumeNode> volume);
+  void selectedVolumeChanged(std::shared_ptr<cvc::gl::VolumeNode> volume);
 
 private slots:
   void onPresetChanged(int index);
@@ -64,8 +66,8 @@ private:
   void setupUI();
   void createDefaultTransferFunction();
   void updateColorBar();
-  void loadTransferFunctionFromVolume(std::shared_ptr<VolumeNode> volume);
-  void connectToVolumeState(std::shared_ptr<VolumeNode> volume);
+  void loadTransferFunctionFromVolume(std::shared_ptr<cvc::gl::VolumeNode> volume);
+  void connectToVolumeState(std::shared_ptr<cvc::gl::VolumeNode> volume);
   void disconnectFromVolumeState();
 
   QComboBox *m_presetCombo;
@@ -80,8 +82,8 @@ private:
   std::vector<OpacityPoint> m_opacityPoints;
 
   cvc::app &m_app;
-  SceneGraph *m_sceneGraph;
-  std::vector<std::shared_ptr<VolumeNode>> m_volumes;
+  cvc::gl::SceneGraph *m_sceneGraph;
+  std::vector<std::shared_ptr<cvc::gl::VolumeNode>> m_volumes;
 
   // State tree connections
   boost::signals2::scoped_connection m_graphicsChildrenConnection;

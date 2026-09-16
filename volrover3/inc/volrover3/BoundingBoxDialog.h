@@ -12,14 +12,16 @@
 #include <memory>
 #include <vector>
 
+namespace cvc { namespace gl {
 class GraphicsNode;
 class SceneGraph;
+} } // namespace cvc::gl
 
 class BoundingBoxDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit BoundingBoxDialog(std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent = nullptr);
+  explicit BoundingBoxDialog(std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent = nullptr);
 
 private slots:
   void onGraphicsSelectionChanged(int index);
@@ -34,9 +36,9 @@ private:
   void loadGraphicsSettings();
   void updateColorButton();
 
-  std::shared_ptr<SceneGraph> m_sceneGraph;
-  std::vector<std::shared_ptr<GraphicsNode>> m_graphicsList;
-  std::shared_ptr<GraphicsNode> m_currentGraphics;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
+  std::vector<std::shared_ptr<cvc::gl::GraphicsNode>> m_graphicsList;
+  std::shared_ptr<cvc::gl::GraphicsNode> m_currentGraphics;
 
   QComboBox *m_graphicsComboBox;
   QLineEdit *m_minXEdit;

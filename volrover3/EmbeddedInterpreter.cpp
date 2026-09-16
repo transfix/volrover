@@ -14,11 +14,11 @@
 namespace volrover3 {
 
 EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
-                                         std::shared_ptr<SceneGraph> scene)
+                                         std::shared_ptr<cvc::gl::SceneGraph> scene)
     : EmbeddedInterpreter(std::move(app), std::move(scene), Config{}) {}
 
 EmbeddedInterpreter::EmbeddedInterpreter(std::shared_ptr<cvc::app> app,
-                                         std::shared_ptr<SceneGraph> scene, Config config)
+                                         std::shared_ptr<cvc::gl::SceneGraph> scene, Config config)
     : m_config(std::move(config)),
       m_host(std::make_shared<PyHost>(std::move(app), std::move(scene))) {
   if (Py_IsInitialized()) {
@@ -77,7 +77,7 @@ static void app_capsule_dtor(PyObject *cap) {
 // PyCapsule("cvc.scenegraph") destructor: free the heap shared_ptr copy. The host
 // keeps its own ref, so this drop is not the last one during normal operation.
 static void scene_capsule_dtor(PyObject *cap) {
-  delete static_cast<std::shared_ptr<SceneGraph> *>(PyCapsule_GetPointer(cap, "cvc.scenegraph"));
+  delete static_cast<std::shared_ptr<cvc::gl::SceneGraph> *>(PyCapsule_GetPointer(cap, "cvc.scenegraph"));
 }
 
 // GIL must be held. Best-effort: never throws; logs + returns false on failure.
@@ -138,7 +138,7 @@ bool EmbeddedInterpreter::bind_host() {
   // the queued mutations). Same raw-shared_ptr-copy pattern as the app capsule; a
   // null scene (headless/tests) simply leaves vrhost._scene_capsule = None.
   if (auto scene = m_host->scene()) {
-    auto *ssp = new std::shared_ptr<SceneGraph>(scene);
+    auto *ssp = new std::shared_ptr<cvc::gl::SceneGraph>(scene);
     PyObject *scap = PyCapsule_New(ssp, "cvc.scenegraph", &scene_capsule_dtor); // new
     if (scap) {
       if (PyObject_SetAttrString(vr, "_scene_capsule", scap) != 0)

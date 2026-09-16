@@ -9,7 +9,7 @@ class QCheckBox;
 class QComboBox;
 class QPushButton;
 class VTKRenderWidget;
-class SceneGraph;
+namespace cvc { namespace gl { class SceneGraph; } }
 class AppState;
 
 class ViewerOptionsDialog : public QWidget {
@@ -17,7 +17,7 @@ class ViewerOptionsDialog : public QWidget {
 
 public:
   explicit ViewerOptionsDialog(AppState &appState, VTKRenderWidget *renderWidget,
-                               std::shared_ptr<SceneGraph> sceneGraph, QWidget *parent = nullptr);
+                               std::shared_ptr<cvc::gl::SceneGraph> sceneGraph, QWidget *parent = nullptr);
   ~ViewerOptionsDialog() override;
 
 protected:
@@ -38,7 +38,7 @@ private:
 
   AppState &m_appState;
   VTKRenderWidget *m_renderWidget;
-  std::shared_ptr<SceneGraph> m_sceneGraph;
+  std::shared_ptr<cvc::gl::SceneGraph> m_sceneGraph;
 
   // Display options
   QCheckBox *m_showFPSCheckBox;
