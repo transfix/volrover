@@ -34,7 +34,7 @@
 import math
 import os
 
-from pycvc_gl.camera import ChaseCamera
+from pycvc_gl.camera import NativeChaseCamera as ChaseCamera
 from pycvc_gl.lab import Lab
 from pycvc_gl.scenes import (
     building_occupancy,
