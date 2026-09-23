@@ -181,6 +181,13 @@ if(WIN32)
   # GDI/USER/KERNEL surface intact; only rarely-used Cryptography/DDE/RPC/Shell/
   # Sockets headers are excluded (pulled in explicitly where actually needed).
   add_definitions(-DWIN32_LEAN_AND_MEAN)
+  # Disable Boost's MSVC auto-linking (#pragma comment(lib, ...)). Boost headers
+  # otherwise emit a request for the vcpkg-mangled name
+  # (libboost_thread-vc143-mt-x64-1_86.lib), which does not exist in the cvcpkg
+  # prefix — LNK1104. With this off, linking uses ONLY the explicit Boost::*
+  # imported targets from find_package(Boost), which point at cvcpkg's actual
+  # libs. (Harmless with any Boost provider; only MSVC auto-link is affected.)
+  add_definitions(-DBOOST_ALL_NO_LIB)
 endif()
 
 # ************* CPack configuration for VolumeRover *************
