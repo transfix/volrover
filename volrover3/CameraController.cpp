@@ -6,7 +6,7 @@
 
 #include <Qt>
 #include <cmath>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <sstream>
 #include <volrover3/CameraController.h>
 

@@ -12,7 +12,7 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <cvc/core/app.h>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <cvc/geometry/geometry.h>
 #include <cvc/utility/algorithm.h>
 #include <cvc/volume/volmagick.h>

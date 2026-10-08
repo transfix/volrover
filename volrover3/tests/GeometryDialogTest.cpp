@@ -4,7 +4,7 @@
 #include <QDoubleSpinBox>
 #include <QTest>
 #include <cvc/core/app.h>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <cvc/geometry/geometry.h>
 #include <gtest/gtest.h>
 #include <volrover3/GeometryDialog.h>

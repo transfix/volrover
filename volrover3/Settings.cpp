@@ -1,6 +1,6 @@
 #include <volrover3/Settings.h>
 
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 
 #include <QDir>
 #include <QSqlError>

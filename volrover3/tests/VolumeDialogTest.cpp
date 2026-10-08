@@ -4,7 +4,7 @@
 #include <QDoubleSpinBox>
 #include <QTest>
 #include <cvc/core/app.h>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <cvc/volume/volume.h>
 #include <gtest/gtest.h>
 #include <cvc/gl/SceneGraph.h>
