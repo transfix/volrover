@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cvc/core/app.h>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <cvc/gl/SceneGraph.h>
 #include <volrover3/TransferFunctionWidget.h>
 #include <cvc/gl/VolumeNode.h>

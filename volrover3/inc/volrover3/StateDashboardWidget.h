@@ -16,13 +16,13 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <boost/signals2.hpp>
-#include <cvc/core/state.h>
-#include <cvc/core/state_cluster_membership.h>
-#include <cvc/core/state_cluster_shard.h>
-#include <cvc/core/state_exec/exec_coordinator.h>
-#include <cvc/core/state_exec/scheduler.h>
-#include <cvc/core/state_message_bus.h>
-#include <cvc/core/state_telemetry_aggregator.h>
+#include <cvc/state/state.h>
+#include <cvc/state/state_cluster_membership.h>
+#include <cvc/state/state_cluster_shard.h>
+#include <cvc/state/state_exec/exec_coordinator.h>
+#include <cvc/state/state_exec/scheduler.h>
+#include <cvc/state/state_message_bus.h>
+#include <cvc/state/state_telemetry_aggregator.h>
 #include <string>
 #include <vector>
 

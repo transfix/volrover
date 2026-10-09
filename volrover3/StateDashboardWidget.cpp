@@ -8,10 +8,10 @@
 #include <QMetaObject>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <cvc/core/app.h>
-#include <cvc/core/state.h>
-#include <cvc/core/state_exec/builtins.h>
-#include <cvc/core/state_exec/evaluator.h>
-#include <cvc/core/state_exec/process.h>
+#include <cvc/state/state.h>
+#include <cvc/state/state_exec/builtins.h>
+#include <cvc/state/state_exec/evaluator.h>
+#include <cvc/state/state_exec/process.h>
 #include <sstream>
 #include <volrover3/StateDashboardWidget.h>
 

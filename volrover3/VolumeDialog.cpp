@@ -9,7 +9,7 @@
 #include <QMetaObject>
 #include <QPushButton>
 #include <QVBoxLayout>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <cvc/gl/GraphicsNode.h>
 #include <cvc/gl/SceneGraph.h>
 #include <volrover3/VolumeDialog.h>

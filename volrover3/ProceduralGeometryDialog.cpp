@@ -15,7 +15,7 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <cmath>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <cvc/geometry/geometry.h>
 #include <cvc/utility/algorithm.h>
 #include <volrover3/AppState.h>
