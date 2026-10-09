@@ -32,10 +32,10 @@ jobs:
           - os: macos-latest
             build_type: Release
             package_generator: DragNDrop
-          # Windows
-          - os: windows-latest
-            build_type: Debug
-            package_generator: NSIS
+          # Windows — Release only. Its deps come from the cvcpkg catalog, which
+          # ships Release (shared) bundles; a Debug app linked against Release
+          # deps is an MSVC CRT mismatch, so (like publish-cvcpkg.yml) Windows
+          # builds Release only.
           - os: windows-latest
             build_type: Release
             package_generator: NSIS
@@ -88,23 +88,48 @@ jobs:
             imagemagick
           echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
 
-      # ── Windows dependencies ──
-      # Use install-qt-action for pre-built Qt binaries (much faster than vcpkg)
-      # and vcpkg only for smaller C libraries
-      - name: Install Qt (Windows)
+      # ── Windows dependencies (from the cvcpkg.org catalog — NO vcpkg) ──
+      # Qt6, Boost, GLEW, FFTW3, GSL, log4cplus, ImageMagick and pthreads4w all
+      # come from the cvcpkg prefix, via the same cvc-requirements.yaml + flow
+      # publish-cvcpkg.yml already uses. This deliberately drops vcpkg: vcpkg's
+      # log4cplus does not compile with MSVC 14.44 (win32fstream.h), while the
+      # cvcpkg build (log4cplus 2.1.2+cvc) does, and cvcpkg is the project's
+      # single source of third-party deps.
+      - name: Install dependencies (cvcpkg)
+        id: deps
         if: runner.os == 'Windows'
-        uses: jurplel/install-qt-action@v4
+        uses: transfix/libcvc-deps/.github/actions/cvcpkg-install@master
         with:
-          version: '6.8.*'
-          arch: win64_msvc2022_64
-          cache: true
+          requirements: cvc-requirements.yaml
+          build_type: Release
+          link: shared
 
-      - name: Install dependencies (Windows)
+      # The composite action installs cvcpkg from a sparse checkout that excludes
+      # recipes/. Reinstall the full package so the bundled recipes are present
+      # for the GLEW source-fallback below.
+      - name: Install cvcpkg (full, with bundled recipes)
         if: runner.os == 'Windows'
+        shell: bash
         run: |
-          vcpkg install glew fftw3 gsl log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
-        env:
-          VCPKG_MAX_CONCURRENCY: 4
+          set -euo pipefail
+          pip install --force-reinstall --no-deps 'git+https://github.com/transfix/libcvc-deps@master'
+          cvcpkg --version
+
+      # GLEW has a published bundle for linux/x86_64 only so far; build it from
+      # its recipe into the same prefix on Windows.
+      - name: Ensure GLEW (source fallback where no bundle exists yet)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deps_prefix="${{ steps.deps.outputs.path }}"
+          [ -n "$deps_prefix" ] || { echo "cvcpkg dependency prefix missing — provisioning failed earlier"; exit 1; }
+          cvcpkg install glew \
+            --prefix "$deps_prefix" \
+            --platform windows \
+            --config release \
+            --link shared \
+            --fallback-to-source
 
       # ── Configure ──
       - name: Configure (Linux)
@@ -128,13 +153,20 @@ jobs:
             -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" \
             -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/_install
 
+      # No vcpkg toolchain and no install-qt-action: the ONLY third-party search
+      # path is the cvcpkg prefix (Qt6, Boost, GLEW, FFTW3, GSL, log4cplus,
+      # ImageMagick, pthreads4w all resolve from it).
       - name: Configure (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
+          $depsPath = '${{ steps.deps.outputs.path }}'
+          if (-not $depsPath) { $depsPath = 'D:\libcvc-deps' }
+          $env:PKG_CONFIG_PATH = "$depsPath\lib\pkgconfig"
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DCMAKE_CONFIGURATION_TYPES=${{ matrix.build_type }} `
+            -DCMAKE_PREFIX_PATH="$depsPath" `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/_install"

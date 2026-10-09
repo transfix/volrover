@@ -1,6 +1,6 @@
 #include <QApplication>
 #include <cvc/core/app.h>
-#include <cvc/core/state.h>
+#include <cvc/state/state.h>
 #include <gtest/gtest.h>
 #include <volrover3/StateTreeWidget.h>
 
