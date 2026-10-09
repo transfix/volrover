@@ -171,6 +171,23 @@ endif()
 # Prevent windows.h min/max macros from clobbering std::min/std::max
 if(WIN32)
   add_definitions(-DNOMINMAX)
+  # Stop <windows.h> from pulling the legacy <winsock.h> (which redefines
+  # sockaddr/fd_set/timeval and collides with the XmlRPC layer's <winsock2.h>
+  # when a TU reaches windows.h first). WIN32_LEAN_AND_MEAN is the standard,
+  # Boost.Asio-recommended macro for this: it excludes winsock 1.1 from
+  # <windows.h> WITHOUT defining _WINSOCKAPI_, so Boost.Asio's own
+  # "WinSock.h has already been included" guard (which trips on a bare
+  # _WINSOCKAPI_) stays happy and includes <winsock2.h> normally. It leaves the
+  # GDI/USER/KERNEL surface intact; only rarely-used Cryptography/DDE/RPC/Shell/
+  # Sockets headers are excluded (pulled in explicitly where actually needed).
+  add_definitions(-DWIN32_LEAN_AND_MEAN)
+  # Disable Boost's MSVC auto-linking (#pragma comment(lib, ...)). Boost headers
+  # otherwise emit a request for the vcpkg-mangled name
+  # (libboost_thread-vc143-mt-x64-1_86.lib), which does not exist in the cvcpkg
+  # prefix — LNK1104. With this off, linking uses ONLY the explicit Boost::*
+  # imported targets from find_package(Boost), which point at cvcpkg's actual
+  # libs. (Harmless with any Boost provider; only MSVC auto-link is affected.)
+  add_definitions(-DBOOST_ALL_NO_LIB)
 endif()
 
 # ************* CPack configuration for VolumeRover *************

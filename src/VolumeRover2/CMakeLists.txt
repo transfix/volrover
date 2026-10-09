@@ -421,4 +421,20 @@ if(WIN32 AND USE_QT6)
     NO_COMPILER_RUNTIME        # MSVC CRT handled by InstallRequiredSystemLibraries
   )
   install(SCRIPT ${_qt_deploy_script})
+
+  # 3) Fallback for deps found through a Find-MODULE rather than a CMake config
+  #    package: those expose only a .lib path (no IMPORTED target), so
+  #    $<TARGET_RUNTIME_DLLS> in (1) cannot see their DLLs — most notably
+  #    log4cplus (via libcvc's FindLog4cplus). The old vcpkg toolchain applocal-
+  #    deployed everything; the cvcpkg prefix has no equivalent, so copy its
+  #    runtime DLLs into the package to keep it self-contained. (CMAKE_PREFIX_PATH
+  #    is the cvcpkg dependency prefix on the Windows/cvcpkg CI.)
+  foreach(_deps_prefix IN LISTS CMAKE_PREFIX_PATH)
+    if(EXISTS "${_deps_prefix}/bin")
+      file(GLOB _cvcpkg_runtime_dlls "${_deps_prefix}/bin/*.dll")
+      if(_cvcpkg_runtime_dlls)
+        install(FILES ${_cvcpkg_runtime_dlls} TYPE BIN)
+      endif()
+    endif()
+  endforeach()
 endif()
