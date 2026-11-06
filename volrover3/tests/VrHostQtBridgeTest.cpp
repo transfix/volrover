@@ -1,3 +1,18 @@
+/*
+  Copyright 2026 CyberPC Angel, LLC
+
+  This file is part of VolumeRover.
+
+  VolumeRover is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License version 2.1 as published by the Free Software Foundation.
+
+  VolumeRover is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+*/
+
 // Phase 6: the Qt-from-Python bridge. Proves embedded Python can READ the live
 // app's QMainWindow widgets and MUTATE its UI — add a menu item that, when
 // triggered, fires a QMessageBox — all through pyside6 + shiboken6 wrapping the

@@ -1,3 +1,18 @@
+/*
+  Copyright 2026 CyberPC Angel, LLC
+
+  This file is part of VolumeRover.
+
+  VolumeRover is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License version 2.1 as published by the Free Software Foundation.
+
+  VolumeRover is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+*/
+
 // MSVC's <cmath> does not define M_PI etc. unless _USE_MATH_DEFINES is
 // defined before the header is included.
 #ifndef _USE_MATH_DEFINES

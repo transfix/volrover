@@ -1,3 +1,16 @@
+# Copyright 2026 CyberPC Angel, LLC
+#
+# This file is part of VolumeRover.
+#
+# VolumeRover is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 2.1 as published by the Free Software Foundation.
+#
+# VolumeRover is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+
 # lsystem_tree.py — a realtime L-system tree, ported to the cvcGL scene graph.
 #
 # This is a port of a 2004 UT CS354 project (github.com/transfix/cs354,
