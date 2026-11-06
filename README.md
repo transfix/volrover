@@ -62,7 +62,10 @@ The project has CI/CD via GitHub Actions with matrix builds across Ubuntu, macOS
 
 ## License
 
-Originally developed at CVC, The University of Texas at Austin. See individual source files for license details.
+Originally developed at CVC, The University of Texas at Austin. VolumeRover is licensed under the GNU Lesser
+General Public License, version 2.1 (see [LICENSE](LICENSE)), the same licence as libcvc. A few third-party
+and legacy components carry GPL or other headers instead; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+lists them and says which are compiled into a default build.
 
 ## Contact
 
