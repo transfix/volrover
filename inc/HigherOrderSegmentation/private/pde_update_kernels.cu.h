@@ -5,6 +5,15 @@
  * E-mail: os@imm.dtu.dk
  * File: pde_update_kerenels.cu
  * CUDA kernels for PDE update.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License version 2.1 as published by the Free Software Foundation.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  */
 //============================================================================
 #ifndef _PDE_UPDATE_KERNELS_
