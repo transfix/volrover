@@ -27,7 +27,6 @@ distributing binaries knows which obligations apply.
 | Component | Files | Copyright holder (per header) | Licence | In the default build? | Upstream |
 |---|---|---|---|---|---|
 | VRender (`inc/QGLViewer/VRender/`, `src/QGLViewer/VRender/`) | 28 | Cyril Soler (2005); each file also carries the libQGLViewer header (Gilles Debunne, LGPL-3.0-or-later) | GPL-2.0-or-later | **Yes**: compiled into the vendored QGLViewer library, which VolumeRover2 links, unless `-DNO_VECTORIAL_RENDER=ON` | VRender, http://artis.imag.fr/Members/Cyril.Soler/VRender, shipped inside libQGLViewer 3.0.0 |
-| Verlihub Python scripts (`volrover3/docs/reference/verlihub-scripts/`) | 3 | Verlihub Team (2025) | GPL (`dispatcher.py`: "License: GPL"; the README says the scripts follow the Verlihub licence, GPL-3.0-or-later) | No: reference documentation, neither built nor installed | Verlihub Python plugin, `verlihub-py` branch of https://github.com/transfix/verlihub (fork of https://github.com/Verlihub/verlihub) |
 
 **Consequence for binaries.** Because the default build links VRender into VolumeRover2, a VolumeRover2 binary
 built with the default configuration is a combined work that must be distributed under the GPL's terms (and see

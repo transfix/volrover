@@ -363,8 +363,8 @@ architecture doc.*
 
 ## 12. Scheduler, interpreter modes, settings & console (design — grounded in verlihub's `dispatcher.py`)
 
-Reference material vendored under `docs/reference/verlihub-scripts/` (verlihub `plugins/python/scripts/`:
-`dispatcher.py` + `README.md`). verlihub's "scheduler" is a **host tick → `CallAll` fan-out → per-script
+Reference material: verlihub's `plugins/python/scripts/` (`dispatcher.py` + `README.md`), at
+[transfix/verlihub@a9a656d](https://github.com/transfix/verlihub/tree/a9a656d97fab3e42a6faed4f2d1d99beb52d036a/plugins/python/scripts). verlihub's "scheduler" is a **host tick → `CallAll` fan-out → per-script
 `OnTimer`** loop (`casyncsocketserver.cpp` 1 Hz clock → `cserverdc.cpp:1954` `CallAll` → `cpipython.cpp:1087`
 `OnTimer` → `:465-519` in-order iterate `mPython`), and `dispatcher.py` is the Python-level **hook dispatcher**
 that rides it — a script *registry* (`register_script`/`unregister_script`/`enable_script`/`disable_script`/
