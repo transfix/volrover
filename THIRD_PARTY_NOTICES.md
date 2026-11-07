@@ -26,12 +26,13 @@ distributing binaries knows which obligations apply.
 
 | Component | Files | Copyright holder (per header) | Licence | In the default build? | Upstream |
 |---|---|---|---|---|---|
-| VRender (`inc/QGLViewer/VRender/`, `src/QGLViewer/VRender/`) | 28 | Cyril Soler (2005); each file also carries the libQGLViewer header (Gilles Debunne, LGPL-3.0-or-later) | GPL-2.0-or-later | **Yes**: compiled into the vendored QGLViewer library, which VolumeRover2 links, unless `-DNO_VECTORIAL_RENDER=ON` | VRender, http://artis.imag.fr/Members/Cyril.Soler/VRender, shipped inside libQGLViewer 3.0.0 |
+| VRender (`inc/QGLViewer/VRender/`, `src/QGLViewer/VRender/`) | 28 | Cyril Soler (2005); each file also carries the libQGLViewer header (Gilles Debunne, LGPL-3.0-or-later) | GPL-2.0-or-later | No: compiled into the vendored QGLViewer library only with `-DNO_VECTORIAL_RENDER=OFF` | VRender, http://artis.imag.fr/Members/Cyril.Soler/VRender, shipped inside libQGLViewer 3.0.0 |
 
-**Consequence for binaries.** Because the default build links VRender into VolumeRover2, a VolumeRover2 binary
-built with the default configuration is a combined work that must be distributed under the GPL's terms (and see
-GPC below). Building with `-DNO_VECTORIAL_RENDER=ON` leaves VRender and GPC out. The VolumeRover sources
-themselves remain LGPL-2.1. VolumeRover3 (`volrover3/`) links only libcvc, cvcGL, Python, yaml-cpp, Qt and VTK,
+**Consequence for binaries.** The default build contains no GPL code. VRender, and the GPC clipper inside it,
+is compiled only when you configure with `-DNO_VECTORIAL_RENDER=OFF`, which adds EPS/PS/XFIG snapshot export.
+A VolumeRover2 binary built that way is a combined work that must be distributed under the GPL's terms, and GPC
+forbids commercial use (see below). A default VolumeRover2 binary is LGPL-2.1 VolumeRover plus the
+LGPL-3.0-or-later libQGLViewer. VolumeRover3 (`volrover3/`) links only libcvc, cvcGL, Python, yaml-cpp, Qt and VTK,
 and none of the components above.
 
 ## Other third-party code
@@ -39,7 +40,7 @@ and none of the components above.
 | Component | Path | Copyright holder | Licence | In the default build? |
 |---|---|---|---|---|
 | libQGLViewer 3.0.0 | `inc/QGLViewer/`, `src/QGLViewer/` | Gilles Debunne (2002–2025) | LGPL-3.0-or-later (https://github.com/GillesDebunne/libQGLViewer) | **Yes**: linked by VolumeRover2 |
-| Generic Polygon Clipper (GPC) 2.32 | `inc/QGLViewer/VRender/gpc.h`, `src/QGLViewer/VRender/gpc.cpp` | Alan Murta, Advanced Interfaces Group, University of Manchester (1997–2004) | Free for non-commercial use only; commercial use needs the author's consent. Not an open-source licence, and not GPL-compatible. These two files also carry the VRender and libQGLViewer headers. | **Yes**: part of VRender |
+| Generic Polygon Clipper (GPC) 2.32 | `inc/QGLViewer/VRender/gpc.h`, `src/QGLViewer/VRender/gpc.cpp` | Alan Murta, Advanced Interfaces Group, University of Manchester (1997–2004) | Free for non-commercial use only; commercial use needs the author's consent. Not an open-source licence, and not GPL-compatible. These two files also carry the VRender and libQGLViewer headers. | No: part of VRender |
 | IMOD `libiimod` | `inc/VolMagick/libiimod/`, `src/VolMagick/libiimod/` | BL3DEMC and the Regents of the University of Colorado (1995–2009) | The headers refer to IMOD's `dist/COPYRIGHT`, which releases IMOD's C/C++ libraries under the LGPL (its `LGPL.txt` is version 3) and its programs under GPL-2.0 (https://bio3d.colorado.edu/imod/) | No: only with `-DVOLMAGICK_USING_IMOD_MRC=ON` |
 | XmlRpc++ | `inc/XmlRPC/`, `src/XmlRPC/` | Chris Morley (2002–2003); CVC notice added at UT | Distributed here under the CVC LGPL notice; upstream XmlRpc++ (http://xmlrpcpp.sourceforge.net) is LGPL, version not checked | **Yes** |
 | TinyXML | `src/ContourTiler/xml/tinyxml*.cpp`, `inc/ContourTiler/xml/tinyxml.h`, `inc/ContourTiler/xml/tinystr.h` | Lee Thomason | zlib | **Yes**: part of ContourTiler (`BUILD_TILING_LIB`, ON unless `DISABLE_CGAL`) |

@@ -61,8 +61,12 @@ set(SOURCES
 # UI forms (using Qt4-compatible versions for Qt6)
 set(UI_FORMS ImageInterface.ui)
 
-# VRender vectorial rendering support (enabled by default)
-option(NO_VECTORIAL_RENDER "Disable vectorial rendering support" OFF)
+# VRender vectorial rendering support (EPS/PS/XFIG snapshots). Disabled by
+# default: VRender is GPL-2.0-or-later and includes the Generic Polygon
+# Clipper (non-commercial use only), so building it makes the binary a GPL
+# combined work. See THIRD_PARTY_NOTICES.md. Pass -DNO_VECTORIAL_RENDER=OFF
+# to build it anyway.
+option(NO_VECTORIAL_RENDER "Disable vectorial rendering support (VRender, GPL)" ON)
 if(NOT NO_VECTORIAL_RENDER)
   set(VRENDER_SOURCES
     VRender/BackFaceCullingOptimizer.cpp
