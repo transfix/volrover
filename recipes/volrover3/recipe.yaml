@@ -2,6 +2,9 @@ schema_version: 1
 recipe:
   name: volrover3
   upstream_version: "3.2.4"
+  # Bumped 3 -> 4: the licence field changed from GPL-2.0-or-later to
+  # LGPL-2.1-only. Published revisions are immutable, so new metadata needs a
+  # new revision.
   # Bumped 2 -> 3: rebuild against the new cvcgl (libcvc SDK). cvcGL removed its
   # process-wide cvc::gl::context() singleton — each SceneGraph now owns its state
   # publisher under the injected app, on the publisher's own joined thread — and
@@ -12,13 +15,15 @@ recipe:
   # unpinned, so the build picks up the latest cvcgl/libcvc). A re-publish from
   # master no-ops on the immutable +cvc.2 revision, so the bump is required for the
   # app on cvcpkg.org to advance.
-  cvc_revision: 3
+  cvc_revision: 4
   maintainer: "cvcpkg group"
   maintainer_email: "info@cvcpkg.org"
   maintainer_url: "https://cvcpkg.org"
   description: "VolumeRover3 — next-generation CVC visualization application built on the libcvc SDK, Qt6, and VTK."
   homepage: https://github.com/transfix/volrover
-  license: GPL-2.0-or-later
+  # volrover3 is LGPL-2.1-only and links none of the GPL code in this repo;
+  # its package holds only the volrover3 install component.
+  license: LGPL-2.1-only
   tags: [scientific, volumetric, visualization, application]
 
 source:

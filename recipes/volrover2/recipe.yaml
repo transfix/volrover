@@ -2,13 +2,20 @@ schema_version: 1
 recipe:
   name: volrover2
   upstream_version: "2.1.0"
-  cvc_revision: 1
+  # Bumped 1 -> 2: the licence field changed (was GPL-2.0-or-later).
+  # Published revisions are immutable, so new metadata needs a new revision.
+  cvc_revision: 2
   maintainer: "cvcpkg group"
   maintainer_email: "info@cvcpkg.org"
   maintainer_url: "https://cvcpkg.org"
   description: "VolumeRover 2.0 — interactive volumetric image visualization and processing application (Qt6 GUI plus the VolUtils command-line volume tools)."
   homepage: https://github.com/transfix/volrover
-  license: GPL-2.0-or-later
+  # VolumeRover is LGPL-2.1-only. The package also compiles in the vendored
+  # libQGLViewer (LGPL-3.0-or-later) and its VRender module
+  # (GPL-2.0-or-later), which includes the Generic Polygon Clipper (GPC,
+  # non-commercial use only). See THIRD_PARTY_NOTICES.md. Building with
+  # -DNO_VECTORIAL_RENDER=ON leaves VRender and GPC out.
+  license: "LGPL-2.1-only AND LGPL-3.0-or-later AND GPL-2.0-or-later AND LicenseRef-GPC"
   tags: [scientific, volumetric, visualization, application]
 
 source:
