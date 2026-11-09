@@ -175,6 +175,18 @@ if(GLUT_FOUND)
   endif()
 endif()
 
+# Ship the shared library with the app. Windows gets QGLViewer.dll through
+# VolumeRover2's $<TARGET_RUNTIME_DLLS> install, so only the other platforms
+# need it here. On Linux its dependencies sit beside it in <prefix>/lib
+# (DT_RUNPATH is not inherited from the executable); macOS dyld also
+# searches the app's rpaths.
+if(NOT QGLVIEWER_STATIC AND NOT WIN32)
+  if(NOT APPLE)
+    set_target_properties(QGLViewer PROPERTIES INSTALL_RPATH "$ORIGIN")
+  endif()
+  install(TARGETS QGLViewer LIBRARY DESTINATION lib)
+endif()
+
 # GLEW linking (required for OpenGL extensions)
 if(GLEW_FOUND)
   target_link_libraries(QGLViewer PUBLIC GLEW::GLEW)

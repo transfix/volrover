@@ -35,13 +35,16 @@ depends:
     - name: fftw3
     - name: gsl
     - name: log4cplus
-    # glew recipe: libcvc-deps#272 (linux/x86_64 bundle published;
-    # other platforms source-fallback until fleet builds exist).
+    # glew recipe: libcvc-deps#272 (bundles published for linux, macos
+    # and windows).
     - name: glew
     # Magick++ is optional (VolUtils image import); the catalog covers
-    # it on linux/macos/windows so it is enabled everywhere. Keep in
-    # sync with cvc-requirements.yaml.
+    # it on linux/macos/windows so it is enabled everywhere.
     - name: imagemagick
+    # QGLViewer links OpenGL::GLU on Linux. GL itself comes from libglvnd
+    # (pulled in by qt6/glew); macOS and Windows ship GLU with the OS.
+    - name: glu
+      platforms: [linux]
     - name: pthreads4w
       platforms: [windows]
   host_tools:
@@ -72,19 +75,25 @@ build:
 
 package:
   # `cvcpkg pack --from-prefix` ships the whole staged prefix; these
-  # globs document the installed app tree.
+  # globs document the installed app tree. Pack fails on an entry that
+  # matches nothing, so each one is scoped to the platforms whose layout
+  # has it.
   files:
-    # VolumeRover2 GUI binary + VolUtils CLI tools (and, on Windows,
-    # the bundled runtime DLLs / Qt plugins that make it self-contained)
-    - bin/
-    # Shared libraries some configurations install alongside the app
-    - lib/
+    # VolumeRover2 GUI binary (and, on Windows, the bundled runtime DLLs /
+    # Qt plugins that make it self-contained, QGLViewer.dll among them)
+    - glob: bin/
+      platforms: [linux, windows, freebsd, openbsd, netbsd]
+    # libQGLViewer, the shared library the app links (RUNPATH $ORIGIN/../lib)
+    - glob: lib/
+      platforms: [linux, freebsd, openbsd, netbsd]
     # Top-level README installed at the prefix root
-    - README.md
+    - glob: README.md
+      platforms: [linux, windows, freebsd, openbsd, netbsd]
     # macOS layout: the top-level CMakeLists appends
     # `VolumeRover-<ver>.app/Contents` to the install prefix, so the
-    # whole tree lands inside the .app bundle.
-    - VolumeRover-*.app/
+    # whole tree (README.md and lib/ included) lands inside the .app bundle.
+    - glob: VolumeRover-*.app/
+      platforms: [macos]
 
 abi:
   cxx_std: 17

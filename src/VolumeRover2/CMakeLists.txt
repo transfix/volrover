@@ -400,6 +400,18 @@ if(${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.4)
     BUNDLE DESTINATION "${CMAKE_BUNDLE_LOCATION}")
 endif(${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.4)
 
+# The installed app finds libQGLViewer, and the dependency libraries in the
+# lib/ of the prefix it is installed into (a cvcpkg prefix puts every bundle
+# in one <prefix>/lib). On macOS the executable is
+# <prefix>/<bundle>.app/Contents/MacOS/<exe> and libQGLViewer goes to
+# Contents/lib.
+if(APPLE)
+  set_target_properties(VolumeRover2 PROPERTIES
+    INSTALL_RPATH "@executable_path/../lib;@executable_path/../../../lib")
+elseif(UNIX)
+  set_target_properties(VolumeRover2 PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+endif()
+
 install(TARGETS VolumeRover2
         RUNTIME DESTINATION bin ${CMAKE_INSTALL_DESTINATION_ARGS}
         LIBRARY DESTINATION lib
