@@ -363,7 +363,10 @@ if(WIN32)
     "${CMAKE_BINARY_DIR}/bin"
     "${CMAKE_BINARY_DIR}/lib"
   )
+  # Forward slashes: these paths are pasted into the quoted install(CODE)
+  # string below, where a native D:\a\... prefix reads as escapes ("\a").
   foreach(_p IN LISTS CMAKE_PREFIX_PATH)
+    file(TO_CMAKE_PATH "${_p}" _p)
     list(APPEND _cvc_runtime_search_dirs "${_p}/bin")
   endforeach()
   if(DEFINED CUDAToolkit_BIN_DIR)

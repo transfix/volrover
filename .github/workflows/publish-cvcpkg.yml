@@ -19,9 +19,9 @@
 # until this pipeline proves out (follow-up).
 #
 # A second, gated job builds the VolumeRover3 application (recipe:
-# recipes/volrover3). It is OFF by default because volrover3
-# consumes libcvc as an external SDK — it activates once @cvc/libcvc
-# (and vtk) are published on cvcpkg.org.
+# recipes/volrover3), which consumes libcvc as an external SDK. It runs
+# only when dispatched with enable_volrover3=true, and takes its whole
+# toolchain from the catalog the same way.
 #
 # The recipes also carry freebsd/openbsd/netbsd build-matrix entries;
 # those are not built here (no hosted BSD runners) — they enable the
@@ -307,12 +307,15 @@ jobs:
   # ── VolumeRover3 (recipes/volrover3) — GATED ─────────────────
   #
   # volrover3 consumes libcvc as an external SDK (find_package(cvc
-  # CONFIG) -> cvc::cvc) plus VTK. Neither is on the cvcpkg.org catalog
-  # yet, so this job only runs when manually dispatched with
-  # enable_volrover3=true, and is continue-on-error so it can never
-  # block a VolumeRover 2.0 release. Once @cvc/libcvc and vtk are
-  # published under the cvc org, flip the input (and eventually drop
-  # the gate).
+  # CONFIG) -> cvc::cvc) plus VTK, both from the cvcpkg.org catalog.
+  # This job only runs when manually dispatched with enable_volrover3=true,
+  # and is continue-on-error so it can never block a VolumeRover 2.0
+  # release.
+  #
+  # Catalog coverage (2026-11-08): linux x86_64/arm64 and windows have the
+  # whole closure. macos/arm64 lacks cvcgl, pycvc-cp311, pycvc-gl-cp311,
+  # pyside6-cp311 and shiboken6-cp311 (macos/x86_64 also lacks vtk), so the
+  # macOS lanes stop at dependency install until libcvc publishes them.
   build-volrover3:
     needs: ensure-org
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.enable_volrover3 == 'true'
@@ -321,20 +324,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Runner pins: see the volrover2 matrix. ubuntu-latest (24.04)
+          # published volrover3 3.2.4+cvc.3 referencing GLIBC_2.38, which
+          # does not start on 22.04 (fleet floor 2.35).
+          - os: ubuntu-22.04
             platform: linux
             arch: x86_64
-          # Experimental — see the volrover2 matrix note.
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             platform: linux
             arch: arm64
             experimental: true
-          - os: macos-14
+          - os: macos-15
             platform: macos
             arch: arm64
-          - os: macos-13
+            macos_min: "14.0"
+          - os: macos-15-intel
             platform: macos
             arch: x86_64
+            macos_min: "14.0"
           - os: windows-latest
             platform: windows
             arch: x86_64
@@ -343,6 +350,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install cvcpkg
         shell: bash
@@ -355,104 +366,97 @@ jobs:
           # needs httpx — only the extra pulls it in. PEP 508 direct
           # reference: the bracket goes on the NAME, before the `@ <url>`.
           python -m pip install --upgrade pip
-          pip install 'cvcpkg[publish] @ git+https://github.com/transfix/libcvc-deps@master'
+          pip install 'cvcpkg[publish] @ git+https://github.com/cy-pca/cvcpkg@master'
           cvcpkg --version
 
-      # System toolchain + the VolumeRover 2.0 tree's own configure-time
-      # requirements (the top-level project still find_package()s GLEW,
-      # Boost, FFTW, GSL, log4cplus even when only volrover3 is built).
-      - name: Install dependencies (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build \
-            qt6-base-dev libqt6opengl6-dev qt6-base-private-dev \
-            libgl1-mesa-dev libglu1-mesa-dev libglew-dev \
-            libboost-all-dev libfftw3-dev libgsl-dev \
-            liblog4cplus-dev libnsl-dev \
-            imagemagick libmagick++-dev \
-            python3-dev
-
-      - name: Install dependencies (macOS)
-        if: matrix.platform == 'macos'
-        run: |
-          brew install cmake ninja qt@6 glew boost fftw gsl log4cplus imagemagick
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6);$(brew --prefix boost);$(brew --prefix log4cplus)" >> $GITHUB_ENV
-
-      - name: Install Qt (Windows)
-        if: matrix.platform == 'windows'
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.*'
-          arch: win64_msvc2022_64
-          cache: true
-
-      - name: Install dependencies (Windows)
-        if: matrix.platform == 'windows'
-        run: |
-          vcpkg install glew fftw3 gsl log4cplus pthreads boost-thread boost-date-time boost-regex boost-filesystem boost-system boost-program-options boost-signals2 boost-any boost-tuple boost-format boost-multi-array boost-foreach boost-property-tree boost-algorithm boost-asio boost-bind boost-graph boost-lambda boost-lexical-cast boost-spirit boost-tokenizer boost-dynamic-bitset boost-numeric-conversion boost-range boost-smart-ptr boost-functional --triplet x64-windows
-        env:
-          VCPKG_MAX_CONCURRENCY: 4
-
-      # The activation dependency: install volrover3's DECLARED dependency
-      # closure straight from its recipe. Fails until @cvc/libcvc + the closure
-      # are published.
-      - name: Install volrover3's dependency closure from its recipe
+      # Everything comes from the catalog; nothing is apt/brew/vcpkg-installed.
+      # The top-level CMakeLists configures the whole VolumeRover 2.0 tree even
+      # when only volrover3 is built, so the prefix gets recipes/volrover2's
+      # closure (Boost, FFTW, GSL, log4cplus, GLEW, ImageMagick, GLU on Linux,
+      # pthreads4w on Windows) as well as recipes/volrover3's own: libcvc /
+      # cvcgl (cvcgl pulls in imgui) / vtk / qt6 / yaml-cpp / glew, plus
+      # python311 (the embedded CPython the CMakeLists hermeticity guard pins
+      # to this prefix) and the pycvc / pycvc-gl / pyside6 / shiboken6 runtime
+      # closure. Driving both from the recipes keeps them the single source of
+      # truth; a hand-kept `cvcpkg install <list>` is how cvcgl, yaml-cpp,
+      # python311 and imgui each went missing here in turn. Linux/macOS also
+      # take cmake + ninja from the catalog; Windows keeps the runner's cmake
+      # (the catalog's 3.31 has no generator for Visual Studio 2026).
+      - name: Install dependencies (cvcpkg)
+        id: deps
         shell: bash
         run: |
           set -euo pipefail
           export CVCPKG_SERVER_URL="$CVCPKG_SERVER"
-          # Drive the install from recipes/volrover3 instead of a hand-maintained
-          # parallel `cvcpkg install <list>` that drifts from it — that drift is
-          # exactly how cvcgl, yaml-cpp, python311 and imgui each went missing here
-          # in turn. `install-deps` reads the recipe's build + runtime deps and
-          # installs them transitively, so the recipe is the single source of truth:
-          #   - cvcgl -> pulls imgui in (cvcGL's config does find_dependency(imgui
-          #              CONFIG) now that the overlay is compiled into libcvcGL.a,
-          #              libcvc#370) with no explicit imgui line to forget
-          #   - libcvc / vtk / qt6 / yaml-cpp / glew, plus python311 (the embedded
-          #     CPython the CMakeLists hermeticity guard pins to this prefix) and
-          #     the pycvc-gl / pyside6 / shiboken6 runtime closure
-          # Host tools (cmake/ninja) are excluded by default — the CI image and the
-          # system-deps step above provide the top-level VolumeRover2 configure-gate
-          # packages (Boost/FFTW/GSL/log4cplus) that are not volrover3's own deps.
-          cvcpkg install-deps recipes/volrover3 \
-            --prefix "$GITHUB_WORKSPACE/cvc-deps" \
-            --platform "${{ matrix.platform }}" \
-            --config release \
-            --link shared
+          prefix="$GITHUB_WORKSPACE/cvc-deps"
+          host_tools=()
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            # D:/a/... rather than D:\a\...: CMake reads backslashes in
+            # quoted strings as escapes.
+            prefix="$(cygpath -m "$prefix")"
+          else
+            host_tools=(--include-host-tools)
+          fi
+          for recipe in recipes/volrover2 recipes/volrover3; do
+            cvcpkg install-deps "$recipe" \
+              --prefix "$prefix" \
+              --platform "${{ matrix.platform }}" \
+              --arch "${{ matrix.arch }}" \
+              --config release \
+              --link shared \
+              ${host_tools[@]+"${host_tools[@]}"}
+          done
+          echo "path=$prefix" >> "$GITHUB_OUTPUT"
 
+      # GLUT is an optional find nothing here uses; turning it off keeps the
+      # runner image out of the build. HDF5 stays on: libcvc's CMake config
+      # needs it, and it comes from the prefix.
       - name: Configure (Linux/macOS)
         if: matrix.platform != 'windows'
         shell: bash
         run: |
           set -euo pipefail
-          cmake -B build -G Ninja \
+          deps_prefix="${{ steps.deps.outputs.path }}"
+          # Magick++-config (queried at configure time for ImageMagick 7
+          # defines) resolves its flags through pkg-config.
+          export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          extra=()
+          if [ -n "${{ matrix.macos_min }}" ]; then
+            extra+=(-DCMAKE_OSX_DEPLOYMENT_TARGET="${{ matrix.macos_min }}")
+          fi
+          "$deps_prefix/bin/cmake" -B build -G Ninja \
+            -DCMAKE_MAKE_PROGRAM="$deps_prefix/bin/ninja" \
             -DCMAKE_BUILD_TYPE=Release \
             -DVOLROVER_RELEASE=ON \
             -DUSE_QT6=ON \
             -DDISABLE_CGAL=ON \
             -DBUILD_VOLROVER3=ON \
             -DVOLROVER3_BUILD_TESTS=OFF \
-            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/cvc-deps;${CMAKE_PREFIX_PATH:-}" \
-            -DCMAKE_INSTALL_PREFIX="$PWD/stage"
+            -DCMAKE_DISABLE_FIND_PACKAGE_GLUT=ON \
+            -DCMAKE_PREFIX_PATH="$deps_prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/stage" \
+            ${extra[@]+"${extra[@]}"}
 
+      # No vcpkg toolchain file and no install-qt-action: Qt6, Boost, GLEW,
+      # FFTW3, GSL, log4cplus, ImageMagick and pthreads4w come from the cvcpkg
+      # prefix, as in the volrover2 job.
       - name: Configure (Windows)
         if: matrix.platform == 'windows'
         run: |
+          $depsPath = '${{ steps.deps.outputs.path }}'
           cmake -B build `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_CONFIGURATION_TYPES=Release `
             -DVOLROVER_RELEASE=ON `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DCMAKE_PREFIX_PATH="${{ github.workspace }}\cvc-deps;$env:Qt6_DIR" `
-            -DPython3_EXECUTABLE="${{ github.workspace }}\cvc-deps\python.exe" `
-            -DPython3_ROOT_DIR="${{ github.workspace }}\cvc-deps" `
+            -DCMAKE_PREFIX_PATH="$depsPath" `
+            -DPython3_EXECUTABLE="$depsPath/python.exe" `
+            -DPython3_ROOT_DIR="$depsPath" `
             -DPython3_FIND_STRATEGY=LOCATION `
             -DUSE_QT6=ON `
             -DDISABLE_CGAL=ON `
             -DBUILD_VOLROVER3=ON `
             -DVOLROVER3_BUILD_TESTS=OFF `
+            -DCMAKE_DISABLE_FIND_PACKAGE_GLUT=ON `
             -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/stage"
 
       # Build only the volrover3 target; stage only its install
@@ -464,8 +468,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cmake --build build --parallel --config Release --target volrover3
-          cmake --install build --config Release --component volrover3 --prefix "$PWD/stage"
+          cmake=cmake
+          if [ "${{ matrix.platform }}" != "windows" ]; then
+            cmake="${{ steps.deps.outputs.path }}/bin/cmake"
+          fi
+          "$cmake" --build build --parallel --config Release --target volrover3
+          "$cmake" --install build --config Release --component volrover3 --prefix "$PWD/stage"
 
       - name: Pack archive
         shell: bash
