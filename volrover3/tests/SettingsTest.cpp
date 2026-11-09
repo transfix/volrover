@@ -1,3 +1,18 @@
+/*
+  Copyright 2026 CyberPC Angel, LLC
+
+  This file is part of VolumeRover.
+
+  VolumeRover is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License version 2.1 as published by the Free Software Foundation.
+
+  VolumeRover is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+*/
+
 // Phase 1: volrover3::Settings is backed by the cvc::state tree (per-instance
 // section under the global root) and persists to ~/.volrover/settings.yaml +
 // data.db. HOME is redirected to a temp dir by the test's ctest ENVIRONMENT.

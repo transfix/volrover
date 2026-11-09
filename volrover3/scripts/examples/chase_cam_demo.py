@@ -1,3 +1,16 @@
+# Copyright 2026 CyberPC Angel, LLC
+#
+# This file is part of VolumeRover.
+#
+# VolumeRover is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License version 2.1 as published by the Free Software Foundation.
+#
+# VolumeRover is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+
 # chase_cam_demo.py — a self-contained volrover3 example: build a live 3D scene
 # (rolling terrain + a marker) and animate it, filmed by a third-person chase
 # camera, all from the embedded Python interpreter. No external packages — only
