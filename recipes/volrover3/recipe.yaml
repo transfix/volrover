@@ -108,15 +108,19 @@ build:
 package:
   # `cvcpkg pack --from-prefix` ships the whole staged prefix; the
   # build scripts stage only the `volrover3` CPack/install component,
-  # so the prefix contains exactly the volrover3 app tree.
+  # so the prefix contains exactly the volrover3 app tree. Pack fails on
+  # an entry that matches nothing, so each one is scoped to the platforms
+  # whose layout has it.
   files:
     # Linux/BSD/Windows binary (plus bundled DLLs / Qt plugins from
     # windeployqt on Windows)
-    - bin/
-    # Freedesktop .desktop entry, icon, and README
+    - glob: bin/
+      platforms: [linux, windows, freebsd, openbsd, netbsd]
+    # Freedesktop .desktop entry, icon, README, example scripts
     - share/
     # macOS: the .app bundle is installed at the prefix root
-    - VolumeRover3.app/
+    - glob: VolumeRover3.app/
+      platforms: [macos]
 
 abi:
   cxx_std: 20
