@@ -390,7 +390,11 @@ jobs:
           export CVCPKG_SERVER_URL="$CVCPKG_SERVER"
           prefix="$GITHUB_WORKSPACE/cvc-deps"
           host_tools=()
-          if [ "${{ matrix.platform }}" != "windows" ]; then
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            # D:/a/... rather than D:\a\...: CMake reads backslashes in
+            # quoted strings as escapes.
+            prefix="$(cygpath -m "$prefix")"
+          else
             host_tools=(--include-host-tools)
           fi
           for recipe in recipes/volrover2 recipes/volrover3; do
@@ -445,7 +449,7 @@ jobs:
             -DCMAKE_CONFIGURATION_TYPES=Release `
             -DVOLROVER_RELEASE=ON `
             -DCMAKE_PREFIX_PATH="$depsPath" `
-            -DPython3_EXECUTABLE="$depsPath\python.exe" `
+            -DPython3_EXECUTABLE="$depsPath/python.exe" `
             -DPython3_ROOT_DIR="$depsPath" `
             -DPython3_FIND_STRATEGY=LOCATION `
             -DUSE_QT6=ON `
