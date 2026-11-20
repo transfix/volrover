@@ -95,41 +95,35 @@ jobs:
       # log4cplus does not compile with MSVC 14.44 (win32fstream.h), while the
       # cvcpkg build (log4cplus 2.1.2+cvc) does, and cvcpkg is the project's
       # single source of third-party deps.
+      #
+      # cvcpkg comes from cy-pca/cvcpkg at a release tag, as in publish-cvcpkg.yml:
+      # transfix/libcvc-deps is archived (2026-09-16) and frozen at cvcpkg 2.2.1.
+      # The action pip-installs whatever `repository`@`libcvc_deps_ref` it checks
+      # out; `requirements` is this repo's file.
       - name: Install dependencies (cvcpkg)
         id: deps
         if: runner.os == 'Windows'
-        uses: transfix/libcvc-deps/.github/actions/cvcpkg-install@master
+        uses: cy-pca/cvcpkg/.github/actions/cvcpkg-install@cvcpkg-v2.5.15
         with:
+          repository: cy-pca/cvcpkg
+          libcvc_deps_ref: cvcpkg-v2.5.15
           requirements: cvc-requirements.yaml
           build_type: Release
           link: shared
 
-      # The composite action installs cvcpkg from a sparse checkout that excludes
-      # recipes/. Reinstall the full package so the bundled recipes are present
-      # for the GLEW source-fallback below.
-      - name: Install cvcpkg (full, with bundled recipes)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          pip install --force-reinstall --no-deps 'git+https://github.com/transfix/libcvc-deps@master'
-          cvcpkg --version
-
-      # GLEW has a published bundle for linux/x86_64 only so far; build it from
-      # its recipe into the same prefix on Windows.
-      - name: Ensure GLEW (source fallback where no bundle exists yet)
+      # The action reports a failed install as an empty path rather than failing,
+      # so stop here instead of at configure. (GLEW, in cvc-requirements.yaml, has
+      # a windows/x86_64 bundle on the catalog now, so the source build from
+      # libcvc-deps' bundled recipe this job used to fall back on is gone.)
+      - name: Check the cvcpkg prefix
         if: runner.os == 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           deps_prefix="${{ steps.deps.outputs.path }}"
-          [ -n "$deps_prefix" ] || { echo "cvcpkg dependency prefix missing — provisioning failed earlier"; exit 1; }
-          cvcpkg install glew \
-            --prefix "$deps_prefix" \
-            --platform windows \
-            --config release \
-            --link shared \
-            --fallback-to-source
+          [ -n "$deps_prefix" ] || { echo "::error::cvcpkg could not install cvc-requirements.yaml (see the step above)"; exit 1; }
+          cvcpkg --version
+          ls "$deps_prefix/include/GL/glew.h"
 
       # ── Configure ──
       - name: Configure (Linux)
